@@ -1,5 +1,9 @@
 <?php
+/**
+ * @author Rufusy Idachi <idachirufus@gmail.com>
+ */
 
+require __DIR__ . '/constants.php';
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
 
@@ -10,6 +14,7 @@ $config = [
     'aliases' => [
         '@bower' => '@vendor/bower-asset',
         '@npm'   => '@vendor/npm-asset',
+        '@views' => '@app/views'
     ],
     'components' => [
         'request' => [
@@ -21,7 +26,9 @@ $config = [
         ],
         'user' => [
             'identityClass' => 'app\models\User',
-            'enableAutoLogin' => true,
+            'enableAutoLogin' => false,
+            'enableSession'	=> true,
+            'authTimeout' => 3600
         ],
         'errorHandler' => [
             'errorAction' => 'site/error',
@@ -42,16 +49,81 @@ $config = [
             ],
         ],
         'db' => $db,
-        /*
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
             'rules' => [
+                'home' => '/site/index',
+                'login' => '/site/login',
+                'logout' => '/site/logout',
             ],
         ],
-        */
+        'formatter' => [
+            'defaultTimeZone' => 'Africa/Nairobi',
+            'dateFormat' => 'd-M-Y',
+            'datetimeFormat' => 'd-M-Y H:i:s'
+        ],
+        'assetManager' => [
+            /**
+             * Yii loads assets from locally installed directories.
+             * To try and improve on performance, we want to load these assets from CDNs where possible.
+             */
+            'appendTimestamp' => true,
+            'forceCopy' => YII_DEBUG,
+//            'linkAssets' => true,
+            'bundles' => [
+                'yii\web\JqueryAsset' => [
+                    'js' => [
+                        'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js',
+                    ]
+                ],
+                'yii\jui\JuiAsset' => [
+                    'css' => [
+                        'https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css'
+                    ],
+                    'js' => [
+                        'https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js'
+                    ]
+                ],
+                'yii\bootstrap5\BootstrapAsset' => [
+                    'css' => [
+                        'https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/css/bootstrap.min.css',
+                    ]
+                ],
+                'yii\bootstrap5\BootstrapPluginAsset' => [
+                    'js' => [
+                        'https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js'
+                    ],
+                    'depends' => [
+                        'yii\jui\JuiAsset',
+                    ]
+                ],
+                /**
+                 * Yii comes with some js assets under vendor/yiisoft/yii2/assets
+                 * To improve on performance, we combine and minify these files
+                 */
+                'yii\web\YiiAsset' => [
+                    'css' => [], 'js' => [], 'depends' => ['app\assets\AllYiiAssets']
+                ],
+                'yii\widgets\ActiveFormAsset' => [
+                    'css' => [], 'js' => [], 'depends' => ['app\assets\AllYiiAssets']
+                ],
+                'yii\validators\ValidationAsset' => [
+                    'css' => [], 'js' => [], 'depends' => ['app\assets\AllYiiAssets']
+                ],
+                'yii\grid\GridViewAsset' => [
+                    'css' => [], 'js' => [], 'depends' => ['app\assets\AllYiiAssets']
+                ],
+                ' yii\captcha\CaptchaAsset' => [
+                    'css' => [], 'js' => [], 'depends' => ['app\assets\AllYiiAssets']
+                ]
+            ],
+        ],
     ],
     'params' => $params,
+    'modules' => [
+        'gridview' => ['class' => 'kartik\grid\Module'],
+    ],
 ];
 
 if (YII_ENV_DEV) {

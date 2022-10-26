@@ -1,49 +1,64 @@
 <?php
+/**
+ * @author Rufusy Idachi <idachirufus@gmail.com>
+ */
 
-/** @var yii\web\View $this */
-/** @var yii\bootstrap5\ActiveForm $form */
-/** @var app\models\LoginForm $model */
+/**
+ * @var $this yii\web\View
+ * @var $model app\models\LoginForm
+ * @var string $title
+ */
 
-use yii\bootstrap5\ActiveForm;
-use yii\bootstrap5\Html;
+use yii\helpers\Html;
+use yii\helpers\Url;
+use yii\widgets\ActiveForm;
 
-$this->title = 'Login';
-$this->params['breadcrumbs'][] = $this->title;
+$this->title = $title;
+
 ?>
-<div class="site-login">
-    <h1><?= Html::encode($this->title) ?></h1>
+<div class="login-box">
+    <div class="card">
+        <div class="card-body login-card-body">
 
-    <p>Please fill out the following fields to login:</p>
-
-    <?php $form = ActiveForm::begin([
-        'id' => 'login-form',
-        'layout' => 'horizontal',
-        'fieldConfig' => [
-            'template' => "{label}\n{input}\n{error}",
-            'labelOptions' => ['class' => 'col-lg-1 col-form-label mr-lg-3'],
-            'inputOptions' => ['class' => 'col-lg-3 form-control'],
-            'errorOptions' => ['class' => 'col-lg-7 invalid-feedback'],
-        ],
-    ]); ?>
-
-        <?= $form->field($model, 'username')->textInput(['autofocus' => true]) ?>
-
-        <?= $form->field($model, 'password')->passwordInput() ?>
-
-        <?= $form->field($model, 'rememberMe')->checkbox([
-            'template' => "<div class=\"offset-lg-1 col-lg-3 custom-control custom-checkbox\">{input} {label}</div>\n<div class=\"col-lg-8\">{error}</div>",
-        ]) ?>
-
-        <div class="form-group">
-            <div class="offset-lg-1 col-lg-11">
-                <?= Html::submitButton('Login', ['class' => 'btn btn-primary', 'name' => 'login-button']) ?>
+            <div style="padding: 20px; ">
+                <img class="mx-auto d-block" style="height: 100px;" src="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" alt="Logo">
             </div>
+
+            <?php
+            $form = ActiveForm::begin([
+                'action' => Url::to(['/site/process-login']),
+            ]);
+
+            echo $form->field($model, 'username')
+                ->textInput(['class' => 'form-control'])
+                ->label('Username', ['class' => 'required-control-label']);
+
+            echo $form->field($model, 'password')
+                ->textInput([
+                    'type' => 'password',
+                    'class' => 'form-control'
+                ])
+                ->label('Password', ['class' => 'required-control-label']);
+            ?>
+
+            <div class="row">
+                <div class="col-8"></div>
+                <div class="col-4">
+                    <button type="submit" class="btn btn-success btn-block">Sign In</button>
+                </div>
+            </div>
+
+            <?php ActiveForm::end(); ?>
+
+            <p class="mb-1">
+                <?php
+                echo Html::a('I forgot my password', ['/site/forgot-password'], ['title' => 'I forgot my password', 'class' => 'btn-link']);
+                ?>
+            </p>
+
         </div>
-
-    <?php ActiveForm::end(); ?>
-
-    <div class="offset-lg-1" style="color:#999;">
-        You may login with <strong>admin/admin</strong> or <strong>demo/demo</strong>.<br>
-        To modify the username/password, please check out the code <code>app\models\User::$users</code>.
+        <!-- /.login-card-body -->
     </div>
 </div>
+<!-- /.login-box -->
+

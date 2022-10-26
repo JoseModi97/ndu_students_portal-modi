@@ -1,11 +1,25 @@
 <?php
+/**
+ * @author Rufusy Idachi <idachirufus@gmail.com>
+ */
 
-// comment out the following two lines when deployed to production
-defined('YII_DEBUG') or define('YII_DEBUG', true);
-defined('YII_ENV') or define('YII_ENV', 'dev');
+use yii\helpers\VarDumper;
 
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/../vendor/yiisoft/yii2/Yii.php';
+
+/**
+ * Dump and die
+ * @param $v $v [explicit description]
+ * @return void
+ */
+function dd($v): void
+{
+    if(YII_ENV_DEV) {
+        VarDumper::dump($v, 10, true);
+        exit();
+    }
+}
 
 $config = require __DIR__ . '/../config/web.php';
 

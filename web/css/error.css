@@ -1,0 +1,40 @@
+*,
+*::after,
+*::before {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    align-items: center;
+    background: linear-gradient(#04AA6D, #04AA6D);
+    color: white;
+    display: flex;
+    font: 2rem "Poiret One";
+    height: 100vh;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+}
+
+h5,
+p {
+    position: absolute;
+    font-family: monospace;
+}
+
+h5 {
+    top: 10%;
+    font-size: 0.4em;
+}
+
+p {
+    font-size: 0.3em;
+    top: 30%;
+    width: 50%;
+    text-align: center;
+}
+
+p a {
+    color: cyan;
+}

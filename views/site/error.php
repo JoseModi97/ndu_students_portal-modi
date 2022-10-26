@@ -1,27 +1,26 @@
 <?php
+/**
+ * @author Rufusy Idachi <idachirufus@gmail.com>
+ * @desc This file displays the error page with messages
+ */
 
-/** @var yii\web\View $this */
-/** @var string $name */
-/** @var string $message */
-/** @var Exception$exception */
+/**
+ * @var $this yii\web\View
+ * @var string $name
+ * @var string $title
+ */
 
-use yii\helpers\Html;
-
-$this->title = $name;
+$this->title = 'Error | ' . $name;
+$exception = Yii::$app->errorHandler->exception;
 ?>
-<div class="site-error">
 
-    <h1><?= Html::encode($this->title) ?></h1>
+<h5>Error !</h5>
 
-    <div class="alert alert-danger">
-        <?= nl2br(Html::encode($message)) ?>
-    </div>
-
-    <p>
-        The above error occurred while the Web server was processing your request.
-    </p>
-    <p>
-        Please contact us if you think this is a server error. Thank you.
-    </p>
-
-</div>
+<p>
+    <?= $exception->getMessage() ?>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+    Do you need help? Send a message to smis_support@ndu.ac.ke
+</p>

@@ -1,84 +1,247 @@
-main > .container {
-    padding: 70px 15px 20px;
+body, .content-wrapper {
+    background-color: #fff !important;
 }
 
-.footer {
-    background-color: #f5f5f5;
-    font-size: .9em;
-    height: 60px;
+body {
+    font-family: GT-America-Standard,"Helvetica Neue",Helvetica,Arial,sans-serif;;
+    color: #0b1b34;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.4;
 }
 
-.footer > .container {
-    padding-right: 15px;
-    padding-left: 15px;
+.main-sidebar {
+    background-color: #0b1b34 !important;
 }
 
-.not-set {
-    color: #c55;
-    font-style: italic;
+.main-sidebar a{
+    color: #fff !important;
 }
 
-/* add sorting icons to gridview sort links */
-a.asc:after, a.desc:after {
-    content: '';
-    left: 3px;
-    display: inline-block;
-    width: 0;
-    height: 0;
-    border: solid 5px transparent;
-    margin: 4px 4px 2px 4px;
-    background: transparent;
+.btn-group {
+    margin-right: 5px;
 }
 
-a.asc:after {
-    border-bottom: solid 7px #212529;
-    border-top-width: 0;
+.btn-spacer {
+    margin-right: 5px;
 }
 
-a.desc:after {
-    border-top: solid 7px #212529;
-    border-bottom-width: 0;
+.btn:focus {
+    border-color: transparent !important;
+    outline: none !important;
 }
 
-.grid-view th {
-    white-space: nowrap;
+.btn-success {
+    background-color: #304186;
+    border-color: #304186;
+    color: #fff;
+    box-shadow: none;
+    font-weight: 700;
+    transition: all .5s ease;
 }
 
-.hint-block {
-    display: block;
-    margin-top: 5px;
-    color: #999;
-}
-
-.error-summary {
-    color: #a94442;
-    background: #fdf7f7;
-    border-left: 3px solid #eed3d7;
-    padding: 10px 20px;
-    margin: 0 0 15px 0;
-}
-
-/* align the logout "link" (button in form) of the navbar */
-.nav li > form > button.logout {
-    padding-top: 7px;
-    color: rgba(255, 255, 255, 0.5);
-}
-
-@media(max-width:767px) {
-    .nav li > form > button.logout {
-        display:block;
-        text-align: left;
-        width: 100%;
-        padding: 10px 0;
-    }
-}
-
-.nav > li > form > button.logout:focus,
-.nav > li > form > button.logout:hover {
+.btn-success:hover, .btn-success:active, .btn-success:focus {
+    color: #fff !important;
+    background-color: #aed6f1;
+    border-color: #aed6f1;
     text-decoration: none;
-    color: rgba(255, 255, 255, 0.75);
 }
 
-.nav > li > form > button.logout:focus {
-    outline: none;
+.btn-link{
+    font-weight: 400;
+    color: #304186;
+    text-decoration: none;
+}
+
+.btn-link:focus{
+    text-decoration: underline !important;
+    box-shadow: none !important;
+}
+
+.btn-link:hover{
+    color: #aed6f1;
+    text-decoration: underline !important;
+}
+
+.card {
+    box-shadow: 0 8px 16px rgb(0 0 0 / 3%), 0 3px 6px rgb(0 0 0 / 4%);
+}
+
+.card-primary.card-outline{
+    border-top: none;
+}
+
+.card-header,
+.grid-view .grid-header,
+.modal .modal-header,
+.grid-view .card-header
+{
+    background-color: #fff !important;
+    border-bottom: none;
+}
+
+.table thead th {
+    border-bottom: none;
+    font-weight: 400!important;
+}
+
+.table tbody td {
+    font-weight: 300!important;
+}
+
+.table-info, .table-info > td, .table-info > th {
+    background-color: #fff !important;
+}
+
+.table-danger td {
+    background-color: grey;
+    border-color: grey;
+    color: #fff !important;
+}
+
+.table-danger td > a {
+    color: #fff !important;
+    text-decoration: underline;
+}
+
+.table-hover .table-danger:hover > td {
+    background-color: green;
+}
+
+.grid-view .pagination .page-link {
+    color: #03d47c !important;
+}
+
+.grid-view .pagination .active .page-link {
+    color: #fff !important;
+    background-color: #03d47c !important;
+    border-color: #03d47c !important;
+}
+
+.status {
+    border-radius: 5px !important;
+    color: #fff;
+    height: 34px;
+    padding: 8px 0px;
+    line-height: 1.4;
+}
+
+.status-active {
+    background-color: #03d47c !important;
+}
+
+.status-not-active {
+    background-color: #03d47c !important;
+}
+
+.status-deleted {
+    background-color: red !important;
+}
+
+.status-archived {
+    background-color: orange !important;
+}
+
+.spinner {
+    color: #03d47c !important;
+    font-size: 100px;
+}
+
+.daterangepicker .ranges .active {
+    background-color: #03d47c !important;
+}
+
+.daterangepicker .drp-buttons .drp-selected {
+    color: #03d47c !important;
+}
+
+.daterangepicker td.active, .daterangepicker td.active:hover {
+    background-color: #03d47c !important;
+}
+
+.daterangepicker .btn-primary.disabled, .daterangepicker .btn-primary:disabled {
+    background-color: #03d47c !important;
+    border-color: #03d47c;
+}
+
+.form-group{
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    font-weight: 400 !important;
+}
+
+.form-group .help-block{
+    color: #fc3826;
+    font-size: 80%;
+}
+
+.required-control-label:after {
+    content:" *";
+    color:#fc3826;
+}
+
+.form-control:focus{
+    border-color: #304186 !important;
+    background-color: #fff !important;
+    color: #0b1b34 !important;
+}
+
+.form-control {
+    background-color: transparent !important;
+}
+
+.callout{
+    box-shadow: 0 8px 16px rgb(0 0 0 / 3%), 0 3px 6px rgb(0 0 0 / 4%);
+}
+
+.callout.callout-info {
+    border-left-color: #0185ff !important;
+}
+
+.callout.callout-danger {
+    border-left-color: #fc3826 !important;
+}
+
+.custom-checkbox .custom-control-input:checked ~ .custom-control-label::before {
+    background-color: #03d47c!important;
+}
+
+.custom-checkbox .custom-control-input:checked:focus ~ .custom-control-label::before {
+    box-shadow: 0 0 0 1px #fff, 0 0 0 0.2rem rgba(0, 140, 186, 0.25)
+}
+
+.custom-checkbox .custom-control-input:focus ~ .custom-control-label::before {
+    box-shadow: 0 0 0 1px #fff, 0 0 0 0.2rem rgba(0, 140, 186, 0.25)
+}
+
+.custom-checkbox .custom-control-input:active ~ .custom-control-label::before {
+    background-color: #03bb6d !important;
+}
+
+
+.nav-tabs.flex-column {
+    border-right: none !important;;
+}
+.nav-tabs .nav-link {
+    border: none !important;
+}
+
+.nav-tabs .nav-link:hover{
+    text-decoration: underline;
+}
+
+.bg-blue{
+    background-color: #0185ff !important;
+}
+.bg-red{
+    background-color: #fc3826 !important;
+}
+.bg-green {
+    background-color: #03d47c !important;
+}
+
+.spinner {
+    font-size: 20px !important;
 }

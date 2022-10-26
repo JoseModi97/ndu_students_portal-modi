@@ -2,66 +2,93 @@
 
 namespace app\controllers;
 
+use app\helpers\GradHelper;
+use Exception;
 use Yii;
 use yii\filters\AccessControl;
+use yii\web\BadRequestHttpException;
 use yii\web\Controller;
 use yii\web\Response;
 use yii\filters\VerbFilter;
 use app\models\LoginForm;
 use app\models\ContactForm;
+use yii\web\ServerErrorHttpException;
 
 class SiteController extends Controller
 {
     /**
      * {@inheritdoc}
      */
-    public function behaviors()
+//    public function behaviors()
+//    {
+//        return [
+//            'access' => [
+//                'class' => AccessControl::class,
+//                'only' => ['logout'],
+//                'rules' => [
+//                    [
+//                        'actions' => ['logout'],
+//                        'allow' => true,
+//                        'roles' => ['@'],
+//                    ],
+//                ],
+//            ],
+//            'verbs' => [
+//                'class' => VerbFilter::class,
+//                'actions' => [
+//                    'logout' => ['post'],
+//                ],
+//            ],
+//        ];
+//    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function actions(): array
     {
         return [
-            'access' => [
-                'class' => AccessControl::class,
-                'only' => ['logout'],
-                'rules' => [
-                    [
-                        'actions' => ['logout'],
-                        'allow' => true,
-                        'roles' => ['@'],
-                    ],
-                ],
-            ],
-            'verbs' => [
-                'class' => VerbFilter::class,
-                'actions' => [
-                    'logout' => ['post'],
-                ],
-            ],
+            'error' => [
+                'class' => 'yii\web\ErrorAction',
+            ]
         ];
     }
 
     /**
      * {@inheritdoc}
+     *
+     * @throws BadRequestHttpException
      */
-    public function actions()
+    public function beforeAction($action): bool
     {
-        return [
-            'error' => [
-                'class' => 'yii\web\ErrorAction',
-            ],
-            'captcha' => [
-                'class' => 'yii\captcha\CaptchaAction',
-                'fixedVerifyCode' => YII_ENV_TEST ? 'testme' : null,
-            ],
-        ];
+        if(parent::beforeAction($action)) {
+            if ($action->id == 'error') {
+                $this->layout = 'error';
+            }
+            return true;
+        }
+        return false;
     }
 
-    /**
-     * Displays homepage.
-     *
-     * @return string
-     */
     public function actionIndex()
     {
-        return $this->render('index');
+        try {
+            if (Yii::$app->user->isGuest) {
+                $this->layout = 'login';
+                return $this->render('login', [
+                    'title' => 'Login',
+                    'model' => new LoginForm()
+                ]);
+            } else {
+                return Yii::$app->response->redirect(['/dash/index']);
+            }
+        }catch(Exception $ex){
+            $message = $ex->getMessage();
+            if(YII_ENV_DEV){
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            throw new ServerErrorHttpException($message, 500);
+        }
     }
 
     /**
@@ -69,60 +96,32 @@ class SiteController extends Controller
      *
      * @return Response|string
      */
-    public function actionLogin()
-    {
-        if (!Yii::$app->user->isGuest) {
-            return $this->goHome();
-        }
-
-        $model = new LoginForm();
-        if ($model->load(Yii::$app->request->post()) && $model->login()) {
-            return $this->goBack();
-        }
-
-        $model->password = '';
-        return $this->render('login', [
-            'model' => $model,
-        ]);
-    }
+//    public function actionLogin()
+//    {
+//        if (!Yii::$app->user->isGuest) {
+//            return $this->goHome();
+//        }
+//
+//        $model = new LoginForm();
+//        if ($model->load(Yii::$app->request->post()) && $model->login()) {
+//            return $this->goBack();
+//        }
+//
+//        $model->password = '';
+//        return $this->render('login', [
+//            'model' => $model,
+//        ]);
+//    }
 
     /**
      * Logout action.
      *
      * @return Response
      */
-    public function actionLogout()
-    {
-        Yii::$app->user->logout();
-
-        return $this->goHome();
-    }
-
-    /**
-     * Displays contact page.
-     *
-     * @return Response|string
-     */
-    public function actionContact()
-    {
-        $model = new ContactForm();
-        if ($model->load(Yii::$app->request->post()) && $model->contact(Yii::$app->params['adminEmail'])) {
-            Yii::$app->session->setFlash('contactFormSubmitted');
-
-            return $this->refresh();
-        }
-        return $this->render('contact', [
-            'model' => $model,
-        ]);
-    }
-
-    /**
-     * Displays about page.
-     *
-     * @return string
-     */
-    public function actionAbout()
-    {
-        return $this->render('about');
-    }
+//    public function actionLogout()
+//    {
+//        Yii::$app->user->logout();
+//
+//        return $this->goHome();
+//    }
 }
