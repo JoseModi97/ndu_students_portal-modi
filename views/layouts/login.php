@@ -3,8 +3,10 @@
  * @author Rufusy Idachi <idachirufus@gmail.com>
  */
 
-/* @var $this View */
-/* @var $content string */
+/**
+ * @var $this View
+ * @var $content string
+ */
 
 use app\assets\AppAsset;
 use kartik\growl\Growl;
@@ -53,10 +55,11 @@ foreach (Yii::$app->session->getAllFlashes() as $flash) {
                 'body' => $flashMessage,
                 'showSeparator' => true,
                 'delay' => 0,
+                'closeButton' => null,
                 'pluginOptions' => [
                     'showProgressbar' => false,
                     'placement' => [
-                        'from' => 'top',
+                        'from' => 'bottom',
                         'align' => 'right',
                     ]
                 ]

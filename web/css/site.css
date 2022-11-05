@@ -1,5 +1,5 @@
 body, .content-wrapper {
-    background-color: #fff !important;
+    background-color: #fafafa !important;
 }
 
 body {
@@ -10,12 +10,54 @@ body {
     line-height: 1.4;
 }
 
+/* Navigation bars styling */
 .main-sidebar {
-    background-color: #0b1b34 !important;
+    background-color: #304186 !important;
 }
 
-.main-sidebar a{
-    color: #fff !important;
+.main-sidebar li  {
+    padding: 5px 0;
+}
+
+[class*="sidebar-dark-"] .sidebar a {
+    color: #fff;
+}
+
+[class*="sidebar-dark-"] .sidebar a:hover {
+    color: #aed6f1;
+    text-decoration: none !important;
+}
+
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item.menu-open > .nav-link,
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item:hover > .nav-link,
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item > .nav-link:focus {
+    background-color: #304186;
+    color: #aed6f1;
+    transition: all .5s ease-in-out;
+}
+
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item > .nav-link:active {
+    background-color: #304186;
+    color: #aed6f1;
+    transition: all .5s ease-in-out;
+}
+
+.page-header {
+    border-bottom: 1px solid #ececec;
+    color: #0b1b34;
+    line-height: 30px;
+    font-weight: 700 !important;
+    font-size: 17px !important;
+    padding-top: 10px;
+    padding-bottom: 20px;
+    padding-left: 10px;
+}
+
+/* Buttons styling */
+.btn {
+    box-shadow: none;
+    font-weight: 700;
+    transition: all .5s ease;
 }
 
 .btn-group {
@@ -35,9 +77,6 @@ body {
     background-color: #304186;
     border-color: #304186;
     color: #fff;
-    box-shadow: none;
-    font-weight: 700;
-    transition: all .5s ease;
 }
 
 .btn-success:hover, .btn-success:active, .btn-success:focus {
@@ -63,12 +102,60 @@ body {
     text-decoration: underline !important;
 }
 
+.registered-student {
+    margin-bottom: 10px;
+}
+
+.login-options-title {
+    color: #0b1b34;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+}
+
+.reg-student-btn,
+.complete-reg-btn {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.reg-student-btn {
+    background-color: #304186;
+    border-color: #304186;
+    color: #fff;
+}
+
+.complete-reg-btn,
+.btn-cancel-login {
+    background-color: #fff;
+    border-color: #304186;
+    color: #304186;
+}
+
+.reg-student-btn:hover,
+.complete-reg-btn:hover,
+.btn-cancel-login:hover {
+    background-color: #aed6f1;
+    border-color: #aed6f1;
+    color: #fff;
+}
+
+/* Cards styling */
 .card {
     box-shadow: 0 8px 16px rgb(0 0 0 / 3%), 0 3px 6px rgb(0 0 0 / 4%);
 }
 
+.card .card-body {
+    border-radius: .25rem;
+}
+
 .card-primary.card-outline{
     border-top: none;
+}
+
+.card-title {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    padding-top: 10px;
 }
 
 .card-header,
@@ -80,6 +167,7 @@ body {
     border-bottom: none;
 }
 
+/* tables styling */
 .table thead th {
     border-bottom: none;
     font-weight: 400!important;
@@ -118,6 +206,7 @@ body {
     border-color: #03d47c !important;
 }
 
+/* Status and hints styling */
 .status {
     border-radius: 5px !important;
     color: #fff;
@@ -142,11 +231,41 @@ body {
     background-color: orange !important;
 }
 
-.spinner {
-    color: #03d47c !important;
-    font-size: 100px;
+.bg-blue{
+    background-color: #0185ff !important;
+}
+.bg-red{
+    background-color: #fc3826 !important;
+}
+.bg-green {
+    background-color: #03d47c !important;
 }
 
+.loader {
+    color: #304186 !important;
+    font-size: 20px !important;
+    padding: 10px 0;
+}
+
+/*.alert-danger {*/
+/*    color: #831d14;*/
+/*    background-color: #fed7d4;*/
+/*    border-color: #fec7c2;*/
+/*}*/
+
+.error-display {
+    color: #831d14;
+}
+
+.alert {
+    position: relative;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+
+/* Date range picker widget styling */
 .daterangepicker .ranges .active {
     background-color: #03d47c !important;
 }
@@ -164,6 +283,7 @@ body {
     border-color: #03d47c;
 }
 
+/* Forms styling */
 .form-group{
     margin-bottom: 1rem;
 }
@@ -182,14 +302,23 @@ body {
     color:#fc3826;
 }
 
+.form-control,
+label {
+    color: #0b1b34;
+}
+
+.form-control {
+    background-color: transparent !important;
+}
+
 .form-control:focus{
     border-color: #304186 !important;
     background-color: #fff !important;
     color: #0b1b34 !important;
 }
 
-.form-control {
-    background-color: transparent !important;
+.text-muted {
+    color: #7d8b8f !important;
 }
 
 .callout{
@@ -220,7 +349,7 @@ body {
     background-color: #03bb6d !important;
 }
 
-
+/* Nav tabs styling */
 .nav-tabs.flex-column {
     border-right: none !important;;
 }
@@ -230,18 +359,4 @@ body {
 
 .nav-tabs .nav-link:hover{
     text-decoration: underline;
-}
-
-.bg-blue{
-    background-color: #0185ff !important;
-}
-.bg-red{
-    background-color: #fc3826 !important;
-}
-.bg-green {
-    background-color: #03d47c !important;
-}
-
-.spinner {
-    font-size: 20px !important;
 }

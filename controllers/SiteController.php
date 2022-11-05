@@ -1,50 +1,49 @@
 <?php
+/**
+ * @author Rufusy Idachi <idachirufus@gmail.com>
+ */
 
 namespace app\controllers;
 
-use app\helpers\GradHelper;
+use app\helpers\SmisHelper;
+use app\models\ForgotPasswordForm;
+use app\models\LoginForm;
+use app\models\User;
 use Exception;
+use JetBrains\PhpStorm\ArrayShape;
 use Yii;
 use yii\filters\AccessControl;
 use yii\web\BadRequestHttpException;
-use yii\web\Controller;
 use yii\web\Response;
-use yii\filters\VerbFilter;
-use app\models\LoginForm;
-use app\models\ContactForm;
 use yii\web\ServerErrorHttpException;
 
-class SiteController extends Controller
+class SiteController extends BaseController
 {
     /**
      * {@inheritdoc}
      */
-//    public function behaviors()
-//    {
-//        return [
-//            'access' => [
-//                'class' => AccessControl::class,
-//                'only' => ['logout'],
-//                'rules' => [
-//                    [
-//                        'actions' => ['logout'],
-//                        'allow' => true,
-//                        'roles' => ['@'],
-//                    ],
-//                ],
-//            ],
-//            'verbs' => [
-//                'class' => VerbFilter::class,
-//                'actions' => [
-//                    'logout' => ['post'],
-//                ],
-//            ],
-//        ];
-//    }
+    #[ArrayShape(['access' => "array"])]
+    public function behaviors(): array
+    {
+        return [
+            'access' => [
+                'class' => AccessControl::class,
+                'only' => ['logout'],
+                'rules' => [
+                    [
+                        'actions' => ['logout'],
+                        'allow' => true,
+                        'roles' => ['@'],
+                    ],
+                ],
+            ]
+        ];
+    }
 
     /**
      * {@inheritdoc}
      */
+    #[ArrayShape(['error' => "string[]"])]
     public function actions(): array
     {
         return [
@@ -70,16 +69,35 @@ class SiteController extends Controller
         return false;
     }
 
-    public function actionIndex()
+    /**
+     * @return Response
+     */
+    public function actionIndex(): Response
+    {
+        if(Yii::$app->user->isGuest){
+            return $this->redirect(['/site/login']);
+        }
+        return $this->redirect(['/dash/index']);
+    }
+
+    /**
+     * @return string|\yii\console\Response|Response
+     * @throws ServerErrorHttpException
+     */
+    public function actionLogin(): Response|string|\yii\console\Response
     {
         try {
             if (Yii::$app->user->isGuest) {
                 $this->layout = 'login';
                 return $this->render('login', [
-                    'title' => 'Login',
+                    'title' => $this->createPageTitle('login'),
                     'model' => new LoginForm()
                 ]);
             } else {
+                /**
+                 * Fully registered students are redirected to the portal dashboard.
+                 * Not fully registered students are redirected to the registration page.
+                 */
                 return Yii::$app->response->redirect(['/dash/index']);
             }
         }catch(Exception $ex){
@@ -92,36 +110,136 @@ class SiteController extends Controller
     }
 
     /**
-     * Login action.
-     *
-     * @return Response|string
+     * @return Response|string|\yii\console\Response
+     * @throws ServerErrorHttpException
      */
-//    public function actionLogin()
-//    {
-//        if (!Yii::$app->user->isGuest) {
-//            return $this->goHome();
-//        }
-//
-//        $model = new LoginForm();
-//        if ($model->load(Yii::$app->request->post()) && $model->login()) {
-//            return $this->goBack();
-//        }
-//
-//        $model->password = '';
-//        return $this->render('login', [
-//            'model' => $model,
-//        ]);
-//    }
+    public function actionProcessLogin(): Response|string|\yii\console\Response
+    {
+        try {
+            $model = new LoginForm();
+            if($model->load(Yii::$app->request->post())){
+                if($model->validate()){
+                    if(Yii::$app->user->login($model->getUser())){
+                        $this->setFlash('success', 'Login', 'Logged in successfully.');
+
+                        /**
+                         * Not fully registered students are redirected to the registration page.
+                         * Fully registered students are redirected to the portal dashboard.
+                         */
+                        if(Yii::$app->user->identity->admission_status === 'false'){
+                            return Yii::$app->response->redirect(['/registration/index']);
+                        }
+
+                        return Yii::$app->response->redirect(['/dash/index']);
+                    }else{
+                        throw new Exception('An error occurred while trying to log in.');
+                    }
+                }else{
+                    $this->setFlash('danger', 'Login', 'Incorrect username or password.');
+                    return $this->redirect(['/site/login']);
+                }
+            }
+            return $this->redirect(['/site/login']);
+        }catch(Exception $ex){
+            $message = $ex->getMessage();
+            if(YII_ENV_DEV){
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            throw new ServerErrorHttpException($message, 500);
+        }
+    }
 
     /**
-     * Logout action.
-     *
      * @return Response
      */
-//    public function actionLogout()
-//    {
-//        Yii::$app->user->logout();
-//
-//        return $this->goHome();
-//    }
+    public function actionLogout(): Response
+    {
+        Yii::$app->user->logout();
+
+        return $this->goHome();
+    }
+
+    /**
+     * Display page for forget password
+     * @throws ServerErrorHttpException
+     */
+    public function actionForgotPassword(): string
+    {
+        try {
+            $this->layout = 'login';
+            return $this->render('forgotPassword', [
+                'title' => $this->createPageTitle('I forgot my password'),
+                'model' => new ForgotPasswordForm()
+            ]);
+        }catch(Exception $ex){
+            $message = $ex->getMessage();
+            if(YII_ENV_DEV){
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            throw new ServerErrorHttpException($message, 500);
+        }
+    }
+
+    /**
+     * @return Response
+     * @throws ServerErrorHttpException
+     */
+    public function actionPasswordReset(): Response
+    {
+        $transaction = Yii::$app->db->beginTransaction();
+        try {
+            $post = Yii::$app->request->post();
+
+            $email = $post['ForgotPasswordForm']['email'];
+            $refNumber =  $post['ForgotPasswordForm']['username'];
+
+            $user = User::find()->where(['primary_email' => $email, 'adm_refno' => $refNumber])->one();
+            if(!$user){
+                $user = User::find()->where(['alternative_email' => $email, 'adm_refno' => $refNumber])->one();
+                if(!$user){
+                    $this->setFlash('danger', 'Password reset', 'Incorrect reference number or email');
+                    return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+                }
+            }
+
+            if($user){
+                $password = $user->generatePassword();
+                $user->password = $password['hash'];
+                if ($user->save()) {
+                    $emails = [
+                        'recipientEmail' => $email,
+                        'subject' => 'PASSWORD RESET',
+                        'params' => [
+                            'recipient' => $user->surname,
+                            'password' => $password['plain']
+                        ]
+                    ];
+
+                    $layout = '@app/mail/layouts/html';
+                    $view = '@app/mail/views/passwordReset';
+                    SmisHelper::sendEmails([$emails], $layout, $view);
+                }else{
+                    if(!$user->validate()){
+                        $transaction->rollBack();
+                        $errorMessage = SmisHelper::getModelErrors($user->getErrors());
+                        $this->setFlash('danger', 'Password reset', $errorMessage);
+                        return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+                    }else{
+                        throw new Exception('Profile not updated.');
+                    }
+                }
+            }
+
+            $this->setFlash('success', 'Password reset', 'A new password has been sent to your email address.');
+            $transaction->commit();
+            return $this->redirect(['/site/login']);
+        } catch (Exception $ex) {
+            $transaction->rollBack();
+            $message = $ex->getMessage();
+            if (YII_ENV_DEV) {
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            throw new ServerErrorHttpException($message, 500);
+        }
+    }
 }

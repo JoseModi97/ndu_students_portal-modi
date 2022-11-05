@@ -4,20 +4,18 @@ $('body').addClass('text-sm')
 //Resolve conflict in jQuery UI tooltip with Bootstrap tooltip
 $.widget.bridge('uibutton', $.ui.button)
 
-$('.application-date-picker').datetimepicker({
-    format: 'L'
-});
+// App loading indicator
+const loader = '<h6 class="text-center spinner"> <i class="fas fa-circle-notch fa-spin"></i> </h6>';
 
-// Get selected rows
-function getSelectedIds(gridSelector) {
-    let keys = $(gridSelector).yiiGridView('getSelectedRows');
-    let ids = [];
-    $('table > tbody').find('tr').each(function(e) {
-        let dataKey = $(this).attr('data-key');
-
-        if(keys.includes(parseInt(dataKey))){
-            ids.push($(this).find('.kv-row-checkbox').val());
-        }
-    });
-    return [...new Set(ids)]
+// Show success toastr
+function successToaster(message){
+    toastr.success(message)
 }
+
+// Show error toastr
+function errorToaster(message){
+    toastr.error(message)
+}
+
+
+

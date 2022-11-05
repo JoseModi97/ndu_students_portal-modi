@@ -27,6 +27,8 @@ class AppAsset extends AssetBundle
         'https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback',
         // Font Awesome
         'adminlte/plugins/fontawesome-free/css/all.min.css',
+        //aos animate
+        'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css',
         // iCheck
         'https://cdnjs.cloudflare.com/ajax/libs/icheck-bootstrap/3.0.1/icheck-bootstrap.min.css',
         // Datetimepicker
@@ -37,6 +39,8 @@ class AppAsset extends AssetBundle
         'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-daterangepicker/3.0.5/daterangepicker.min.css',
         // summernote
         'https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-bs4.min.css',
+        // Toastr
+        'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css',
 
         /**
          * Application css
@@ -61,6 +65,10 @@ class AppAsset extends AssetBundle
         'https://cdn.jsdelivr.net/npm/jquery-validation@1.19.3/dist/additional-methods.min.js',
         // Datetimepicker
         'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js',
+        // Aos
+        'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js',
+        // Toastr
+        'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js',
         // AdminLTE App
         'https://cdn.jsdelivr.net/npm/admin-lte@3.1/dist/js/adminlte.min.js',
 
@@ -69,6 +77,7 @@ class AppAsset extends AssetBundle
          * Load these at the very bottom of this list
          */
         'js/site.js',
+        'js/jquery-validation.js'
     ];
 
     public $depends = [

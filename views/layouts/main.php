@@ -39,39 +39,15 @@ AppAsset::register($this);
             <li class="nav-item">
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">
-                    <?= Yii::$app->user->identity->FACULTY_NAME . '('. Yii::$app->user->identity->FAC_CODE .
-                    ') | DEPT: ' . Yii::$app->user->identity->DEPT_NAME . ' (' . Yii::$app->user->identity->DEPT_CODE .')'; ?>
-                </a>
-            </li>
         </ul>
 
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
-            <!-- User roles Dropdown Menu -->
-            <li class="nav-item dropdown">
-                <a class="nav-link" data-toggle="dropdown" href="#">
-                    <i class="fa fa-cog" aria-hidden="true"></i> Roles &nbsp;&nbsp;
-                    <span class="badge badge-warning navbar-badge"><?= count(Yii::$app->session->get('roles'))?></span>
-                </a>
-                <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-                    <?php foreach (Yii::$app->session->get('roles') as $role):?>
-                        <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item">
-                             <?= $role; ?>
-                        </a>
-                    <?php endforeach;?>
-                </div>
-            </li>
             <li class="nav-item">
-                <a class="nav-link btn-link" href="#" role="button">
-                    <i class="fas fa-download"></i> User manual
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link btn-link" href="<?= Url::to(['/site/logout']); ?>">
-                  Sign out
+                <a class="nav-link" href="<?= Url::to(['/site/logout']); ?>">
+                    <i class="fa-regular fa-arrow-up-left-from-circle"></i>
+                    <i class="fa-duotone fa-right-from-bracket"></i>
+                    Sign out
                 </a>
             </li>
         </ul>
@@ -88,7 +64,7 @@ AppAsset::register($this);
     <!-- /.content-wrapper -->
     <footer class="main-footer">
         <strong>
-            You need help? send a message to gradsystem-support@uonbi.ac.ke
+            Do you need help? Send a message to smis_support@ndu.ac.ke
         </strong>
     </footer>
 
@@ -124,6 +100,7 @@ if(!empty($flashes)){
                 'body' => $flashMessage,
                 'showSeparator' => true,
                 'delay' => 0,
+                'closeButton' => null,
                 'pluginOptions' => [
                     'showProgressbar' => false,
                     'placement' => [
