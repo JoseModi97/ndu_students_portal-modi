@@ -43,9 +43,9 @@ class SmisHelper
         foreach($emails as $email){
             if(!empty($email['recipientEmail'])){
                 $recipientEmail = $email['recipientEmail'];
-                if(YII_ENV_DEV){
-                    $recipientEmail = Yii::$app->params['noReplyEmail'];
-                }
+//                if(YII_ENV_DEV){
+//                    $recipientEmail = Yii::$app->params['noReplyEmail'];
+//                }
                 $message = Yii::$app->mailer->compose();
                 $message->setFrom([Yii::$app->params['noReplyEmail'] => Yii::$app->params['sitename']])
                     ->setTo($recipientEmail)

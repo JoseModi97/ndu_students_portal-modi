@@ -35,11 +35,15 @@ $config = [
             'errorAction' => 'site/error',
         ],
         'mailer' => [
+            /**
+             * https://github.com/symfony/symfony-docs/issues/17115
+             */
             'class' => Mailer::class,
             'viewPath' => '@app/mail',
             'useFileTransport' => false,
             'transport' => [
-                'dsn' => 'smtp://d38acd23973124:4badb45ed6fd76@smtp.mailtrap.io:2525?encryption=tls&auth_mode=login'
+//                'dsn' => 'smtp://d38acd23973124:4badb45ed6fd76@smtp.mailtrap.io:2525?encryption=tls&auth_mode=login',
+                'dsn' => 'gmail://smisadmin@uonbi.ac.ke:lziunystxuhwunjh@default'
             ]
         ],
         'log' => [
