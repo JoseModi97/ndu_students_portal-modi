@@ -75,7 +75,8 @@ class AppAsset extends AssetBundle
          * Load these at the very bottom of this list
          */
         'js/site.js',
-        'js/jquery-validation.js'
+        'js/jquery_validation.js',
+        'js/upload_reg_documents.js'
     ];
 
     public $depends = [
