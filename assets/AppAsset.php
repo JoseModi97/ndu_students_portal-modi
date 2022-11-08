@@ -25,8 +25,6 @@ class AppAsset extends AssetBundle
          */
         // Google Font: Source Sans Pro
         'https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback',
-        // Font Awesome
-        'adminlte/plugins/fontawesome-free/css/all.min.css',
         //aos animate
         'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css',
         // iCheck

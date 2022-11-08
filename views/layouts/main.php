@@ -20,8 +20,8 @@ AppAsset::register($this);
 <head>
     <meta charset="<?= Yii::$app->charset ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="shortcut icon" href="<?=Yii::getAlias('@web');?>/img/logo.png" type="image/x-icon">
-    <link rel="icon" href="<?=Yii::getAlias('@web');?>/img/logo.png" type="image/x-icon">
+    <link rel="shortcut icon" href="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" type="image/x-icon">
+    <link rel="icon" href="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <?php $this->registerCsrfMetaTags() ?>
     <title><?= Html::encode($this->title) ?></title>
@@ -37,7 +37,9 @@ AppAsset::register($this);
         <!-- Left navbar links -->
         <ul class="navbar-nav">
             <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+                <a class="nav-link" data-widget="pushmenu" href="#" role="button">
+                    <i class="fa fa-bars" aria-hidden="true"></i>
+                </a>
             </li>
         </ul>
 
@@ -45,9 +47,8 @@ AppAsset::register($this);
         <ul class="navbar-nav ml-auto">
             <li class="nav-item">
                 <a class="nav-link" href="<?= Url::to(['/site/logout']); ?>">
-                    <i class="fa-regular fa-arrow-up-left-from-circle"></i>
-                    <i class="fa-duotone fa-right-from-bracket"></i>
-                    Sign out
+                    <i class="nav-icon fa fa-sign-out" aria-hidden="true"></i>
+                    sign out
                 </a>
             </li>
         </ul>
