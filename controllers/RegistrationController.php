@@ -97,6 +97,11 @@ class RegistrationController extends BaseController
     {
         $transaction = Yii::$app->db->beginTransaction();
         try{
+            if(empty($_FILES)){
+                $this->setFlash('danger', 'Registration', 'No documents selected for upload.');
+                return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+            }
+
             $validExtensions = ['jpeg', 'jpg', 'png', 'pdf'];
 
             /**
