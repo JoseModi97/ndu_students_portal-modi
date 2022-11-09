@@ -5,7 +5,7 @@ $('body').addClass('text-sm')
 $.widget.bridge('uibutton', $.ui.button)
 
 // App loading indicator
-const loader = '<h6 class="text-center spinner"> <i class="fas fa-circle-notch fa-spin"></i> </h6>';
+const loader = '<h6 class="text-center spinner"> <i class="fa fa-circle-o-notch fa-spin"></i> </h6>';
 
 // Show success toastr
 function successToaster(message){

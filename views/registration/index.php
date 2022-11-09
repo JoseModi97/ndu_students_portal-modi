@@ -108,9 +108,14 @@ $this->title = $title;
 
 <?php
 $regDocumentUrl = Url::to(['/registration/registration-document']);
+$uploadDocumentsUrl = Url::to(['/registration/upload']);
 
+/**
+ * @see js/upload_reg_documents.js for additional methods
+ */
 $uploadFilesJs = <<< JS
 const regDocumentUrl = '$regDocumentUrl';
+const uploadDocumentsUrl = '$uploadDocumentsUrl';
 
 $('#documents-selector').on('change', function (e){
     addRegDocument.call(this, e, regDocumentUrl);
@@ -118,6 +123,41 @@ $('#documents-selector').on('change', function (e){
 
 $('.reg-documents').on('click', '.remove-reg-document', function (e){
       removeRegDocument.call(this, e);
+});
+
+$('#btn-upload-docs').click(function (e){
+    e.preventDefault();
+    if(regDocumentsForm.valid()){
+        if(confirm('Upload documents?')){
+            regDocsErrorDisplay.hide();
+            regDocsLoader.show();
+            
+            let formData = new FormData(regDocumentsForm[0]);
+            
+            $.ajax({
+                url: uploadDocumentsUrl,
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                cache: false,
+                data: formData
+            }).done(function (data){
+                regDocsLoader.hide();
+                if(!data.success){
+                    regDocsErrorDisplay.html(data.message);
+                    regDocsErrorDisplay.show(); 
+                }
+            }).fail(function (data){
+                regDocsLoader.hide();
+                regDocsErrorDisplay.html(data.responseText)
+                regDocsErrorDisplay.show();
+            });
+        }
+    }else{
+        regDocsLoader.hide();
+        regDocsErrorDisplay.html('There were errors below, correct them and try submitting again.')
+        regDocsErrorDisplay.show();
+    }
 });
 
 JS;

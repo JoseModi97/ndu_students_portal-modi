@@ -15,7 +15,8 @@ $config = [
     'aliases' => [
         '@bower' => '@vendor/bower-asset',
         '@npm'   => '@vendor/npm-asset',
-        '@views' => '@app/views'
+        '@views' => '@app/views',
+        '@regDocsUploadUrl' => '@app/uploads/registration/',
     ],
     'components' => [
         'request' => [

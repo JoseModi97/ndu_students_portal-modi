@@ -88,4 +88,86 @@ class RegistrationController extends BaseController
             return $this->asJson(['success' => false, 'message' => $message]);
         }
     }
+
+    /**
+     * Upload registration documents
+     * @return Response
+     */
+    public function actionUpload(): Response
+    {
+        $transaction = Yii::$app->db->beginTransaction();
+        try{
+            $validExtensions = ['jpeg', 'jpg', 'png', 'pdf'];
+
+            /**
+             * File paths take the format:
+             * uploads/registration/6001/document_46/sample_data.txt
+             * where:
+             * 6001 is the admission ref no.
+             * 46 is the document id in the db
+             */
+            $path = Yii::getAlias('@regDocsUploadUrl');
+            $path .= Yii::$app->user->identity->adm_refno;
+
+            if(!is_dir($path)){
+                if(!mkdir($path, 0777, true)){
+                    throw new Exception('Failed to create uploads directory.');
+                }
+            }
+
+            /**
+             * If a document already exists, delete and re-upload
+             */
+            $documentTypes = array_keys($_FILES);
+            foreach ($documentTypes as $documentType){
+                $docPath = $path . '/' . str_replace('-', '_', $documentType) . '/';
+                if(is_dir($docPath)){
+                    $fileNames = array_diff(scandir($docPath), ['.', '..']);
+                    if(!empty($fileNames)){
+                        foreach ($fileNames as $fileName){
+                            $filePath = $docPath . $fileName;
+                            if (!unlink($filePath)) {
+                                throw new Exception('cannot be unlink file due to an error');
+                            }
+                        }
+                    }
+                }else{
+                    if(!mkdir($docPath, 0777, true)){
+                        throw new Exception('Failed to create uploads directory.');
+                    }
+                }
+
+                $file = $_FILES[$documentType];
+                if($file['error'] !== 0){
+                    throw new Exception('An error occurred while trying to upload files.');
+                }
+
+                $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                if(!in_array($ext, $validExtensions)){
+                    throw new Exception($ext . ' files are not allowed.');
+                }
+
+                $newFileName = strtolower(pathinfo($file['name'], PATHINFO_FILENAME));
+                $newFileName = preg_replace('/\s/','_', $newFileName);
+                $newFileName .= '.' . $ext;
+
+                $destinationFile = $docPath . $newFileName;
+
+                if(!move_uploaded_file($file['tmp_name'], $destinationFile)){
+                    throw new Exception('Document not uploaded.');
+                }
+            }
+
+            $transaction->commit();
+            $this->setFlash('success', 'Registration', 'Documents uploaded successfully.');
+            return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+        }catch(Exception $ex){
+            $transaction->rollBack();
+            $message = $ex->getMessage();
+            if(YII_ENV_DEV){
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            return $this->asJson(['success' => false, 'message' => $message]);
+        }
+    }
 }
