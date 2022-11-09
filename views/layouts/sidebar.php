@@ -33,8 +33,15 @@ use yii\helpers\Url;
 
                 <li class="nav-item">
                     <a href="<?= Url::to(['/registration/index']);?>" class="nav-link">
+                        <i class="nav-icon fa fa-file" aria-hidden="true"></i>
+                        <p>My registration documents</p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="<?= Url::to(['/registration/add-documents']);?>" class="nav-link">
                         <i class="nav-icon fa fa-upload" aria-hidden="true"></i>
-                        <p>Registration documents</p>
+                        <p>Add registration documents</p>
                     </a>
                 </li>
 

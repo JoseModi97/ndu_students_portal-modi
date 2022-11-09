@@ -77,7 +77,7 @@ class SiteController extends BaseController
         if(Yii::$app->user->isGuest){
             return $this->redirect(['/site/login']);
         }
-        return $this->redirect(['/dash/index']);
+        return $this->redirect(['/account/index']);
     }
 
     /**
@@ -98,7 +98,7 @@ class SiteController extends BaseController
                  * Fully registered students are redirected to the portal dashboard.
                  * Not fully registered students are redirected to the registration page.
                  */
-                return Yii::$app->response->redirect(['/dash/index']);
+                return Yii::$app->response->redirect(['/account/index']);
             }
         }catch(Exception $ex){
             $message = $ex->getMessage();
@@ -127,10 +127,10 @@ class SiteController extends BaseController
                          * Fully registered students are redirected to the portal dashboard.
                          */
                         if(Yii::$app->user->identity->admission_status === 'false'){
-                            return Yii::$app->response->redirect(['/registration/index']);
+                            return Yii::$app->response->redirect(['/registration/add-documents']);
                         }
 
-                        return Yii::$app->response->redirect(['/dash/index']);
+                        return Yii::$app->response->redirect(['/account/index']);
                     }else{
                         throw new Exception('An error occurred while trying to log in.');
                     }
