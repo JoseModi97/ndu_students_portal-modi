@@ -259,7 +259,7 @@ class RegistrationController extends BaseController
 
             $transaction->commit();
             $this->setFlash('success', 'Registration', 'Documents uploaded successfully.');
-            return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+            return $this->redirect(['/registration/index']);
         }catch(Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
