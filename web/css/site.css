@@ -74,15 +74,15 @@ body {
 }
 
 .btn-success {
-    background-color: #304186;
-    border-color: #304186;
-    color: #fff;
+    background-color: #304186 !important;
+    border-color: #304186 !important;
+    color: #fff !important;
 }
 
 .btn-success:hover, .btn-success:active, .btn-success:focus {
     color: #fff !important;
-    background-color: #aed6f1;
-    border-color: #aed6f1;
+    background-color: #aed6f1 !important;
+    border-color: #aed6f1 !important;
     text-decoration: none;
 }
 
