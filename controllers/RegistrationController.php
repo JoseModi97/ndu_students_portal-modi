@@ -244,7 +244,7 @@ class RegistrationController extends BaseController
                 $submittedDocument->required_document_id = $requiredDocId;
                 $submittedDocument->document_path = $adminRefNumber . '/' . $newDocumentType . '/' . $newFileName;
                 $submittedDocument->upload_date = SmisHelper::formatDate('now', 'Y-m-d');;
-                $submittedDocument->verify_status = 'pending';
+                $submittedDocument->verify_status = 'PENDING';
                 $submittedDocument->adm_refno = $adminRefNumber;
                 if(!$submittedDocument->save()){
                     if (!$submittedDocument->validate()) {

@@ -84,13 +84,13 @@ if(!empty($flashes)){
         if ($flashes['new']['type'] === 'success') {
             $flashType = Growl::TYPE_SUCCESS;
             $flashTitle = 'Well done!';
-            $flashIcon = 'fas fa-check-circle';
+            $flashIcon = 'fa fa-check-circle';
         }
 
         if ($flashes['new']['type'] === 'danger') {
             $flashType = Growl::TYPE_DANGER;
             $flashTitle = 'Oh snap!';
-            $flashIcon = 'fas fa-times-circle';
+            $flashIcon = 'fa fa-times-circle';
         }
 
         try {
