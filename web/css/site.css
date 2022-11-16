@@ -98,7 +98,7 @@ body {
 }
 
 .btn-link:hover{
-    color: #aed6f1;
+    color: #304186;
     text-decoration: underline !important;
 }
 
@@ -137,6 +137,32 @@ body {
     background-color: #aed6f1;
     border-color: #aed6f1;
     color: #fff;
+}
+
+.reg-file-download-btn{
+    background-color: #fff;
+    border-color: #304186;
+    color: #304186;
+}
+
+.reg-file-download-btn:hover{
+    background-color: #fff;
+    border-color: #304186;
+    color: #304186;
+    text-decoration: underline !important;
+}
+
+.reg-file-delete-btn{
+    background-color: #fff;
+    border-color: #fc3826;
+    color: #fc3826;
+}
+
+.reg-file-delete-btn:hover{
+    background-color: #fff;
+    border-color: #fc3826;
+    color: #fc3826;
+    text-decoration: underline !important;
 }
 
 /* Cards styling */

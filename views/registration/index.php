@@ -57,6 +57,20 @@ $this->title = $title;
             <?php if(!empty($submittedDocs)):
                 foreach ($submittedDocs as $submittedDoc):
                     $docId = $submittedDoc['student_document_id'];
+                    $docStatus = $submittedDoc['verify_status'];
+
+                    $docIcon = '';
+                    $docClass = '';
+                    if($docStatus === 'PENDING'){
+                        $docIcon = '<i class="fa fa-clock-o text-info" aria-hidden="true"></i>';
+                        $docClass = 'text-info';
+                    }elseif ($docStatus === 'APPROVED'){
+                        $docIcon = '<i class="fa fa-check text-success" aria-hidden="true"></i>';
+                        $docClass = 'text-success';
+                    }elseif ($docStatus === 'NOT_APPROVED'){
+                        $docIcon = '<i class="fa fa-times text-danger" aria-hidden="true"></i>';
+                        $docClass = 'text-danger';
+                    }
                     ?>
                     <!-- ./col -->
                     <div class="col-sm-12 col-md-4 col-lg-4">
@@ -65,25 +79,28 @@ $this->title = $title;
                                 <h3 class="card-title">
                                     <i class="fa fa-file"></i>
                                     <?= $submittedDoc['requiredDocument']['document']['document_name']?>
+                                    <?=$docIcon?>
                                 </h3>
                             </div>
                             <!-- /.card-header -->
                             <div class="card-body">
                                 <dl class="row">
+                                    <dt class="col-sm-4">Status</dt>
+                                    <dd class="col-sm-8 <?=$docClass?> ">
+                                        <?= str_replace('_', ' ', $docStatus)?>
+                                    </dd>
                                     <dt class="col-sm-4">Comments</dt>
                                     <dd class="col-sm-8"><?= $submittedDoc['doc_comments']?></dd>
-                                    <dt class="col-sm-4">Status</dt>
-                                    <dd class="col-sm-8"><?= $submittedDoc['verify_status']?></dd>
                                     <dt class="col-sm-4">Actions</dt>
                                     <dd class="col-sm-8">
                                         <div class="row">
                                             <div class="col-6">
-                                                <a class="btn btn-success" href="<?= Url::to(['/registration/download-document', 'id' => $docId])?>">download</a>
+                                                <a class="btn reg-file-download-btn" href="<?= Url::to(['/registration/download-document', 'id' => $docId])?>">download</a>
                                             </div>
 
                                             <?php if(!$submitted):?>
                                                 <div class="col-6">
-                                                    <button class="btn btn-danger btn-delete-doc" data-id="<?=$docId?>">delete</button>
+                                                    <button class="btn reg-file-delete-btn btn-delete-doc" data-id="<?=$docId?>">delete</button>
                                                 </div>
                                             <?php endif;?>
                                         </div>
