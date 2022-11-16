@@ -39,6 +39,8 @@ use yii\db\ActiveRecord;
  * @property string|null $secondary_email_verified_date
  * @property string|null $surname
  * @property string|null $other_names
+ * @property string|null $clearance_status
+ * @property string|null $password_changed_date
  */
 class AdmittedStudent extends ActiveRecord
 {
@@ -60,14 +62,14 @@ class AdmittedStudent extends ActiveRecord
             [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id'], 'default', 'value' => null],
             [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id'], 'integer'],
             [['doc_submission_status'], 'boolean'],
-            [['primary_email_verified_date', 'secondary_email_verified_date'], 'safe'],
+            [['primary_email_verified_date', 'secondary_email_verified_date', 'password_changed_date'], 'safe'],
             [['kcse_index_no', 'kuccps_prog_code', 'uon_prog_code'], 'string', 'max' => 20],
             [['kcse_year'], 'string', 'max' => 10],
-            [['admission_status'], 'string', 'max' => 30],
             [['primary_phone_no', 'alternative_phone_no', 'post_address', 'national_id', 'birth_cert_no', 'passport_no'], 'string', 'max' => 12],
             [['primary_email', 'alternative_email'], 'string', 'max' => 25],
             [['post_code'], 'string', 'max' => 5],
             [['town'], 'string', 'max' => 15],
+            [['admission_status', 'clearance_status'], 'string', 'max' => 30],
             [['password', 'primary_email_salt', 'secondary_email_salt'], 'string', 'max' => 255],
             [['surname'], 'string', 'max' => 50],
             [['other_names'], 'string', 'max' => 150],
@@ -100,7 +102,7 @@ class AdmittedStudent extends ActiveRecord
             'source_id' => 'Source ID',
             'passport_no' => 'Passport No',
             'admission_status' => 'Admission Status',
-            'application_refno' => 'Application ref no',
+            'application_refno' => 'Application Refno',
             'intake_code' => 'Intake Code',
             'student_category_id' => 'Student Category ID',
             'password' => 'Password',
@@ -111,6 +113,8 @@ class AdmittedStudent extends ActiveRecord
             'secondary_email_verified_date' => 'Secondary Email Verified Date',
             'surname' => 'Surname',
             'other_names' => 'Other Names',
+            'clearance_status' => 'Clearance Status',
+            'password_changed_date' => 'Password Changed Date',
         ];
     }
 

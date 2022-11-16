@@ -386,6 +386,22 @@ class RegistrationController extends BaseController
                     throw new Exception('Documents not submitted.');
                 }
             }
+
+            $submittedDocs = SubmittedDocument::find()->where(['adm_refno' => $admittedStudent->adm_refno])->all();
+            foreach ($submittedDocs as $submittedDoc){
+                $submittedDoc->verify_status = 'PENDING';
+                $submittedDoc->doc_comments = '';
+                if(!$submittedDoc->save()) {
+                    if (!$submittedDoc->validate()){
+                        $transaction->rollBack();
+                        $errorMessage = SmisHelper::getModelErrors($submittedDoc->getErrors());
+                        return $this->asJson(['success' => false, 'message' => $errorMessage]);
+                    } else {
+                        throw new Exception('Documents not submitted.');
+                    }
+                }
+            }
+
             $transaction->commit();
             $this->setFlash('success', 'Registration', 'Documents submitted successfully.');
             return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
