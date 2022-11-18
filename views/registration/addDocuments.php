@@ -8,7 +8,10 @@
  * @var string $title
  * @var app\models\User $user
  * @var string[] $documents
-  */
+ * @var bool $submitted
+ * @var bool $canBeSubmitted
+ * @var string[] $submittedDocsIds
+ */
 
 use yii\helpers\Url;
 
@@ -27,44 +30,122 @@ $this->title = $title;
 <section class="content">
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-12 col-md-8 col-lg-8 offset-md-2 offset-lg-2">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            Registration documents
-                        </h3>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        Registration documents
+                    </h3>
+                </div>
+            <div class="card-body">
+                <div class="row" style="margin-bottom: 20px;">
+                    <div class="col-12">
+                        <div class="bg-warning text-center" style="padding:20px 0; border-radius: .25rem">
+                            All mandatory documents must be uploaded before submitting for approval.
+                        </div>
                     </div>
-
-                    <div class="card-body">
-                        <form id="reg-documents-form" onsubmit="return false" method="post" action="#" enctype="multipart/form-data">
-                            <div class="loader"></div>
-
-                            <div class="error-display alert text-center" role="alert">
-                            </div>
-
-                            <div class="row">
-                                <div class="col-12">
-                                    <div class="form-group">
-                                        <label for="documents-selector" class="required-control-label">Document type</label>
-                                        <select type="text" class="form-control" id="documents-selector" name="documentsSelector">
-                                            <option value="">-Select a document to upload-</option>
-                                            <?php if(!empty($documents)):
-                                                foreach ($documents as $document):
+                </div>
+                <div class="row" style="margin-bottom: 20px;">
+                    <div class="col-12">
+                        <div class="float-right">
+                            <a href="<?=Url::to(['/registration/index'])?>" class="btn view-reg-files-link">
+                                View uploaded
+                            </a>
+                            <?php if(!$submitted && $canBeSubmitted):?>
+                                <button id="btn-submit-docs" class="btn btn-success">
+                                    Submit for approval
+                                </button>
+                            <?php else:?>
+                                <button disabled class="btn btn-default">
+                                    Submit for approval
+                                </button>
+                            <?php endif;?>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-12 col-md-6 col-lg-6">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card-header">
+                                    <h3 class="card-title">
+                                        <i class="fa fa-file"></i> &nbsp;
+                                        Mandatory documents
+                                    </h3>
+                                </div>
+                                <div class="card-body">
+                                    <ul>
+                                        <?php if(!empty($documents)):
+                                            foreach ($documents as $document):
+                                                if($document['document']['required']):
+                                                    $docId = $document['document']['document_id'];
+                                                    if(in_array($docId, $submittedDocsIds)){
+                                                        $uploadStatus = '<small class="text-success">uploaded</small';
+                                                    }else{
+                                                        $uploadStatus = '<small class="text-danger">missing</small';
+                                                    }
                                                     ?>
-                                                    <option value="<?=$document['fk_document_id']?>">
-                                                        <?=$document['document']['document_name']?>
-                                                    </option>
-                                                <?php endforeach;
-                                            endif;?>
-                                        </select>
-                                    </div>
+                                                    <li>
+                                                        <?=$document['document']['document_name'] . ' ' . $uploadStatus;?>
+                                                    </li>
+                                                <?php endif;
+                                            endforeach;
+                                        endif;?>
+                                    </ul>
                                 </div>
                             </div>
-
-                            <div class="reg-documents">
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card-header">
+                                    <h3 class="card-title">
+                                        <i class="fa fa-file"></i> &nbsp;
+                                        Other documents
+                                    </h3>
+                                </div>
+                                <div class="card-body">
+                                    <ul>
+                                        <?php if(!empty($documents)):
+                                            foreach ($documents as $document):
+                                                if(!$document['document']['required']):
+                                                    $docId = $document['document']['document_id'];
+                                                    if(in_array($docId, $submittedDocsIds)){
+                                                        $uploadStatus = '<small class="text-success">uploaded</small';
+                                                    }else{
+                                                        $uploadStatus = '<small class="text-danger">missing</small';
+                                                    }
+                                                ?>
+                                                <li>
+                                                    <?=$document['document']['document_name'] . ' ' . $uploadStatus;?>
+                                                </li>
+                                            <?php endif;
+                                            endforeach;
+                                        endif;?>
+                                    </ul>
+                                </div>
                             </div>
-
+                        </div>
+                    </div>
+                    <div class="col-sm-12 col-md-6 col-lg-6">
+                        <form id="reg-documents-form" onsubmit="return false" method="post" action="#" enctype="multipart/form-data">
+                            <div class="loader"></div>
+                            <div class="error-display alert text-center" role="alert"></div>
                             <div class="row">
+                                <?php if(!empty($documents)):
+                                    foreach ($documents as $document):
+                                        $docName = $document['document']['document_name'];
+                                        $docDesc = $document['document']['document_desc'];
+                                        $labelId = 'document-' . $document['document']['document_id'];
+                                        ?>
+                                        <div class="col-12">
+                                            <div class="form-group">
+                                                <label for="<?=$labelId?>"><?=$docName?></label>
+                                                <input type="file" class="form-control" id="<?=$labelId?>" name="<?=$labelId?>">
+                                                <small id="<?=$labelId?>-desc" class="text-muted"><?=$docDesc?></small>
+                                            </div>
+                                        </div>
+                                    <?php endforeach;
+                                endif;?>
+
                                 <div class="form-group">
                                     <div class="col-12">
                                         <button type="submit" id="btn-upload-docs" class="btn btn-success">Upload</button>
@@ -73,7 +154,6 @@ $this->title = $title;
                             </div>
                         </form>
                     </div>
-                    <!-- /.card-body -->
                 </div>
             </div>
         </div>
@@ -81,23 +161,22 @@ $this->title = $title;
 </section>
 
 <?php
-$regDocumentUrl = Url::to(['/registration/registration-document']);
 $uploadDocumentsUrl = Url::to(['/registration/upload']);
+$docsSubmitUrl = Url::to(['/registration/submit-documents']);
 
-/**
- * @see js/upload_reg_documents.js for additional methods
- */
 $uploadFilesJs = <<< JS
-const regDocumentUrl = '$regDocumentUrl';
+const docsSubmitUrl = '$docsSubmitUrl';
 const uploadDocumentsUrl = '$uploadDocumentsUrl';
 
-$('#documents-selector').on('change', function (e){
-    addRegDocument.call(this, e, regDocumentUrl);
-});
+const regDocumentsForm = $('#reg-documents-form');
+regDocumentsForm.validate();
 
-$('.reg-documents').on('click', '.remove-reg-document', function (e){
-      removeRegDocument.call(this, e);
-});
+const regDocsLoader = $('#reg-documents-form > .loader');
+regDocsLoader.html(loader);
+regDocsLoader.hide();
+
+const regDocsErrorDisplay =  $('#reg-documents-form > .error-display');
+regDocsErrorDisplay.hide();
 
 $('#btn-upload-docs').click(function (e){
     e.preventDefault();
@@ -120,6 +199,7 @@ $('#btn-upload-docs').click(function (e){
                 if(!data.success){
                     regDocsErrorDisplay.html(data.message);
                     regDocsErrorDisplay.show(); 
+                    errorToaster(data.message);
                 }
             }).fail(function (data){
                 regDocsLoader.hide();
@@ -134,6 +214,31 @@ $('#btn-upload-docs').click(function (e){
     }
 });
 
+$('#btn-submit-docs').click(function (e){
+    e.preventDefault();
+    if(confirm('Submit documents?')){
+        regDocsErrorDisplay.hide();
+        regDocsLoader.show();
+        $.ajax({
+            url: docsSubmitUrl,
+            type: 'POST',
+            data: {}
+        }).done(function (data){
+            regDocsLoader.hide();
+            if(!data.success){
+                regDocsErrorDisplay.html(data.message) 
+                regDocsErrorDisplay.show();
+                errorToaster(data.message);
+            }
+        }).fail(function (data){
+            regDocsLoader.hide();
+            regDocsErrorDisplay.html(data.responseText) 
+            regDocsErrorDisplay.show();
+        });
+    }
+});
+
 JS;
 $this->registerJs($uploadFilesJs, yii\web\View::POS_READY);
+
 

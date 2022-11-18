@@ -5,10 +5,13 @@
 
 namespace app\helpers;
 
+use app\models\RequiredDocument;
+use app\models\SubmittedDocument;
 use DateTime;
 use DateTimeZone;
 use Exception;
 use Yii;
+use yii\db\ActiveQuery;
 
 class SmisHelper
 {
@@ -95,5 +98,60 @@ class SmisHelper
     {
         $newDate = new DateTime($dateToFormat, new DateTimeZone(self::getDefaultTimezone()));
         return $newDate->format($format);
+    }
+
+    /**
+     * Check if a student can submit their registration documents
+     * @param string $admRefNo
+     * @param string $studentCategory
+     * @return bool
+     */
+    public static function documentsCanBeSubmitted(string $admRefNo, string $studentCategory): bool
+    {
+        $requiredDocuments = RequiredDocument::find()
+            ->select([
+                'required_document_id',
+                'fk_document_id',
+                'fk_category_id'
+            ])->joinWith(['document doc' => function(ActiveQuery $q){
+                $q->select([
+                    'doc.required',
+                    'doc.document_id'
+                ]);
+            }], true, 'INNER JOIN')
+            ->where([
+                'fk_category_id' => $studentCategory,
+                'doc.required' => true
+            ])
+            ->count();
+
+        $submittedDocuments = SubmittedDocument::find()->alias('sd')
+            ->select([
+                'sd.student_document_id',
+                'sd.required_document_id'
+            ])
+            ->joinWith(['requiredDocument reqDoc' => function(ActiveQuery $q){
+                $q->select([
+                    'reqDoc.required_document_id',
+                    'reqDoc.fk_document_id'
+                ]);
+            }], true, 'INNER JOIN')
+            ->joinWith(['requiredDocument.document doc' => function(ActiveQuery $q){
+                $q->select([
+                    'doc.document_id',
+                    'doc.required',
+                ]);
+            }], true, 'INNER JOIN')
+            ->where([
+                'sd.adm_refno' => $admRefNo,
+                'doc.required' => true
+            ])
+            ->count();
+
+        if($requiredDocuments === $submittedDocuments){
+            return true;
+        }else{
+            return false;
+        }
     }
 }

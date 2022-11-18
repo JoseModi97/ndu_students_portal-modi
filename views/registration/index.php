@@ -9,6 +9,7 @@
  * @var app\models\User $user
  * @var string[] $submittedDocs
  * @var bool $submitted
+ *  @var bool $canBeSubmitted
  */
 
 use yii\helpers\Url;
@@ -42,12 +43,20 @@ $this->title = $title;
                     </div>
                 </div>
             </div>
-        <?php else:?>
+            <?php else:?>
             <div class="row" style="margin-bottom: 20px;">
                 <div class="col-12">
-                    <button id="btn-submit-docs" class="btn btn-success float-right">
-                        Submit documents for approval
-                    </button>
+                    <div class="float-right">
+                        <?php if($canBeSubmitted):?>
+                        <button id="btn-submit-docs" class="btn btn-success">
+                            Submit for approval
+                        </button>
+                        <?php else:?>
+                        <button disabled class="btn btn-default">
+                            Submit for approval
+                        </button>
+                        <?php endif;?>
+                    </div>
                 </div>
             </div>
         <?php endif;

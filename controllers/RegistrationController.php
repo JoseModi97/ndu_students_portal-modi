@@ -77,7 +77,9 @@ class RegistrationController extends BaseController
             'title' => $this->createPageTitle('my documents'),
             'user' => User::findOne(Yii::$app->user->identity->adm_refno),
             'submittedDocs' => $submittedDocs,
-            'submitted' => $admittedStudent->doc_submission_status
+            'submitted' => $admittedStudent->doc_submission_status,
+            'canBeSubmitted' => SmisHelper::documentsCanBeSubmitted(Yii::$app->user->identity->adm_refno,
+                Yii::$app->user->identity->student_category_id),
         ]);
     }
 
@@ -88,8 +90,34 @@ class RegistrationController extends BaseController
     {
         $admittedStudent = AdmittedStudent::find()->select(['doc_submission_status'])
             ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->one();
+
         if($admittedStudent->doc_submission_status){
             return $this->redirect(['/registration/index']);
+        }
+
+        $submittedDocs = SubmittedDocument::find()->alias('sd')
+            ->select([
+                'sd.student_document_id',
+                'sd.required_document_id'
+            ])
+            ->where(['sd.adm_refno' => Yii::$app->user->identity->adm_refno])
+            ->joinWith(['requiredDocument reqDoc' => function(ActiveQuery $q){
+                $q->select([
+                    'reqDoc.required_document_id',
+                    'reqDoc.fk_document_id'
+                ]);
+            }], true, 'INNER JOIN')
+            ->joinWith(['requiredDocument.document doc' => function(ActiveQuery $q){
+                $q->select([
+                    'doc.document_id'
+                ]);
+            }], true, 'INNER JOIN')
+            ->asArray()
+            ->all();
+
+        $submittedDocsIds = [];
+        foreach ($submittedDocs as $submittedDoc){
+            $submittedDocsIds[] = $submittedDoc['requiredDocument']['document']['document_id'];
         }
 
         $documents = RequiredDocument::find()->select([
@@ -114,10 +142,17 @@ class RegistrationController extends BaseController
             ->asArray()
             ->all();
 
+        $admittedStudent = AdmittedStudent::find()->select(['doc_submission_status'])
+            ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->one();
+
         return $this->render('addDocuments', [
             'title' => $this->createPageTitle('add documents'),
             'user' => User::findOne(Yii::$app->user->identity->adm_refno),
-            'documents' => $documents
+            'documents' => $documents,
+            'submitted' => $admittedStudent->doc_submission_status,
+            'canBeSubmitted' => SmisHelper::documentsCanBeSubmitted(Yii::$app->user->identity->adm_refno,
+                Yii::$app->user->identity->student_category_id),
+            'submittedDocsIds' => $submittedDocsIds
         ]);
     }
 
@@ -150,8 +185,9 @@ class RegistrationController extends BaseController
             // Submitted docs must not be re-uploaded
             $admittedStudent = AdmittedStudent::find()->select(['doc_submission_status'])
                 ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->one();
+
             if($admittedStudent->doc_submission_status){
-                $this->setFlash('danger', 'Upload', 'Document failed to upload.');
+                $this->setFlash('danger', 'Upload', 'Document failed to upload. Document already submitted');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
 
@@ -183,8 +219,21 @@ class RegistrationController extends BaseController
             /**
              * If a document already exists, delete and re-upload
              */
+            $documentsCount = 0;
             $documentTypes = array_keys($_FILES);
             foreach ($documentTypes as $documentType){
+                $file = $_FILES[$documentType];
+
+                if(empty($file['name'])){
+                    continue;
+                }else{
+                    $documentsCount++;
+                }
+
+                if($file['error'] !== 0){
+                    throw new Exception('File error code: ' . $file['error']);
+                }
+
                 $newDocumentType = str_replace('-', '_', $documentType);
                 $docPath = $path . '/' . $newDocumentType . '/';
 
@@ -202,11 +251,6 @@ class RegistrationController extends BaseController
                     if(!mkdir($docPath, 0777, true)){
                         throw new Exception('Failed to create uploads directory.');
                     }
-                }
-
-                $file = $_FILES[$documentType];
-                if($file['error'] !== 0){
-                    throw new Exception('An error occurred while trying to upload files.');
                 }
 
                 $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -245,6 +289,7 @@ class RegistrationController extends BaseController
                 $submittedDocument->document_path = $adminRefNumber . '/' . $newDocumentType . '/' . $newFileName;
                 $submittedDocument->upload_date = SmisHelper::formatDate('now', 'Y-m-d');;
                 $submittedDocument->verify_status = 'PENDING';
+                $submittedDocument->doc_comments = '';
                 $submittedDocument->adm_refno = $adminRefNumber;
                 if(!$submittedDocument->save()){
                     if (!$submittedDocument->validate()) {
@@ -257,9 +302,14 @@ class RegistrationController extends BaseController
                 }
             }
 
-            $transaction->commit();
-            $this->setFlash('success', 'Registration', 'Documents uploaded successfully.');
-            return $this->redirect(['/registration/index']);
+            if($documentsCount > 0){
+                $transaction->commit();
+                $this->setFlash('success', 'Registration', 'Documents uploaded successfully.');
+                return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+            }else{
+                $transaction->rollBack();
+                return $this->asJson(['success' => false, 'message' => 'No documents have been selected for upload.']);
+            }
         }catch(Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
@@ -317,7 +367,7 @@ class RegistrationController extends BaseController
                 ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->one();
 
             if($admittedStudent->doc_submission_status){
-                $this->setFlash('danger', 'Delete', 'Document failed to delete.');
+                $this->setFlash('danger', 'Delete', 'Document failed to delete. Document already submitted.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
 
@@ -375,6 +425,14 @@ class RegistrationController extends BaseController
     {
         $transaction = Yii::$app->db->beginTransaction();
         try{
+            $canBeSubmitted = SmisHelper::documentsCanBeSubmitted(Yii::$app->user->identity->adm_refno,
+                Yii::$app->user->identity->student_category_id);
+
+            if(!$canBeSubmitted){
+                $this->setFlash('danger', 'Delete', 'Documents failed to submit. All mandatory documents must be uploaded.');
+                return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+            }
+
             $admittedStudent = AdmittedStudent::findOne(Yii::$app->user->identity->adm_refno);
             $admittedStudent->doc_submission_status = true;
             if(!$admittedStudent->save()){

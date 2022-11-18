@@ -139,13 +139,13 @@ body {
     color: #fff;
 }
 
-.reg-file-download-btn{
+.reg-file-download-btn, .view-reg-files-link{
     background-color: #fff;
     border-color: #304186;
     color: #304186;
 }
 
-.reg-file-download-btn:hover{
+.reg-file-download-btn:hover, .view-reg-files-link:hover{
     background-color: #fff;
     border-color: #304186;
     color: #304186;
