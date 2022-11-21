@@ -48,7 +48,10 @@ if(!empty($user->alternative_email) && !empty($secondaryEmailVerifiedDate)){
                 </h3>
             </div>
             <div class="card-body" >
-                <p>Follow the instructions sent to your inbox to verify the email address. If you have not received the instructions, click on the update button again.</p>
+                <div class="bg-warning text-center" style="margin-bottom: 20px; padding: 20px 0;border-radius: .25rem">
+                    Follow the instructions sent to your inbox to verify the email address. If you have not received the instructions, click on the update button again
+                </div>
+
                 <form id="update-email-form" onsubmit="return false" method="post" action="#">
                     <div class="loader"></div>
 

@@ -100,7 +100,7 @@ class AccountController extends BaseController
             }
 
             $user->password = Yii::$app->getSecurity()->generatePasswordHash($post['newPassword']);
-
+            $user->password_changed_date = SmisHelper::formatDate('now', 'Y-m-d');
             if(!$user->save()){
                 if(!$user->validate()){
                     $transaction->rollBack();

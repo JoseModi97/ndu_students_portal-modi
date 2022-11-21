@@ -16,6 +16,7 @@ use JetBrains\PhpStorm\ArrayShape;
 use Yii;
 use yii\db\ActiveQuery;
 use yii\filters\AccessControl;
+use yii\web\BadRequestHttpException;
 use yii\web\Response;
 
 class RegistrationController extends BaseController
@@ -38,6 +39,25 @@ class RegistrationController extends BaseController
                 ],
             ],
         ];
+    }
+
+    /**
+     * @throws BadRequestHttpException
+     */
+    public function beforeAction($action): bool
+    {
+        if(parent::beforeAction($action)) {
+            $identity = Yii::$app->user->identity;
+            if($action->id == 'add-documents'){
+                if($identity->admission_status !== 'PRE-REGISTRATION'){
+                    $this->setFlash('success', 'Registration documents', 'Registration documents already submitted.');
+                    $this->redirect(['/registration/index']);
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

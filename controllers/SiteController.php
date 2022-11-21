@@ -98,6 +98,10 @@ class SiteController extends BaseController
                  * Fully registered students are redirected to the portal dashboard.
                  * Not fully registered students are redirected to the registration page.
                  */
+                if(Yii::$app->user->identity->admission_status === 'PRE-REGISTRATION'){
+                    return Yii::$app->response->redirect(['/registration/add-documents']);
+                }
+
                 return Yii::$app->response->redirect(['/account/index']);
             }
         }catch(Exception $ex){
@@ -205,6 +209,7 @@ class SiteController extends BaseController
             if($user){
                 $password = $user->generatePassword();
                 $user->password = $password['hash'];
+                $user->password_changed_date = null;
                 if ($user->save()) {
                     $emails = [
                         'recipientEmail' => $email,
@@ -232,6 +237,7 @@ class SiteController extends BaseController
 
             $this->setFlash('success', 'Password reset', 'A new password has been sent to your email address.');
             $transaction->commit();
+            Yii::$app->user->logout();
             return $this->redirect(['/site/login']);
         } catch (Exception $ex) {
             $transaction->rollBack();

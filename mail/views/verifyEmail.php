@@ -19,7 +19,7 @@
                     style="word-break: break-word; font-family: &quot;Nunito Sans&quot;, Helvetica, Arial, sans-serif; font-size: 16px; padding: 35px;">
                     <div class="f-fallback">
                         <p style="margin-top: 0; color: #333333; font-size: 22px; font-weight: bold; text-align: left;">
-                            Dear <?= $recipient ?>,
+                            <?= $recipient ?>,
                         </p>
 
                         <p style="font-size: 16px; line-height: 1.625; color: #51545E; margin: .4em 0 1.1875em;">

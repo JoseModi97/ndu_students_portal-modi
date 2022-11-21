@@ -7,6 +7,7 @@ namespace app\controllers;
 
 use Exception;
 use Yii;
+use yii\web\BadRequestHttpException;
 use yii\web\Controller;
 use yii\web\ServerErrorHttpException;
 
@@ -21,7 +22,6 @@ class BaseController extends Controller
     {
         try{
             parent::init();
-
         }catch(Exception $ex){
             $message = $ex->getMessage();
             if(YII_ENV_DEV) {
@@ -29,6 +29,71 @@ class BaseController extends Controller
             }
             throw new ServerErrorHttpException($message, 500);
         }
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @throws BadRequestHttpException
+     */
+    public function beforeAction($action): bool
+    {
+        if(parent::beforeAction($action)){
+            if(!Yii::$app->user->isGuest){
+                $identity = Yii::$app->user->identity;
+
+                if (Yii::$app->controller->id != 'account' && $action->id != 'error' && $action->id != 'logout') {
+                    /**
+                     * Check if user's default/forgotten password has been updated.
+                     * We require that these be updated to a password user will remember and also make sure it meets the set requirements.
+                     */
+                    if (empty($identity->password_changed_date)){
+                        $this->setFlash('danger', 'Update password', 'You must change your password before you continue.');
+                        $this->redirect(['/account/index']);
+                        return false;
+                    }
+
+                    /**
+                     * Check if user profile is complete.
+                     * All mandatory fields that can be updated from the user's interface must be present.
+                     */
+                    $profileComplete = true;
+                    if (empty($identity->post_code)) {
+                        $profileComplete = false;
+                    } elseif (empty($identity->post_address)) {
+                        $profileComplete = false;
+                    } elseif (empty($identity->town)) {
+                        $profileComplete = false;
+                    }
+
+                    if (!$profileComplete) {
+                        $this->setFlash('danger', 'Account settings', 'You must complete your profile before you continue.');
+                        $this->redirect(['/account/index']);
+                        return false;
+                    }
+
+                    /**
+                     * All provided emails must be verified
+                     */
+                    $emailVerified = true;
+                    if (empty($identity->primary_email)) {
+                        $emailVerified = false;
+                    } elseif (empty($identity->primary_email_verified_date)) {
+                        $emailVerified = false;
+                    } elseif (!empty($identity->alternative_email) && empty($identity->secondary_email_verified_date)) {
+                        $emailVerified = false;
+                    }
+
+                    if (!$emailVerified) {
+                        $this->setFlash('danger', 'Account settings', 'You must verify all your emails before you continue.');
+                        $this->redirect(['/account/index']);
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
