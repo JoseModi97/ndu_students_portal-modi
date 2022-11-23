@@ -7,11 +7,13 @@
 /* @var $content string */
 
 use app\assets\AppAsset;
+use app\assets\FontAwesomeAsset;
 use kartik\growl\Growl;
 use yii\bootstrap5\Html;
 use yii\helpers\Url;
 use yii\web\View;
 
+FontAwesomeAsset::register($this);
 AppAsset::register($this);
 ?>
 <?php $this->beginPage() ?>

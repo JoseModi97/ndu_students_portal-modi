@@ -241,24 +241,26 @@ body {
     line-height: 1.4;
 }
 
-.status-active {
-    background-color: #03d47c !important;
+.status-approved
+{
+    color: #03d47c !important;
 }
 
-.status-not-active {
-    background-color: #03d47c !important;
+.status-pending {
+    color: #304186 !important;
 }
 
-.status-deleted {
-    background-color: red !important;
+.status-rejected
+{
+    color: #fc3826 !important;
 }
 
-.status-archived {
-    background-color: orange !important;
+.status-review {
+    color: #ffbf00 !important;
 }
 
 .bg-blue{
-    background-color: #0185ff !important;
+    background-color: #304186 !important;
 }
 .bg-red{
     background-color: #fc3826 !important;
@@ -267,17 +269,31 @@ body {
     background-color: #03d47c !important;
 }
 
+.action-text-success {
+    color: #03d47c;
+    text-decoration: none;
+}
+
+.action-text-info {
+    color: #304186;
+    text-decoration: none;
+}
+
+.action-text-danger {
+    color: #fc3826;
+    text-decoration: none;
+}
+
+.action-text-archive {
+    color: #ffbf00;
+    text-decoration: none;
+}
+
 .loader {
     color: #304186 !important;
     font-size: 20px !important;
     padding: 10px 0;
 }
-
-/*.alert-danger {*/
-/*    color: #831d14;*/
-/*    background-color: #fed7d4;*/
-/*    border-color: #fec7c2;*/
-/*}*/
 
 .error-display {
     color: #831d14;
@@ -352,7 +368,7 @@ label {
 }
 
 .callout.callout-info {
-    border-left-color: #0185ff !important;
+    border-left-color: #304186 !important;
 }
 
 .callout.callout-danger {

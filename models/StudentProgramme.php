@@ -104,6 +104,6 @@ class StudentProgramme extends ActiveRecord
      */
     public function getProgramme(): ActiveQuery
     {
-        return $this->hasOne(Student::class, ['prog_curriculum_id' => 'prog_curriculum_id']);
+        return $this->hasOne(ProgrammeCurriculum::class, ['prog_curriculum_id' => 'prog_curriculum_id']);
     }
 }

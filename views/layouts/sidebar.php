@@ -32,6 +32,13 @@ use yii\helpers\Url;
                 </li>
 
                 <li class="nav-item">
+                    <a href="<?= Url::to(['/account/list-name-change']);?>" class="nav-link">
+                        <i class="nav-icon fas fa-edit" aria-hidden="true"></i>
+                        <p>Name change</p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a href="<?= Url::to(['/registration/index']);?>" class="nav-link">
                         <i class="nav-icon fa fa-file" aria-hidden="true"></i>
                         <p>My registration documents</p>
