@@ -44,6 +44,12 @@ use yii\helpers\Url;
                         <p>Add registration documents</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= Url::to(['/sm-withdrawal-request']);?>" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Deferment</p>
+                    </a>
+                </li>
 
             </ul>
         </nav>
