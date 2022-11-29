@@ -20,7 +20,7 @@ $this->params['breadcrumbs'][] = $this->title;
 ?>
 <div class="content-header">
     <div class="page-header">
-        <h3>Deferement  <i class="fa fa-angle-right" aria-hidden="true"></i>  Deferment Requests</h3>
+        <h3>Deferement  <i class="fa fa-angle-right" aria-hidden="true"></i>  Withrawal/ Deferment Requests</h3>
     </div>
 </div>
 
@@ -54,7 +54,7 @@ $this->params['breadcrumbs'][] = $this->title;
                   [
                   'attribute' => 'smWithdrawalType',
                 'label' => 'Type',
-                'value' => 'smWithdrawalType.withrawal_type_name'
+                'value' => 'smWithdrawalType.withdrawal_type_name'
             ],
 
             'reason',
@@ -66,7 +66,27 @@ $this->params['breadcrumbs'][] = $this->title;
                     return strtoupper(Yii::$app->formatter->asDate($model->request_date, 'php:d-M-Y'));
                 },
             ],
-            // 'end_date',
+//             'supporting_doc_url',
+//            [
+//                'attribute' => 'supporting_doc_url',
+//                'label' => 'Supporting Document',
+//                'value' => 'supporting_doc_url'
+//            ],
+
+            [
+                'label' => 'Supporting Document',
+                'attribute' => 'supporting_doc_url',
+                'value' => function ($model) {
+                 if($model->supporting_doc_url) {
+                     return Html::a(' Download', ['download', 'supporting_doc_url' => $model->supporting_doc_url, 'file' => 'filename.pdf'], ['class' => ' bi bi-download btn btn-outline-dark btn-sm']);
+                     //  return Yii::$app->urlManager->createUrl(['SmNameChange/download','path'=>$model->document_url,'file'=>'filename.pdf']);
+                 }
+                 else{
+                     return '';
+                 }
+                },
+                'format' => 'raw',
+            ],
 
             'approval_status',
             //'student_id',
