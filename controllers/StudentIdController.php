@@ -2,11 +2,14 @@
 
 namespace app\controllers;
 
+use app\models\IdRequestStatus;
+use app\models\IdRequestType;
 use app\models\search\StudentIdRequestSearch;
 use app\models\StudentIdRequest;
 use Yii;
 use yii\filters\VerbFilter;
 use yii\web\NotFoundHttpException;
+use yii\web\Response;
 
 /**
  * StudentIdController implements the CRUD actions for StudentIdRequest model.
@@ -69,19 +72,32 @@ class StudentIdController extends BaseController
     /**
      * Creates a new StudentIdRequest model.
      * If creation is successful, the browser will be redirected to the 'view' page.
-     * @return mixed
+     * @return string|Response
      */
-    public function actionCreate()
+    public function actionCreate(): string|Response
     {
         $model = new StudentIdRequest();
 
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
-            return $this->redirect(['view', 'id' => $model->request_id]);
-        } else {
-            return $this->render('create', [
-                'model' => $model,
-            ]);
+            return $this->redirect(['index']);
         }
+
+        //preload default values
+        $model->request_date = date('Y-m-d');
+        $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;
+        $model->request_type_id = IdRequestType::findOne(['id_type_desc' => IdRequestType::ID_REPLACEMENT])->request_type_id;
+
+        //check if student has enough fee balance
+        $hasEnoughFunds = true; //@TODO tie in to fee balance checking
+
+        if ($hasEnoughFunds == false) {
+            $this->setFlash('danger', 'Insufficient funds', 'Insufficient funds. Please top up your student account and try again');
+            return $this->redirect(['index']);
+        }
+
+        return $this->render('create', [
+            'model' => $model,
+        ]);
     }
 
     /**

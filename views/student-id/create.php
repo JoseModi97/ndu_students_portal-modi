@@ -6,7 +6,7 @@ use yii\helpers\Html;
 /* @var $this yii\web\View */
 /* @var $model app\models\StudentIdRequest */
 
-$this->title = 'Replacement request';
+$this->title = 'New ID Replacement request';
 //$this->params['breadcrumbs'][] = ['label' => 'New student ID Requests', 'url' => ['index']];
 //$this->params['breadcrumbs'][] = $this->title;
 ?>
@@ -22,6 +22,10 @@ $this->title = 'Replacement request';
 <!-- Main content -->
 <section class="content">
     <div class="container-fluid">
-        <?= $this->render('_form', ['model' => $model]); ?>
+        <div class="card">
+            <div class="card-body">
+                <?= $this->render('_form', ['model' => $model]); ?>
+            </div>
+        </div>
     </div>
 </section>

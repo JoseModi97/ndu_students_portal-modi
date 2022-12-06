@@ -4,6 +4,7 @@ namespace app\models;
 
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
+use yii\helpers\ArrayHelper;
 
 /**
  * This is the base model class for table "smisportal.sm_id_request_status".
@@ -15,6 +16,9 @@ use yii\db\ActiveRecord;
  */
 class IdRequestStatus extends ActiveRecord
 {
+    const STATUS_PENDING = 'PENDING';
+    const STATUS_REJECTED = 'REJECTED';
+    const STATUS_APPROVED = 'APPROVED';
 
     /**
      * @inheritdoc
@@ -55,5 +59,19 @@ class IdRequestStatus extends ActiveRecord
     public function getSmStudentIdRequests(): ActiveQuery
     {
         return $this->hasMany(StudentIdRequest::class, ['status_id' => 'status_id']);
+    }
+
+    /**
+     * @param string $request_status
+     * @return array
+     */
+    public static function loadRequestStatusByName(string $request_status = self::STATUS_PENDING): array
+    {
+        $data = IdRequestStatus::find()
+            ->where(['status_name' => $request_status])
+            ->orderBy('status_id')
+            ->asArray()
+            ->all();
+        return ArrayHelper::map($data, 'status_id', 'status_name');
     }
 }

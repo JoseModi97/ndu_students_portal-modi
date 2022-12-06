@@ -1,17 +1,17 @@
 <?php
+/** @noinspection PhpUnhandledExceptionInspection */
 
 use app\models\IdRequestStatus;
 use app\models\IdRequestType;
 use app\models\StudentProgramme;
+use kartik\widgets\ActiveForm;
 use kartik\widgets\Select2;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Html;
-use yii\widgets\ActiveForm;
 
 /* @var $this yii\web\View */
 /* @var $model app\models\StudentIdRequest */
-/* @var $form yii\widgets\ActiveForm */
-
+/* @var $form kartik\widgets\ActiveForm */
 ?>
 
 <div class="student-id-request-form">
@@ -21,7 +21,7 @@ use yii\widgets\ActiveForm;
     <?= $form->errorSummary($model); ?>
 
     <?= $form->field($model, 'request_type_id')->widget(Select2::class, [
-        'data' => ArrayHelper::map(IdRequestType::find()->orderBy('request_type_id')->asArray()->all(), 'request_type_id', 'request_type_id'),
+        'data' => IdRequestType::loadRequestTypeByName(),
         'options' => ['placeholder' => 'Choose Smisportal.sm id request type'],
         'pluginOptions' => [
             'allowClear' => true
@@ -36,10 +36,11 @@ use yii\widgets\ActiveForm;
         ],
     ]); ?>
 
-    <?= $form->field($model, 'request_date')->textInput(['placeholder' => 'Request Date']) ?>
+    <?= $form->field($model, 'request_date')->textInput(['readonly' => true]) ?>
 
     <?= $form->field($model, 'status_id')->widget(Select2::class, [
-        'data' => ArrayHelper::map(IdRequestStatus::find()->orderBy('status_id')->asArray()->all(), 'status_id', 'status_id'),
+        'data' =>
+            $model->isNewRecord ? IdRequestStatus::loadRequestStatusByName() : IdRequestStatus::loadRequestStatusByName($model->status->status_name),
         'options' => ['placeholder' => 'Choose Smisportal.sm id request status'],
         'pluginOptions' => [
             'allowClear' => true
@@ -48,10 +49,12 @@ use yii\widgets\ActiveForm;
 
     <?= $form->field($model, 'receipt_number')->textInput(['placeholder' => 'Receipt Number']) ?>
 
-    <?= $form->field($model, 'source')->textInput(['maxlength' => true, 'placeholder' => 'Source']) ?>
+    <?= $form->field($model, 'source')->textInput(['maxlength' => true]) ?>
 
-    <div class="form-group">
-        <?= Html::submitButton($model->isNewRecord ? 'Create' : 'Update', ['class' => $model->isNewRecord ? 'btn btn-success' : 'btn btn-primary']) ?>
+    <div class="d-grid gap-2 col-6 mx-auto">
+        <?= Html::submitButton($model->isNewRecord ? 'Submit request' : 'Update request', [
+            'class' => $model->isNewRecord ? 'btn btn-success btn-lg' : 'btn btn-primary btn-lg'
+        ]) ?>
     </div>
 
     <?php ActiveForm::end(); ?>

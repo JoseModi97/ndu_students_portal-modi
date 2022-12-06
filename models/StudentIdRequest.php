@@ -52,12 +52,12 @@ class StudentIdRequest extends ActiveRecord
     {
         return [
             'request_id' => 'Request ID',
-            'request_type_id' => 'Request Type ID',
-            'student_prog_curr_id' => 'Student Prog Curr ID',
+            'request_type_id' => 'Request type',
+            'student_prog_curr_id' => 'Current programme',
             'request_date' => 'Request Date',
-            'status_id' => 'Status ID',
+            'status_id' => 'Request status',
             'receipt_number' => 'Receipt Number',
-            'source' => 'Source',
+            'source' => 'Request reason',
         ];
     }
 
