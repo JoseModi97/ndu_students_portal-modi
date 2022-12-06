@@ -7,11 +7,12 @@ use app\models\search\SmWithdrawalRequestSearch;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\filters\VerbFilter;
+use yii\web\UploadedFile;
 
 /**
  * SmWithdrawalRequestController implements the CRUD actions for SmWithdrawalRequest model.
  */
-class SmWithdrawalRequestController extends Controller
+class SmWithdrawalRequestController extends BaseController
 {
     /**
      * @inheritDoc
@@ -83,10 +84,14 @@ class SmWithdrawalRequestController extends Controller
         $model = new SmWithdrawalRequest();
 
         if ($this->request->isPost) {
+            $model->file = UploadedFile::getInstance($model, 'supporting_doc_url');
 
-            if ($model->load($this->request->post()) && $model->save()) {
 
-                return $this->redirect(['view', 'withdrawal_request_id' => $model->withdrawal_request_id]);
+            if ($model->load($this->request->post()) && $model->upload()) {
+
+                $this->setFlash('success', 'Withdrawal/ Deferment Request', 'Withdrawal/ Deferment request created successfully.');
+//                return $this->redirect(['view', 'withdrawal_request_id' => $model->withdrawal_request_id]);
+                return $this->redirect(['index']);
             }
         } else {
             $model->loadDefaultValues();
@@ -108,8 +113,34 @@ class SmWithdrawalRequestController extends Controller
     {
         $model = $this->findModel($withdrawal_request_id);
 
-        if ($this->request->isPost && $model->load($this->request->post()) && $model->save()) {
-            return $this->redirect(['view', 'withdrawal_request_id' => $model->withdrawal_request_id]);
+        $model->file = UploadedFile::getInstance($model, 'supporting_doc_url');
+
+        if ($model->file) { //checks if file is uploaded
+            if ($this->request->isPost &&$model->load($this->request->post()) && $model->upload()) {
+
+
+
+                $this->setFlash('success', 'Withdrawal/ Deferment Request', 'Withdrawal/ Deferment request Updated successfully.');
+//
+              return $this->redirect(['index']);
+            }
+        } else {
+
+            //&& $model->save()&& $model->load($this->request->post())
+            if ($this->request->isPost ) {
+                $data = Yii::$app->request->post('SmWithdrawalRequest');
+//                dd($data['withdrawal_type_id']);
+            //    $model->withdrawal_request_id=$data['withdrawal_type_id'];
+                $model->withdrawal_type_id = $data['withdrawal_type_id'];
+                $model->request_date = $data['request_date'];
+                $model->reason = $data['reason'];
+                if ($model->save()) {
+                    //dd($model);
+                    $this->setFlash('success', 'Withdrawal/ Deferment Request', 'Withdrawal/ Deferment request Updated successfully.');
+//
+                    return $this->redirect(['index']);
+                }
+            }
         }
 
         return $this->render('update', [
@@ -129,6 +160,17 @@ class SmWithdrawalRequestController extends Controller
         $this->findModel($withdrawal_request_id)->delete();
 
         return $this->redirect(['index']);
+    }
+    public function actionDownload()
+    {
+        $file=Yii::$app->request->get('file');
+        $path=Yii::$app->request->get('supporting_doc_url');
+        $root=Yii::getAlias('@app/').$path;
+        if (file_exists($root)) {
+            return Yii::$app->response->sendFile($root);
+        } else {
+            throw new \yii\web\NotFoundHttpException("{$file} is not found!");
+        }
     }
 
     /**

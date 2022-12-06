@@ -51,8 +51,8 @@ class SmWithdrawalRequestSearch extends SmWithdrawalRequest
         $dataProvider->sort->attributes['smWithdrawalType'] = [
             // The tables are the ones our relation are configured to
             // in my case they are prefixed with "tbl_"
-            'asc' => ['sm_withdrawal_type.withrawal_type_name' => SORT_ASC],
-            'desc' => ['sm_withdrawal_type.withrawal_type_name' => SORT_DESC],
+            'asc' => ['sm_withdrawal_type.withdrawal_type_name' => SORT_ASC],
+            'desc' => ['sm_withdrawal_type.withdrawal_type_name' => SORT_DESC],
         ];
 
         $this->load($params);
@@ -69,11 +69,12 @@ class SmWithdrawalRequestSearch extends SmWithdrawalRequest
             'withdrawal_type_id' => $this->withdrawal_type_id,
             'request_date' => $this->request_date,
             'student_id' => $this->student_id,
+            'supporting_doc_url' => $this->supporting_doc_url,
 
         ]);
 
         $query->andFilterWhere(['ilike', 'reason', $this->reason])
-            ->andFilterWhere(['ilike', 'sm_withdrawal_type.withrawal_type_name', $this->smWithdrawalType])
+            ->andFilterWhere(['ilike', 'sm_withdrawal_type.withdrawal_type_name', $this->smWithdrawalType])
             ->andFilterWhere(['ilike', 'approval_status', $this->approval_status]);
 
         return $dataProvider;

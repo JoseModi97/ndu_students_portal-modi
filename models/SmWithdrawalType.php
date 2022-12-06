@@ -8,7 +8,7 @@ use Yii;
  * This is the model class for table "smisportal.sm_withdrawal_type".
  *
  * @property int $withdrawal_type_id
- * @property string $withrawal_type_name
+ * @property string $withdrawal_type_name
  */
 class SmWithdrawalType extends \yii\db\ActiveRecord
 {
@@ -27,7 +27,7 @@ class SmWithdrawalType extends \yii\db\ActiveRecord
     {
         return [
             [['withrawal_type_name'], 'required'],
-            [['withrawal_type_name'], 'string', 'max' => 60],
+            [['withdrawal_type_name'], 'string', 'max' => 60],
         ];
     }
 
@@ -38,7 +38,7 @@ class SmWithdrawalType extends \yii\db\ActiveRecord
     {
         return [
             'withdrawal_type_id' => 'Withdrawal Type ID',
-            'withrawal_type_name' => 'Withrawal Type Name',
+            'withdrawal_type_name' => 'Withdrawal Type Name',
         ];
     }
 
