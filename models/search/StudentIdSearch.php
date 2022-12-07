@@ -2,23 +2,24 @@
 
 namespace app\models\search;
 
-use app\models\StudentIdRequest;
+use Yii;
 use yii\base\Model;
 use yii\data\ActiveDataProvider;
+use app\models\StudentId;
 
 /**
- * app\models\search\StudentIdRequestSearch represents the model behind the search form about `app\models\StudentIdRequest`.
+ * app\models\search\StudentIdSearch represents the model behind the search form about `app\models\StudentId`.
  */
-class StudentIdRequestSearch extends StudentIdRequest
+ class StudentIdSearch extends StudentId
 {
     /**
      * @inheritdoc
      */
-    public function rules(): array
+    public function rules()
     {
         return [
-            [['request_id', 'request_type_id', 'student_prog_curr_id', 'status_id', 'receipt_number'], 'integer'],
-            [['request_date', 'source'], 'safe'],
+            [['student_id_serial_no', 'student_prog_curr_id', 'barcode'], 'integer'],
+            [['issuance_date', 'valid_from', 'valid_to', 'id_status'], 'safe'],
         ];
     }
 
@@ -40,11 +41,11 @@ class StudentIdRequestSearch extends StudentIdRequest
      */
     public function search($params)
     {
-        $query = StudentIdRequest::find();
+        $query = StudentId::find();
 
         $dataProvider = new ActiveDataProvider([
             'query' => $query,
-            'sort'=> ['defaultOrder' => ['request_date' => SORT_ASC]],
+            'sort'=> ['defaultOrder' => ['id_status' => SORT_ASC]],
         ]);
 
         $this->load($params);
@@ -56,15 +57,16 @@ class StudentIdRequestSearch extends StudentIdRequest
         }
 
         $query->andFilterWhere([
-            'request_id' => $this->request_id,
-            'request_type_id' => $this->request_type_id,
+            'student_id_serial_no' => $this->student_id_serial_no,
             'student_prog_curr_id' => $this->student_prog_curr_id,
-            'request_date' => $this->request_date,
-            'status_id' => $this->status_id,
-            'receipt_number' => $this->receipt_number,
+            'issuance_date' => $this->issuance_date,
+            'valid_from' => $this->valid_from,
+            'valid_to' => $this->valid_to,
+            'barcode' => $this->barcode,
+            'id_status' => $this->id_status,
         ]);
 
-        $query->andFilterWhere(['like', 'source', $this->source]);
+//        $query->andFilterWhere(['like', 'id_status', $this->id_status]);
 
         return $dataProvider;
     }

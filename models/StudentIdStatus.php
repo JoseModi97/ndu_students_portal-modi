@@ -49,7 +49,7 @@ class StudentIdStatus extends ActiveRecord
         return [
             'id_status_no' => 'Id Status No',
             'status_name' => 'Status Name',
-            'student_id_serial_no' => 'Student Id Serial No',
+            'student_id_serial_no' => 'ID serial number',
         ];
     }
 

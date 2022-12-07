@@ -2,15 +2,14 @@
 
 use yii\helpers\Html;
 
-
 /* @var $this yii\web\View */
 /* @var $model app\models\StudentIdRequest */
 
-$this->title = 'New ID Replacement request';
-//$this->params['breadcrumbs'][] = ['label' => 'New student ID Requests', 'url' => ['index']];
-//$this->params['breadcrumbs'][] = $this->title;
+$this->title = 'Update Student Id Request: ' . ' ' . $model->request_id;
+$this->params['breadcrumbs'][] = ['label' => 'Student Id Requests', 'url' => ['index']];
+$this->params['breadcrumbs'][] = ['label' => $model->request_id, 'url' => ['view', 'id' => $model->request_id]];
+$this->params['breadcrumbs'][] = 'Update';
 ?>
-
 <!-- Content Header (Page header) -->
 <div class="content-header">
     <div class="page-header">
@@ -24,7 +23,7 @@ $this->title = 'New ID Replacement request';
     <div class="container-fluid">
         <div class="card">
             <div class="card-body">
-                <?= $this->render('_form', ['model' => $model]); ?>
+                <?= $this->render('forms/_id-request-form', ['model' => $model]); ?>
             </div>
         </div>
     </div>

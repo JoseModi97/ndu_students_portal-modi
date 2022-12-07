@@ -5,6 +5,8 @@ namespace app\controllers;
 use app\models\IdRequestStatus;
 use app\models\IdRequestType;
 use app\models\search\StudentIdRequestSearch;
+use app\models\search\StudentIdSearch;
+use app\models\StudentId;
 use app\models\StudentIdRequest;
 use Yii;
 use yii\db\StaleObjectException;
@@ -21,17 +23,17 @@ class StudentIdController extends BaseController
     {
         return [
             'verbs' => [
-                'class' => VerbFilter::className(),
+                'class' => VerbFilter::class,
                 'actions' => [
                     'delete' => ['post'],
                 ],
             ],
             'access' => [
-                'class' => \yii\filters\AccessControl::className(),
+                'class' => \yii\filters\AccessControl::class,
                 'rules' => [
                     [
                         'allow' => true,
-                        'actions' => ['index', 'view', 'create', 'update', 'delete'],
+                        'actions' => ['index', 'view', 'create', 'update-id-status', 'delete'],
                         'roles' => ['@']
                     ],
                     [
@@ -48,12 +50,18 @@ class StudentIdController extends BaseController
      */
     public function actionIndex(): string
     {
-        $searchModel = new StudentIdRequestSearch();
-        $dataProvider = $searchModel->search(Yii::$app->request->queryParams);
+        $studentIdSearchModel = new StudentIdSearch();
+        $studentIdDataProvider = $studentIdSearchModel->search(Yii::$app->request->queryParams);
+
+        $studentIdRequestModel = new StudentIdRequestSearch();
+        $studentIdRequestProvider = $studentIdRequestModel->search(Yii::$app->request->queryParams);
+
 
         return $this->render('index', [
-            'searchModel' => $searchModel,
-            'dataProvider' => $dataProvider,
+            'idRequestSearchModel' => $studentIdRequestModel,
+            'idRequestProvider' => $studentIdRequestProvider,
+            'studentIdSearchModel' => $studentIdSearchModel,
+            'studentIdProvider' => $studentIdDataProvider,
         ]);
     }
 
@@ -91,7 +99,7 @@ class StudentIdController extends BaseController
             return $this->redirect(['index']);
         }
 
-        return $this->render('create', [
+        return $this->render('new-id-request', [
             'model' => $model,
         ]);
     }
@@ -110,9 +118,33 @@ class StudentIdController extends BaseController
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
             return $this->redirect(['index']);
         }
-        return $this->render('update', [
+        return $this->render('update-id-request', [
             'model' => $model,
         ]);
+    }
+
+
+    /**
+     * Updates an existing StudentId model.
+     * If update is successful, the browser will be redirected to the 'view' page.
+     * @param integer $id
+     * @return string|Response
+     */
+    public function actionUpdateIdStatus(int $id): string|Response
+    {
+        $model = StudentId::findOne($id);
+
+        if ($model === null) {
+            throw new NotFoundHttpException('The requested page does not exist.');
+        }
+
+        if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            return $this->redirect(['index']);
+        }
+        return $this->render('update-id-status', [
+            'model' => $model,
+        ]);
+
     }
 
     /**

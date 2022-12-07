@@ -51,13 +51,13 @@ class StudentId extends ActiveRecord
     public function attributeLabels()
     {
         return [
-            'student_id_serial_no' => 'Student Id Serial No',
-            'student_prog_curr_id' => 'Student Prog Curr ID',
+            'student_id_serial_no' => 'Serial No',
+            'student_prog_curr_id' => 'Programme',
             'issuance_date' => 'Issuance Date',
             'valid_from' => 'Valid From',
             'valid_to' => 'Valid To',
             'barcode' => 'Barcode',
-            'id_status' => 'Id Status',
+            'id_status' => 'Status',
         ];
     }
 
