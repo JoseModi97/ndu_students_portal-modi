@@ -21,6 +21,11 @@ class StudentIdStatus extends ActiveRecord
     const ID_LOST = 'LOST';
     const ID_EXPIRED = 'EXPIRED';
 
+    public static array $statusList = [
+        self::ID_ACTIVE => self::ID_ACTIVE,
+        self::ID_LOST => self::ID_LOST,
+    ];
+
     /**
      * @inheritdoc
      */
@@ -28,6 +33,7 @@ class StudentIdStatus extends ActiveRecord
     {
         return 'smisportal.sm_student_id_status';
     }
+
 
     /**
      * @inheritdoc

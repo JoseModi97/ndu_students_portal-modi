@@ -2,6 +2,7 @@
 
 namespace app\models;
 
+use Yii;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
@@ -30,6 +31,7 @@ class StudentId extends ActiveRecord
     {
         return 'smisportal.sm_student_id';
     }
+
 
     /**
      * @inheritdoc
@@ -83,5 +85,32 @@ class StudentId extends ActiveRecord
     public function getStudentIdStatuses(): ActiveQuery
     {
         return $this->hasMany(StudentIdStatus::class, ['student_id_serial_no' => 'student_id_serial_no']);
+    }
+
+    /**
+     * This function check if the student has an active id that is still valid
+     *
+     * @return bool
+     */
+    public static function hasActiveAndValidId(): bool
+    {
+        $currentProgramme = StudentProgramme::find()
+            ->joinWith(['studentStatus'])
+            ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+            ->andWhere(['status' => 'CURRENT'])
+            ->one();
+
+        if ($currentProgramme == null) {
+            return false;
+        }
+
+        $idDetails = self::find()
+            ->select('id_status')
+            ->where(['>=', 'valid_to', date('Y-m-d')])
+            ->andWhere(['id_status' => StudentIdStatus::ID_ACTIVE])
+            ->andWhere(['student_prog_curr_id' => $currentProgramme->student_prog_curriculum_id])
+            ->count();
+
+        return ($idDetails > 0);
     }
 }

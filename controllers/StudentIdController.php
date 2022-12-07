@@ -79,7 +79,7 @@ class StudentIdController extends BaseController
         }
 
         //check if student has an active and valid id
-        $hasActiveId = $model->hasActiveAndValidId();
+        $hasActiveId = StudentId::hasActiveAndValidId();
         if ($hasActiveId) {
             //return to grid view
             $this->setFlash('danger', 'Active ID', 'You already have an active and current student id, you cannot request for another one');

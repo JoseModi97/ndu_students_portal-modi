@@ -14,7 +14,7 @@ use yii\helpers\Html;
 
 <?= $form->errorSummary($model); ?>
 
-<?= $form->field($model, 'student_prog_curr_id')->widget(\kartik\widgets\Select2::classname(), [
+<?= $form->field($model, 'student_prog_curr_id')->widget(\kartik\widgets\Select2::class, [
     'data' => \yii\helpers\ArrayHelper::map(\app\models\StudentProgramme::find()->orderBy('student_prog_curriculum_id')->asArray()->all(), 'student_prog_curriculum_id', 'student_prog_curriculum_id'),
     'options' => ['placeholder' => 'Choose Smisportal.sm student programme curriculum'],
     'pluginOptions' => [
@@ -30,7 +30,13 @@ use yii\helpers\Html;
 
 <?= $form->field($model, 'barcode')->textInput(['placeholder' => 'Barcode']) ?>
 
-<?= $form->field($model, 'id_status')->textInput(['maxlength' => true, 'placeholder' => 'Id Status']) ?>
+<?= $form->field($model, 'id_status')->widget(\kartik\widgets\Select2::class, [
+    'data' => \app\models\StudentIdStatus::$statusList,
+    'options' => ['placeholder' => 'Choose Smisportal.sm student programme curriculum'],
+    'pluginOptions' => [
+        'allowClear' => true
+    ],
+]); ?>
 
 
 <div class="d-grid gap-2 col-6 mx-auto">

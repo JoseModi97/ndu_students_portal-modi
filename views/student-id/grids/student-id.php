@@ -33,7 +33,7 @@ $gridColumn = [
             'update' => function ($url, $model) {
                 /* @var $model app\models\StudentId */
                 if ($model->id_status != StudentIdStatus::ID_EXPIRED) {
-                    return Html::a('<i class="fa fa-edit"></i>', [
+                    return Html::a('<i class="fa fa-file-edit"></i>', [
                         'update-id-status', 'id' => $model->student_id_serial_no
                     ], ['title' => 'Update request', 'class' => 'btn btn-sm btn-outline-default']);
                 }
