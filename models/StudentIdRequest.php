@@ -2,6 +2,7 @@
 
 namespace app\models;
 
+use Yii;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
@@ -83,5 +84,32 @@ class StudentIdRequest extends ActiveRecord
     public function getStudentProgCurr(): ActiveQuery
     {
         return $this->hasOne(StudentProgramme::class, ['student_prog_curriculum_id' => 'student_prog_curr_id']);
+    }
+
+    /**
+     * This function check if the student has an active id that is still valid
+     *
+     * @return bool
+     */
+    public function hasActiveAndValidId(): bool
+    {
+        $currentProgramme = StudentProgramme::find()
+            ->joinWith(['studentStatus'])
+            ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+            ->andWhere(['status' => 'CURRENT'])
+            ->one();
+
+        if ($currentProgramme == null) {
+            return false;
+        }
+
+        $idDetails = StudentId::find()
+            ->select('id_status')
+            ->where(['>=', 'valid_to', date('Y-m-d')])
+            ->andWhere(['id_status' => StudentIdStatus::ID_ACTIVE])
+            ->andWhere(['student_prog_curr_id' => $currentProgramme->student_prog_curriculum_id])
+            ->count();
+
+        return ($idDetails > 0);
     }
 }

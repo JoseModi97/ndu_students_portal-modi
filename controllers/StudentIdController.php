@@ -59,7 +59,7 @@ class StudentIdController extends BaseController
 
     /**
      * Creates a new StudentIdRequest model.
-     * If creation is successful, the browser will be redirected to the 'view' page.
+     * If creation is successful, the browser will be redirected to the 'index' page.
      * @return string|Response
      */
     public function actionCreate(): string|Response
@@ -67,6 +67,14 @@ class StudentIdController extends BaseController
         $model = new StudentIdRequest();
 
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            return $this->redirect(['index']);
+        }
+
+        //check if student has an active and valid id
+        $hasActiveId = $model->hasActiveAndValidId();
+        if ($hasActiveId) {
+            //return to grid view
+            $this->setFlash('danger', 'Active ID', 'You already have an active and current student id, you cannot request for another one');
             return $this->redirect(['index']);
         }
 
@@ -90,7 +98,7 @@ class StudentIdController extends BaseController
 
     /**
      * Updates an existing StudentIdRequest model.
-     * If update is successful, the browser will be redirected to the 'view' page.
+     * If update is successful, the browser will be redirected to the 'index' page.
      * @param integer $id
      * @return string|Response
      * @throws NotFoundHttpException
