@@ -36,7 +36,7 @@ use yii\helpers\Html;
         ],
     ]); ?>
 
-    <?= $form->field($model, 'request_date')->textInput(['readonly' => true]) ?>
+    <?= $form->field($model, 'request_date')->hiddenInput(['readonly' => true])->label(false) ?>
 
     <?= $form->field($model, 'status_id')->widget(Select2::class, [
         'data' =>

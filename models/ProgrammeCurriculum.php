@@ -26,6 +26,8 @@ use yii\db\ActiveRecord;
  * @property int $grading_system_id
  * @property string $status
  * @property string|null $approval_date
+ *
+ * @property Programmes $program
  */
 class ProgrammeCurriculum extends ActiveRecord
 {
@@ -79,5 +81,13 @@ class ProgrammeCurriculum extends ActiveRecord
             'status' => 'Status',
             'approval_date' => 'Approval Date',
         ];
+    }
+
+    /**
+     * @return \yii\db\ActiveQuery
+     */
+    public function getProgram()
+    {
+        return $this->hasOne(Programmes::class, ['prog_id' => 'prog_id']);
     }
 }

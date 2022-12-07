@@ -5,6 +5,7 @@
 
 /* @var $dataProvider yii\data\ActiveDataProvider */
 
+use app\models\IdRequestStatus;
 use kartik\grid\GridView;
 use yii\helpers\Html;
 
@@ -22,51 +23,58 @@ $this->params['breadcrumbs'][] = $this->title;
 <?php
 $gridColumn = [
     ['class' => 'kartik\grid\SerialColumn'],
-    'request_id',
     [
         'attribute' => 'request_type_id',
-        'label' => 'Request Type',
         'value' => function ($model) {
-            return $model->requestType->request_type_id;
-        },
-        'filterType' => GridView::FILTER_SELECT2,
-        'filter' => \yii\helpers\ArrayHelper::map(\app\models\IdRequestType::find()->asArray()->all(), 'request_type_id', 'request_type_id'),
-        'filterWidgetOptions' => [
-            'pluginOptions' => ['allowClear' => true],
-        ],
-        'filterInputOptions' => ['placeholder' => 'id request type', 'id' => 'grid-student-id-request-search-request_type_id']
+            /* @var $model app\models\StudentIdRequest */
+            return $model->requestType->id_type_desc;
+        }
     ],
     [
         'attribute' => 'student_prog_curr_id',
-        'label' => 'Student Prog Curr',
         'value' => function ($model) {
-            return $model->studentProgCurr->student_prog_curriculum_id;
-        },
-        'filterType' => GridView::FILTER_SELECT2,
-        'filter' => \yii\helpers\ArrayHelper::map(\app\models\StudentProgramme::find()->asArray()->all(), 'student_prog_curriculum_id', 'student_prog_curriculum_id'),
-        'filterWidgetOptions' => [
-            'pluginOptions' => ['allowClear' => true],
-        ],
-        'filterInputOptions' => ['placeholder' => 'Smisportal.sm student programme curriculum', 'id' => 'grid-student-id-request-search-student_prog_curr_id']
+            /* @var $model app\models\StudentIdRequest */
+            return ($model->studentProgCurr->programmeCurriculum->program->prog_full_name);
+        }
     ],
-    'request_date',
+    'request_date:date',
     [
         'attribute' => 'status_id',
-        'label' => 'Status',
         'value' => function ($model) {
-            return $model->status->status_id;
-        },
-        'filterType' => GridView::FILTER_SELECT2,
-        'filter' => \yii\helpers\ArrayHelper::map(\app\models\IdRequestStatus::find()->asArray()->all(), 'status_id', 'status_id'),
-        'filterWidgetOptions' => [
-            'pluginOptions' => ['allowClear' => true],
-        ],
-        'filterInputOptions' => ['placeholder' => 'Smisportal.sm id request status', 'id' => 'grid-student-id-request-search-status_id']
+            /* @var $model app\models\StudentIdRequest */
+            return $model->status->status_name;
+        }
     ],
     'receipt_number',
     'source',
     [
-        'class' => 'yii\grid\ActionColumn',
+        'class' => 'kartik\grid\ActionColumn',
+        'header' => '#',
+        'template' => '{update} {delete}',
+        'buttons' => [
+            'update' => function ($url, $model) {
+                /* @var $model app\models\StudentIdRequest */
+                if ($model->status->status_name == IdRequestStatus::STATUS_PENDING) {
+                    return Html::a('<i class="fa fa-edit"></i>', [
+                        'update', 'id' => $model->request_id
+                    ], ['title' => 'Update request', 'class' => 'btn btn-sm btn-outline-success']);
+                }
+                return '';
+            },
+            'delete' => function ($url, $model) {
+                /* @var $model app\models\StudentIdRequest */
+                if ($model->status->status_name == IdRequestStatus::STATUS_PENDING) {
+                    return Html::a('<i class="fa fa-trash"></i>', ['delete', 'id' => $model->request_id], [
+                        'title' => 'Delete request', 'class' => 'btn btn-sm btn-outline-danger',
+                        'data' => [
+                            'confirm' => 'Are you absolutely sure ? You will lose all the information about this request with this action.',
+                            'method' => 'post',
+                        ],
+                    ]);
+                }
+                return '';
+            },
+        ],
     ],
 ];
 ?>
@@ -79,14 +87,8 @@ $gridColumn = [
     <div class="card-body">
         <?= GridView::widget([
             'dataProvider' => $dataProvider,
-            'filterModel' => $searchModel,
+//            'filterModel' => $searchModel,
             'columns' => $gridColumn,
-            'pjax' => true,
-            'pjaxSettings' => ['options' => ['id' => 'kv-pjax-container-student-id-request']],
-            'panel' => [
-                'type' => GridView::TYPE_PRIMARY,
-                'heading' => '<span class="glyphicon glyphicon-book"></span>  ' . Html::encode($this->title),
-            ],
             'export' => false,
             // your toolbar can include the additional full export menu
             'toolbar' => false,
