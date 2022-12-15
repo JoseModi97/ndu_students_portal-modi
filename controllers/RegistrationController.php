@@ -46,15 +46,22 @@ class RegistrationController extends BaseController
      */
     public function beforeAction($action): bool
     {
-        if(parent::beforeAction($action)) {
+        if(parent::beforeAction($action)){
             $identity = Yii::$app->user->identity;
+
+            if($identity->admission_status === parent::REGISTERED_STATUS){
+                $this->redirect(['/home/index']);
+                return false;
+            }
+
             if($action->id == 'add-documents'){
-                if($identity->admission_status !== 'PRE-REGISTRATION'){
+                if($identity->doc_submission_status){
                     $this->setFlash('success', 'Registration documents', 'Registration documents already submitted.');
                     $this->redirect(['/registration/index']);
                     return false;
                 }
             }
+
             return true;
         }
         return false;

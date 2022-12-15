@@ -8,6 +8,7 @@ namespace app\controllers;
 use app\helpers\SmisHelper;
 use app\models\NameChange;
 use app\models\search\NameChangeRequests;
+use app\models\Student;
 use app\models\StudentProgramme;
 use app\models\User;
 use Exception;
@@ -15,6 +16,7 @@ use JetBrains\PhpStorm\ArrayShape;
 use Throwable;
 use Yii;
 use yii\filters\AccessControl;
+use yii\web\BadRequestHttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
 
@@ -41,6 +43,24 @@ class AccountController extends BaseController
     }
 
     /**
+     * @throws BadRequestHttpException
+     */
+    public function beforeAction($action): bool
+    {
+        if(parent::beforeAction($action)){
+            $identity = Yii::$app->user->identity;
+            if($action->id == 'list-name-change'){
+                if($identity->admission_status === parent::PRE_REGISTERED_STATUS){
+                    $this->redirect(['/home/index']);
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * @return string
      */
     public function actionIndex(): string
@@ -59,24 +79,18 @@ class AccountController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try{
             $post = Yii::$app->request->post();
-            $user = User::findOne(Yii::$app->user->identity->adm_refno);
-            $user->primary_phone_no = $post['primaryPhone'];
-            $user->alternative_phone_no = $post['secondaryPhone'];
-            $user->post_address = $post['postAddress'];
-            $user->post_code = $post['postCode'];
-            $user->town = $post['town'];
-            $user->national_id = $post['nationalIdNumber'];
-            $user->birth_cert_no = $post['birthCertificateNumber'];
-            $user->passport_no = $post['passportNumber'];
-            if(!$user->save()){
-                if(!$user->validate()){
-                    $transaction->rollBack();
-                    $errorMessage = SmisHelper::getModelErrors($user->getErrors());
-                    return $this->asJson(['success' => false, 'message' => $errorMessage]);
-                }else{
-                    throw new Exception('Profile not updated.');
-                }
+            $admRefno = Yii::$app->user->identity->adm_refno;
+
+            $user = User::findOne($admRefno);
+            $this->updateProfile($user, $post, $transaction);
+
+            // If student is registered, also update the student table
+            if(Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS){
+                $studentProgramme = StudentProgramme::find()->where(['adm_refno' => $admRefno])->one();
+                $student = Student::findOne($studentProgramme->student_id);
+                $this->updateProfile($student, $post, $transaction);
             }
+
             $transaction->commit();
             $this->setFlash('success', 'Profile', 'Profile updated successfully.');
             return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
@@ -91,6 +105,38 @@ class AccountController extends BaseController
     }
 
     /**
+     * @param User|Student $profile
+     * @param array $post
+     * @param $transaction
+     * @return void
+     * @throws Exception
+     */
+    private function updateProfile(User|Student $profile, array $post, $transaction): void
+    {
+        $profile->primary_phone_no = $post['primaryPhone'];
+        $profile->alternative_phone_no = $post['secondaryPhone'];
+        $profile->post_address = $post['postAddress'];
+        $profile->post_code = $post['postCode'];
+        $profile->town = $post['town'];
+        $profile->passport_no = $post['passportNumber'];
+        if($profile instanceof User){
+            $profile->national_id = $post['nationalIdNumber'];
+            $profile->birth_cert_no = $post['birthCertificateNumber'];
+        }else{
+            $profile->id_no = $post['nationalIdNumber'];
+        }
+        if(!$profile->save()){
+            if(!$profile->validate()){
+                $transaction->rollBack();
+                $errorMessage = SmisHelper::getModelErrors($profile->getErrors());
+                $this->asJson(['success' => false, 'message' => $errorMessage]);
+            }else{
+                throw new Exception('Profile not updated.');
+            }
+        }
+    }
+
+    /**
      * @return Response
      */
     public function actionUpdatePassword(): Response
@@ -98,7 +144,8 @@ class AccountController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try{
             $post = Yii::$app->request->post();
-            $user = User::findOne(Yii::$app->user->identity->adm_refno);
+            $admRefno = Yii::$app->user->identity->adm_refno;
+            $user = User::findOne($admRefno);
 
             if(!$user->validatePassword($post['oldPassword'])){
                 return $this->asJson(['success' => false, 'message' => 'Incorrect password']);
@@ -135,7 +182,8 @@ class AccountController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try{
             $post = Yii::$app->request->post();
-            $user = User::findOne(Yii::$app->user->identity->adm_refno);
+            $admRefno = Yii::$app->user->identity->adm_refno;
+            $user = User::findOne($admRefno);
 
             $primaryEmail = $post['primaryEmail'];
             $secondaryEmail = $post['secondaryEmail'];
@@ -153,6 +201,27 @@ class AccountController extends BaseController
             if(!empty($secondaryEmail)){
                 $secondaryEmailToken = Yii::$app->getSecurity()->generateRandomString();
                 $user->secondary_email_salt = Yii::$app->security->generatePasswordHash($secondaryEmailToken);
+            }
+
+            // If student is registered, also update the student table
+            if(Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS){
+                $studentProgramme = StudentProgramme::find()->where(['adm_refno' => $admRefno])->one();
+                $student = Student::findOne($studentProgramme->student_id);
+
+                if(!empty($primaryEmail)){
+                    $student->primary_email = $primaryEmail;
+                }
+                $student->alternative_email = $secondaryEmail;
+
+                if(!$student->save()){
+                    if(!$student->validate()){
+                        $transaction->rollBack();
+                        $errorMessage = SmisHelper::getModelErrors($student->getErrors());
+                        return $this->asJson(['success' => false, 'message' => $errorMessage]);
+                    }else{
+                        throw new Exception('Emails not updated.');
+                    }
+                }
             }
 
             if($user->save()){
