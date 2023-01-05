@@ -19,6 +19,13 @@ use yii\db\ActiveRecord;
  * @property int $student_category_id
  * @property int $adm_refno
  * @property int $status_id
+ *
+ * @property StudentIdRequest[] $studentIdRequests
+ * @property ProgrammeCurriculum $programmeCurriculum
+ * @property Student $student
+ * @property StudentCategory $studentCategory
+ * @property-read AdmittedStudent $admittedStudent
+ * @property StudentStatus $studentStatus
  */
 class StudentProgramme extends ActiveRecord
 {
@@ -86,7 +93,7 @@ class StudentProgramme extends ActiveRecord
     /**
      * @return ActiveQuery
      */
-    public function getCategory(): ActiveQuery
+    public function getStudentCategory(): ActiveQuery
     {
         return $this->hasOne(StudentCategory::class, ['std_category_id' => 'student_category_id']);
     }
@@ -94,16 +101,24 @@ class StudentProgramme extends ActiveRecord
     /**
      * @return ActiveQuery
      */
-    public function getStatus(): ActiveQuery
+    public function getStudentStatus(): ActiveQuery
     {
-        return $this->hasOne(Student::class, ['status_id' => 'status_id']);
+        return $this->hasOne(StudentStatus::class, ['status_id' => 'status_id']);
     }
 
     /**
      * @return ActiveQuery
      */
-    public function getProgramme(): ActiveQuery
+    public function getProgrammeCurriculum(): ActiveQuery
     {
         return $this->hasOne(ProgrammeCurriculum::class, ['prog_curriculum_id' => 'prog_curriculum_id']);
+    }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getStudentIdRequests(): ActiveQuery
+    {
+        return $this->hasMany(StudentIdRequest::class, ['student_prog_curr_id' => 'student_prog_curriculum_id']);
     }
 }
