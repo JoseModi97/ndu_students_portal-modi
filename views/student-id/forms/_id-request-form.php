@@ -4,8 +4,8 @@
 use app\models\IdRequestStatus;
 use app\models\IdRequestType;
 use app\models\StudentProgramme;
-use kartik\widgets\ActiveForm;
-use kartik\widgets\Select2;
+use kartik\form\ActiveForm;
+use kartik\select2\Select2;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Html;
 
