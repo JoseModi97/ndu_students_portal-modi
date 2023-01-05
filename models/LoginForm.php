@@ -5,6 +5,8 @@
 
 namespace app\models;
 
+use Exception;
+use yii\base\InvalidArgumentException;
 use yii\base\Model;
 use yii\db\ActiveRecord;
 
@@ -20,8 +22,6 @@ class LoginForm extends Model
 
     public $password;
 
-    public $option;
-
     /**
      * @return array the validation rules.
      */
@@ -29,7 +29,7 @@ class LoginForm extends Model
     {
         return [
             // username and password are both required
-            [['username', 'password', 'option'], 'required'],
+            [['username', 'password'], 'required'],
             // password is validated by validatePassword()
             ['password', 'validatePassword'],
         ];
@@ -40,6 +40,7 @@ class LoginForm extends Model
      * This method serves as the inline validation for password.
      *
      * @param string $attribute the attribute currently being validated
+     * @throws Exception
      */
     public function validatePassword(string $attribute)
     {
@@ -47,8 +48,12 @@ class LoginForm extends Model
 
             $user = $this->getUser();
 
-            if (!$user || !$user->validatePassword($this->password)) {
-                $this->addError($attribute, 'Incorrect username or password.');
+            try{
+                if (!$user || !$user->validatePassword($this->password)) {
+                    $this->addError($attribute, 'Incorrect username or password.');
+                }
+            }catch (Exception $ex){
+                throw new Exception($ex->getMessage());
             }
         }
     }
@@ -60,6 +65,6 @@ class LoginForm extends Model
      */
     public function getUser(): array|bool|User
     {
-        return User::findByUsername($this->username, $this->option);
+        return User::findByUsername($this->username);
     }
 }

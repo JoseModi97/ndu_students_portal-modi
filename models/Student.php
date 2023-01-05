@@ -24,6 +24,13 @@ use yii\db\ActiveRecord;
  * @property string|null $blood_group
  * @property int|null $sponsor
  * @property string|null $registration_date
+ * @property string|null $primary_phone_no
+ * @property string|null $alternative_phone_no
+ * @property string|null $primary_email
+ * @property string|null $alternative_email
+ * @property string|null $post_code
+ * @property string|null $post_address
+ * @property string|null $town
  */
 class Student extends ActiveRecord
 {
@@ -45,12 +52,12 @@ class Student extends ActiveRecord
             [['student_id', 'sponsor'], 'default', 'value' => null],
             [['student_id', 'sponsor'], 'integer'],
             [['dob', 'registration_date'], 'safe'],
-            [['student_number', 'passport_no', 'service_number'], 'string', 'max' => 20],
-            [['surname'], 'string', 'max' => 50],
-            [['other_names'], 'string', 'max' => 100],
+            [['student_number', 'passport_no', 'service_number', 'post_address'], 'string', 'max' => 20],
+            [['surname', 'primary_phone_no', 'alternative_phone_no', 'town'], 'string', 'max' => 50],
+            [['other_names', 'primary_email', 'alternative_email'], 'string', 'max' => 100],
             [['gender'], 'string', 'max' => 1],
             [['country_code'], 'string', 'max' => 3],
-            [['id_no'], 'string', 'max' => 10],
+            [['id_no', 'post_code'], 'string', 'max' => 10],
             [['blood_group'], 'string', 'max' => 5],
             [['student_id'], 'unique'],
             [['country_code'], 'exist', 'skipOnError' => true, 'targetClass' => Country::class, 'targetAttribute' => ['country_code' => 'country_code']],
@@ -76,6 +83,13 @@ class Student extends ActiveRecord
             'blood_group' => 'Blood Group',
             'sponsor' => 'Sponsor',
             'registration_date' => 'Registration Date',
+            'primary_phone_no' => 'Primary Phone No',
+            'alternative_phone_no' => 'Alternative Phone No',
+            'primary_email' => 'Primary Email',
+            'alternative_email' => 'Alternative Email',
+            'post_code' => 'Post Code',
+            'post_address' => 'Post Address',
+            'town' => 'Town',
         ];
     }
 
