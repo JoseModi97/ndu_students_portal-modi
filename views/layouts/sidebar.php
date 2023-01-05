@@ -45,6 +45,12 @@ use yii\helpers\Url;
                         <p>Name change</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= Url::to(['/student-id']); ?>" class="nav-link">
+                        <i class="nav-icon fa fa-id-card" aria-hidden="true"></i>
+                        <p>Student ID</p>
+                    </a>
+                </li>
                 <?php else:?>
                 <li class="nav-item">
                     <a href="<?= Url::to(['/registration/index']); ?>" class="nav-link">
@@ -64,12 +70,6 @@ use yii\helpers\Url;
                     <a href="<?= Url::to(['/sm-withdrawal-request']); ?>" class="nav-link">
                         <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
                         <p>Deferment</p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="<?= Url::to(['/student-id']); ?>" class="nav-link">
-                        <i class="nav-icon fa fa-id-card" aria-hidden="true"></i>
-                        <p>Student ID</p>
                     </a>
                 </li>
             </ul>
