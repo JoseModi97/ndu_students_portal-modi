@@ -47,11 +47,11 @@ $gridColumn = [
 <?= GridView::widget([
     'id' => 'id-history',
     'dataProvider' => $dataProvider,
-    'rowOptions' => function ($model, $key, $index, $grid) {
+    'rowOptions' => function ($model) {
         /* @var $model app\models\StudentId */
         if ($model->id_status === StudentIdStatus::ID_ACTIVE) {
             return ['class' => 'bg-info'];
-        } else if ($model->id_status === StudentIdStatus::ID_LOST) {
+        } elseif ($model->id_status === StudentIdStatus::ID_LOST) {
             return ['class' => 'bg-danger'];
         }
         return [];
