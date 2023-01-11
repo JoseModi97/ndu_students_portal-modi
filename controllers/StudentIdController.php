@@ -82,20 +82,30 @@ class StudentIdController extends BaseController
         $hasActiveId = StudentId::hasActiveAndValidId();
         if ($hasActiveId) {
             //return to grid view
-            $this->setFlash('danger', 'Active ID', 'You already have an active and current student id, you cannot request for another one');
+            $this->setFlash(
+                'danger',
+                'Active ID',
+                'You already have an active and current student id, you cannot request for another one'
+            );
             return $this->redirect(['index']);
         }
 
         //preload default values
         $model->request_date = date('Y-m-d');
         $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;
-        $model->request_type_id = IdRequestType::findOne(['id_type_desc' => IdRequestType::ID_REPLACEMENT])->request_type_id;
+        $model->request_type_id = IdRequestType::findOne([
+            'id_type_desc' => IdRequestType::ID_REPLACEMENT
+        ])->request_type_id;
 
         //check if student has enough fee balance
         $hasEnoughFunds = true; //@TODO tie in to fee balance checking
 
         if ($hasEnoughFunds == false) {
-            $this->setFlash('danger', 'Insufficient funds', 'Insufficient funds. Please top up your student account and try again');
+            $this->setFlash(
+                'danger',
+                'Insufficient funds',
+                'Insufficient funds. Please top up your student account and try again'
+            );
             return $this->redirect(['index']);
         }
 
