@@ -33,7 +33,7 @@ class StudentIdController extends BaseController
                 'rules' => [
                     [
                         'allow' => true,
-                        'actions' => ['index', 'view', 'new-id', 'report-lost-id', 'update-id-status', 'delete'],
+                        'actions' => ['index','new-id', 'report-lost-id'],
                         'roles' => ['@']
                     ],
                     [
@@ -113,26 +113,7 @@ class StudentIdController extends BaseController
             'model' => $model,
         ]);
     }
-
-    /**
-     * Updates an existing StudentIdRequest model.
-     * If update is successful, the browser will be redirected to the 'index' page.
-     * @param integer $id
-     * @return string|Response
-     * @throws NotFoundHttpException
-     */
-    public function actionUpdate(int $id): string|Response
-    {
-        $model = $this->findModel($id);
-
-        if ($model->load(Yii::$app->request->post()) && $model->save()) {
-            return $this->redirect(['index']);
-        }
-        return $this->render('update-id-request', [
-            'model' => $model,
-        ]);
-    }
-
+    
 
     /**
      * Report an id as lost.
