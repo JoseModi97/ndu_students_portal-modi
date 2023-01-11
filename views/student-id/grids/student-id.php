@@ -63,12 +63,14 @@ $gridColumn = [
         'before' => '',
     ],
     // set your toolbar
-    'toolbar' => [
+    'toolbar' => \app\models\StudentId::hasActiveAndValidId() ? '' : [
         [
-            'content' => Html::a('<i class="fas fa-plus"></i> New id request', ['create'], [
+            'content' => Html::a('<i class="fas fa-plus"></i> Request new ID', ['new-id'], [
                 'class' => 'btn btn-success'
             ]),
-            'options' => ['class' => 'btn-group mr-2 me-2']
+            'options' => [
+                'class' => 'btn-group mr-2 me-2'
+            ]
         ],
     ],
     'itemLabelSingle' => 'id record',

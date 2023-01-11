@@ -9,7 +9,6 @@ use app\models\search\StudentIdSearch;
 use app\models\StudentId;
 use app\models\StudentIdRequest;
 use Yii;
-use yii\db\StaleObjectException;
 use yii\filters\VerbFilter;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -33,7 +32,7 @@ class StudentIdController extends BaseController
                 'rules' => [
                     [
                         'allow' => true,
-                        'actions' => ['index', 'view', 'create', 'update-id-status', 'delete'],
+                        'actions' => ['index', 'view', 'new-id', 'update-id-status', 'delete'],
                         'roles' => ['@']
                     ],
                     [
@@ -70,7 +69,7 @@ class StudentIdController extends BaseController
      * If creation is successful, the browser will be redirected to the 'index' page.
      * @return string|Response
      */
-    public function actionCreate(): string|Response
+    public function actionNewId(): string|Response
     {
         $model = new StudentIdRequest();
 
@@ -139,6 +138,7 @@ class StudentIdController extends BaseController
      * If update is successful, the browser will be redirected to the 'view' page.
      * @param integer $id
      * @return string|Response
+     * @throws NotFoundHttpException
      */
     public function actionUpdateIdStatus(int $id): string|Response
     {
@@ -157,22 +157,6 @@ class StudentIdController extends BaseController
 
     }
 
-    /**
-     * Deletes an existing StudentIdRequest model.
-     * If deletion is successful, the browser will be redirected to the 'index' page.
-     * @param integer $id
-     * @return Response
-     * @throws NotFoundHttpException
-     * @throws \Throwable
-     * @throws StaleObjectException
-     */
-    public function actionDelete(int $id): Response
-    {
-        $this->findModel($id)->delete();
-
-        return $this->redirect(['index']);
-    }
-
 
     /**
      * Finds the StudentIdRequest model based on its primary key value.
@@ -186,7 +170,7 @@ class StudentIdController extends BaseController
         if (($model = StudentIdRequest::findOne($id)) !== null) {
             return $model;
         } else {
-            throw new NotFoundHttpException('The requested page does not exist.');
+            throw new NotFoundHttpException('The requested record does not exist.');
         }
     }
 }
