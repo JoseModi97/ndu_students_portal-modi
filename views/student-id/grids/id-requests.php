@@ -5,9 +5,7 @@
 
 /* @var $dataProvider yii\data\ActiveDataProvider */
 
-use app\models\IdRequestStatus;
 use kartik\grid\GridView;
-use yii\helpers\Html;
 
 ?>
 
@@ -28,7 +26,6 @@ $gridColumn = [
             return ($model->studentProgCurr->programmeCurriculum->program->prog_full_name);
         }
     ],
-    'request_date:date',
     [
         'attribute' => 'status_id',
         'value' => function ($model) {
@@ -36,37 +33,8 @@ $gridColumn = [
             return $model->status->status_name;
         }
     ],
-    'receipt_number',
     'source',
-    [
-        'class' => 'kartik\grid\ActionColumn',
-        'header' => '#',
-        'template' => '{update} {delete}',
-        'buttons' => [
-            'update' => function ($url, $model) {
-                /* @var $model app\models\StudentIdRequest */
-                if ($model->status->status_name == IdRequestStatus::STATUS_PENDING) {
-                    return Html::a('<i class="fa fa-edit"></i>', [
-                        'update', 'id' => $model->request_id
-                    ], ['title' => 'Update request', 'class' => 'btn btn-sm btn-outline-success']);
-                }
-                return '';
-            },
-            'delete' => function ($url, $model) {
-                /* @var $model app\models\StudentIdRequest */
-                if ($model->status->status_name == IdRequestStatus::STATUS_PENDING) {
-                    return Html::a('<i class="fa fa-trash"></i>', ['delete', 'id' => $model->request_id], [
-                        'title' => 'Delete request', 'class' => 'btn btn-sm btn-outline-danger',
-                        'data' => [
-                            'confirm' => 'Are you absolutely sure ? You will lose all the information about this request with this action.',
-                            'method' => 'post',
-                        ],
-                    ]);
-                }
-                return '';
-            },
-        ],
-    ],
+    'request_date:date',
 ];
 ?>
 

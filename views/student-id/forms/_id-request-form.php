@@ -27,8 +27,8 @@ use yii\helpers\Html;
     ]); ?>
 
     <?= $form->field($model, 'student_prog_curr_id')->widget(Select2::class, [
-        'data' => \app\models\extended\StudentProgramme::loadActiveProgramme(),
-        'options' => ['placeholder' => 'Choose Smisportal.sm student programme curriculum'],
+        'data' => app\models\extended\StudentProgramme::loadActiveProgramme(),
+        'options' => ['placeholder' => 'Select programme curriculum'],
         'pluginOptions' => [
             'allowClear' => true
         ],
