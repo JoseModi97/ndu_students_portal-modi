@@ -29,13 +29,14 @@ $gridColumn = [
         'class' => 'kartik\grid\ActionColumn',
         'header' => '#',
         'template' => '{update}',
+        'width' => '13%',
         'buttons' => [
             'update' => function ($url, $model) {
                 /* @var $model app\models\StudentId */
-                if ($model->id_status != StudentIdStatus::ID_EXPIRED) {
-                    return Html::a('<i class="fa fa-file-edit"></i>', [
-                        'update-id-status', 'id' => $model->student_id_serial_no
-                    ], ['title' => 'Update request', 'class' => 'btn btn-sm btn-outline-default']);
+                if ($model->id_status == StudentIdStatus::ID_ACTIVE) {
+                    return Html::a('REPORT AS LOST', [
+                        'report-lost-id', 'id' => $model->student_id_serial_no
+                    ], ['title' => 'Report this id as lost', 'class' => 'btn btn-sm btn-danger']);
                 }
                 return '';
             }
@@ -55,9 +56,9 @@ $gridColumn = [
         }
         return [];
     },
-    'columns' => $gridColumn, // check this value by clicking GRID COLUMNS SETUP button at top of the page
-    'pjax' => false, // pjax is set to always false for this demo
-    'bordered' => false,
+    'columns' => $gridColumn,
+    'pjax' => false,
+    'bordered' => true,
     'striped' => false,
     'panel' => [
         'before' => '',

@@ -7,10 +7,7 @@ use app\models\StudentId;
 use yii\helpers\Html;
 use yii\web\View;
 
-$this->title = 'Update Student ID status: ' . ' ' . $model->student_id_serial_no;
-$this->params['breadcrumbs'][] = ['label' => 'Student Id', 'url' => ['index']];
-$this->params['breadcrumbs'][] = ['label' => $model->student_id_serial_no, 'url' => ['view', 'id' => $model->student_id_serial_no]];
-$this->params['breadcrumbs'][] = 'Update';
+$this->title = 'Report ID as lost: ' . ' ' . $model->student_id_serial_no;
 ?>
 
 <!-- Content Header (Page header) -->
@@ -26,7 +23,7 @@ $this->params['breadcrumbs'][] = 'Update';
     <div class="container-fluid">
         <div class="card">
             <div class="card-body">
-                <?= $this->render('forms/_id-update-form', ['model' => $model]); ?>
+                <?= $this->render('forms/_report-lost-form', ['model' => $model]); ?>
             </div>
         </div>
     </div>

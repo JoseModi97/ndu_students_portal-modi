@@ -8,6 +8,7 @@ use app\models\search\StudentIdRequestSearch;
 use app\models\search\StudentIdSearch;
 use app\models\StudentId;
 use app\models\StudentIdRequest;
+use app\models\StudentIdStatus;
 use Yii;
 use yii\filters\VerbFilter;
 use yii\web\NotFoundHttpException;
@@ -32,7 +33,7 @@ class StudentIdController extends BaseController
                 'rules' => [
                     [
                         'allow' => true,
-                        'actions' => ['index', 'view', 'new-id', 'update-id-status', 'delete'],
+                        'actions' => ['index', 'view', 'new-id', 'report-lost-id', 'update-id-status', 'delete'],
                         'roles' => ['@']
                     ],
                     [
@@ -134,13 +135,13 @@ class StudentIdController extends BaseController
 
 
     /**
-     * Updates an existing StudentId model.
+     * Report an id as lost.
      * If update is successful, the browser will be redirected to the 'view' page.
      * @param integer $id
      * @return string|Response
      * @throws NotFoundHttpException
      */
-    public function actionUpdateIdStatus(int $id): string|Response
+    public function actionReportLostId(int $id): string|Response
     {
         $model = StudentId::findOne($id);
 
@@ -151,6 +152,7 @@ class StudentIdController extends BaseController
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
             return $this->redirect(['index']);
         }
+
         return $this->render('update-id-status', [
             'model' => $model,
         ]);
