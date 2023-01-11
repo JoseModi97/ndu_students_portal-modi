@@ -2,6 +2,7 @@
 
 namespace app\models\search;
 
+use app\models\extended\StudentProgramme;
 use app\models\StudentIdRequest;
 use yii\base\Model;
 use yii\data\ActiveDataProvider;
@@ -17,7 +18,7 @@ class StudentIdRequestSearch extends StudentIdRequest
     public function rules(): array
     {
         return [
-            [['request_id', 'request_type_id', 'student_prog_curr_id', 'status_id', 'receipt_number'], 'integer'],
+            [['request_id', 'request_type_id', 'student_prog_curr_id', 'status_id'], 'integer'],
             [['request_date', 'source'], 'safe'],
         ];
     }
@@ -44,14 +45,12 @@ class StudentIdRequestSearch extends StudentIdRequest
 
         $dataProvider = new ActiveDataProvider([
             'query' => $query,
-            'sort'=> ['defaultOrder' => ['request_date' => SORT_ASC]],
+            'sort' => ['defaultOrder' => ['request_date' => SORT_ASC]],
         ]);
 
         $this->load($params);
 
         if (!$this->validate()) {
-            // uncomment the following line if you do not want to return any records when validation fails
-            // $query->where('0=1');
             return $dataProvider;
         }
 
@@ -61,10 +60,39 @@ class StudentIdRequestSearch extends StudentIdRequest
             'student_prog_curr_id' => $this->student_prog_curr_id,
             'request_date' => $this->request_date,
             'status_id' => $this->status_id,
-            'receipt_number' => $this->receipt_number,
         ]);
 
         $query->andFilterWhere(['like', 'source', $this->source]);
+
+        return $dataProvider;
+    }
+
+    /**
+     * @param mixed $params
+     * @return ActiveDataProvider
+     */
+    public function activeStudentRequests(mixed $params): ActiveDataProvider
+    {
+        $query = StudentIdRequest::find()
+            ->where(['in', 'student_prog_curr_id', StudentProgramme::loadStudentProgrammes()]);
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => $query,
+            'sort' => ['defaultOrder' => ['request_date' => SORT_ASC]],
+        ]);
+
+        $this->load($params);
+
+        if (!$this->validate()) {
+            return $dataProvider;
+        }
+
+        $query->andFilterWhere([
+            'request_id' => $this->request_id,
+            'request_type_id' => $this->request_type_id,
+            'request_date' => $this->request_date,
+            'status_id' => $this->status_id]);
+
 
         return $dataProvider;
     }

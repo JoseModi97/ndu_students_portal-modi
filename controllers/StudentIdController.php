@@ -8,7 +8,6 @@ use app\models\search\StudentIdRequestSearch;
 use app\models\search\StudentIdSearch;
 use app\models\StudentId;
 use app\models\StudentIdRequest;
-use app\models\StudentIdStatus;
 use Yii;
 use yii\filters\VerbFilter;
 use yii\web\NotFoundHttpException;
@@ -33,7 +32,7 @@ class StudentIdController extends BaseController
                 'rules' => [
                     [
                         'allow' => true,
-                        'actions' => ['index','new-id', 'report-lost-id'],
+                        'actions' => ['index', 'new-id', 'report-lost-id'],
                         'roles' => ['@']
                     ],
                     [
@@ -51,10 +50,10 @@ class StudentIdController extends BaseController
     public function actionIndex(): string
     {
         $studentIdSearchModel = new StudentIdSearch();
-        $studentIdDataProvider = $studentIdSearchModel->search(Yii::$app->request->queryParams);
+        $studentIdDataProvider = $studentIdSearchModel->activeStudentRecord(Yii::$app->request->queryParams);
 
         $studentIdRequestModel = new StudentIdRequestSearch();
-        $studentIdRequestProvider = $studentIdRequestModel->search(Yii::$app->request->queryParams);
+        $studentIdRequestProvider = $studentIdRequestModel->activeStudentRequests(Yii::$app->request->queryParams);
 
 
         return $this->render('index', [
@@ -113,7 +112,7 @@ class StudentIdController extends BaseController
             'model' => $model,
         ]);
     }
-    
+
 
     /**
      * Report an id as lost.

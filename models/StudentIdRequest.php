@@ -14,7 +14,6 @@ use yii\db\ActiveRecord;
  * @property integer $student_prog_curr_id
  * @property string $request_date
  * @property integer $status_id
- * @property integer $receipt_number
  * @property string $source
  *
  * @property IdRequestStatus $status
@@ -40,7 +39,7 @@ class StudentIdRequest extends ActiveRecord
     {
         return [
             [['request_type_id', 'student_prog_curr_id', 'request_date', 'status_id', 'source'], 'required'],
-            [['request_type_id', 'student_prog_curr_id', 'status_id', 'receipt_number'], 'integer'],
+            [['request_type_id', 'student_prog_curr_id', 'status_id'], 'integer'],
             [['request_date'], 'safe'],
             [['source'], 'string', 'max' => 30]
         ];
@@ -57,7 +56,6 @@ class StudentIdRequest extends ActiveRecord
             'student_prog_curr_id' => 'Current programme',
             'request_date' => 'Request Date',
             'status_id' => 'Request status',
-            'receipt_number' => 'Receipt Number',
             'source' => 'Request reason',
         ];
     }

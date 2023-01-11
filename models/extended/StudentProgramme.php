@@ -27,4 +27,15 @@ class StudentProgramme extends \app\models\StudentProgramme
         return ArrayHelper::map($data, 'student_prog_curriculum_id', 'programmeCurriculum.program.prog_full_name');
 
     }
+
+    public static function loadStudentProgrammes(): array
+    {
+        $data = self::find()
+            ->select('student_prog_curriculum_id')
+            ->where(['adm_refno' => \Yii::$app->user->id])
+            ->asArray()
+            ->all();
+
+        return ArrayHelper::getColumn($data, 'student_prog_curriculum_id');
+    }
 }
