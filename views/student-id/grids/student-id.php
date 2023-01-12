@@ -29,13 +29,14 @@ $gridColumn = [
         'class' => 'kartik\grid\ActionColumn',
         'header' => '#',
         'template' => '{update}',
+        'width' => '13%',
         'buttons' => [
             'update' => function ($url, $model) {
                 /* @var $model app\models\StudentId */
-                if ($model->id_status != StudentIdStatus::ID_EXPIRED) {
-                    return Html::a('<i class="fa fa-file-edit"></i>', [
-                        'update-id-status', 'id' => $model->student_id_serial_no
-                    ], ['title' => 'Update request', 'class' => 'btn btn-sm btn-outline-default']);
+                if ($model->id_status == StudentIdStatus::ID_ACTIVE) {
+                    return Html::a('REPORT AS LOST', [
+                        'report-lost-id', 'id' => $model->student_id_serial_no
+                    ], ['title' => 'Report this id as lost', 'class' => 'btn btn-sm btn-danger']);
                 }
                 return '';
             }
@@ -46,29 +47,31 @@ $gridColumn = [
 <?= GridView::widget([
     'id' => 'id-history',
     'dataProvider' => $dataProvider,
-    'rowOptions' => function ($model, $key, $index, $grid) {
+    'rowOptions' => function ($model) {
         /* @var $model app\models\StudentId */
         if ($model->id_status === StudentIdStatus::ID_ACTIVE) {
             return ['class' => 'bg-info'];
-        } else if ($model->id_status === StudentIdStatus::ID_LOST) {
+        } elseif ($model->id_status === StudentIdStatus::ID_LOST) {
             return ['class' => 'bg-danger'];
         }
         return [];
     },
-    'columns' => $gridColumn, // check this value by clicking GRID COLUMNS SETUP button at top of the page
-    'pjax' => false, // pjax is set to always false for this demo
-    'bordered' => false,
+    'columns' => $gridColumn,
+    'pjax' => false,
+    'bordered' => true,
     'striped' => false,
     'panel' => [
         'before' => '',
     ],
     // set your toolbar
-    'toolbar' => [
+    'toolbar' => \app\models\StudentId::hasActiveAndValidId() ? '' : [
         [
-            'content' => Html::a('<i class="fas fa-plus"></i> New id request', ['create'], [
+            'content' => Html::a('<i class="fas fa-plus"></i> Request new ID', ['new-id'], [
                 'class' => 'btn btn-success'
             ]),
-            'options' => ['class' => 'btn-group mr-2 me-2']
+            'options' => [
+                'class' => 'btn-group mr-2 me-2'
+            ]
         ],
     ],
     'itemLabelSingle' => 'id record',

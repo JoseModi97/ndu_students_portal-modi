@@ -39,7 +39,7 @@ class StudentId extends ActiveRecord
     public function rules()
     {
         return [
-            [['student_id_serial_no', 'student_prog_curr_id', 'issuance_date', 'valid_from', 'valid_to', 'barcode'], 'required'],
+            [['student_id_serial_no', 'student_prog_curr_id', 'issuance_date', 'valid_from', 'valid_to', 'barcode', 'id_status'], 'required'],
             [['student_id_serial_no', 'student_prog_curr_id', 'barcode'], 'integer'],
             [['issuance_date', 'valid_from', 'valid_to'], 'safe'],
             [['id_status'], 'string', 'max' => 15]
@@ -59,7 +59,7 @@ class StudentId extends ActiveRecord
             'valid_from' => 'Valid From',
             'valid_to' => 'Valid To',
             'barcode' => 'Barcode',
-            'id_status' => 'Status',
+            'id_status' => 'ID status',
         ];
     }
 

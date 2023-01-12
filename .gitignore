@@ -40,3 +40,5 @@ tests/_support/_generated
 /web/assets
 
 /uploads
+
+/config/db.local.php

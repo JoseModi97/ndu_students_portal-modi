@@ -7,8 +7,6 @@ use yii\helpers\Html;
 /* @var $model app\models\StudentIdRequest */
 
 $this->title = 'New ID Replacement request';
-//$this->params['breadcrumbs'][] = ['label' => 'New student ID Requests', 'url' => ['index']];
-//$this->params['breadcrumbs'][] = $this->title;
 ?>
 
 <!-- Content Header (Page header) -->

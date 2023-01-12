@@ -2,15 +2,15 @@
 
 namespace app\models\search;
 
-use Yii;
+use app\models\extended\StudentProgramme;
+use app\models\StudentId;
 use yii\base\Model;
 use yii\data\ActiveDataProvider;
-use app\models\StudentId;
 
 /**
  * app\models\search\StudentIdSearch represents the model behind the search form about `app\models\StudentId`.
  */
- class StudentIdSearch extends StudentId
+class StudentIdSearch extends StudentId
 {
     /**
      * @inheritdoc
@@ -45,14 +45,12 @@ use app\models\StudentId;
 
         $dataProvider = new ActiveDataProvider([
             'query' => $query,
-            'sort'=> ['defaultOrder' => ['id_status' => SORT_ASC]],
+            'sort' => ['defaultOrder' => ['id_status' => SORT_ASC]],
         ]);
 
         $this->load($params);
 
         if (!$this->validate()) {
-            // uncomment the following line if you do not want to return any records when validation fails
-            // $query->where('0=1');
             return $dataProvider;
         }
 
@@ -66,7 +64,39 @@ use app\models\StudentId;
             'id_status' => $this->id_status,
         ]);
 
-//        $query->andFilterWhere(['like', 'id_status', $this->id_status]);
+        return $dataProvider;
+    }
+
+    /**
+     * @param $params
+     * @return ActiveDataProvider
+     */
+    public function activeStudentRecord($params): ActiveDataProvider
+    {
+        $query = StudentId::find()
+            ->where(['in', 'student_prog_curr_id', StudentProgramme::loadStudentProgrammes()]);
+
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => $query,
+            'sort' => ['defaultOrder' => ['id_status' => SORT_ASC]],
+        ]);
+
+        $this->load($params);
+
+        if (!$this->validate()) {
+            return $dataProvider;
+        }
+
+
+        $query->andFilterWhere([
+            'student_id_serial_no' => $this->student_id_serial_no,
+            'issuance_date' => $this->issuance_date,
+            'valid_from' => $this->valid_from,
+            'valid_to' => $this->valid_to,
+            'barcode' => $this->barcode,
+            'id_status' => $this->id_status,
+        ]);
 
         return $dataProvider;
     }
