@@ -98,7 +98,7 @@ class SiteController extends BaseController
                  * Fully registered students are redirected to the portal dashboard.
                  * Not fully registered students are redirected to the registration page.
                  */
-                if(Yii::$app->user->identity->admission_status === 'PRE-REGISTRATION'){
+                if(Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS){
                     return Yii::$app->response->redirect(['/registration/add-documents']);
                 }
 
@@ -130,7 +130,7 @@ class SiteController extends BaseController
                          * Not fully registered students are redirected to the registration page.
                          * Fully registered students are redirected to the portal dashboard.
                          */
-                        if(Yii::$app->user->identity->admission_status === 'PRE-REGISTRATION'){
+                        if(Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS){
                             return Yii::$app->response->redirect(['/registration/add-documents']);
                         }
 
