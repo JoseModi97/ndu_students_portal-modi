@@ -462,6 +462,7 @@ class RegistrationController extends BaseController
 
             $admittedStudent = AdmittedStudent::findOne(Yii::$app->user->identity->adm_refno);
             $admittedStudent->doc_submission_status = true;
+            $admittedStudent->sync_status = false;
             if(!$admittedStudent->save()){
                 if(!$admittedStudent->validate()){
                     $transaction->rollBack();
@@ -475,7 +476,7 @@ class RegistrationController extends BaseController
             $submittedDocs = SubmittedDocument::find()->where(['adm_refno' => $admittedStudent->adm_refno])->all();
             foreach ($submittedDocs as $submittedDoc){
                 $submittedDoc->verify_status = 'PENDING';
-                $submittedDoc->doc_comments = '';
+                $submittedDoc->doc_comments = 'Submitted for approval';
                 if(!$submittedDoc->save()) {
                     if (!$submittedDoc->validate()){
                         $transaction->rollBack();

@@ -27,8 +27,8 @@ use yii\db\ActiveRecord;
  * @property string|null $birth_cert_no
  * @property int $source_id
  * @property string|null $passport_no
- * @property string|null $admission_status
- * @property int|null $application_refno
+ * @property string|null $admission_status to take care of a case where an admission is revoked or recalled for the sake of module II
+ * @property int|null $application_refno to link to applicant incase a report of admitted student is required
  * @property int $intake_code
  * @property int $student_category_id
  * @property string|null $password
@@ -39,8 +39,13 @@ use yii\db\ActiveRecord;
  * @property string|null $secondary_email_verified_date
  * @property string|null $surname
  * @property string|null $other_names
- * @property string|null $clearance_status
+ * @property string|null $clearance_status Indicates clearance status of a student. PENDING, CLEARED, NOT CLEARED
  * @property string|null $password_changed_date
+ * @property string|null $service
+ * @property bool|null $sync_status
+ * @property string|null $service_number
+ * @property string|null $nationality
+ * @property string|null $date_of_birth
  */
 class AdmittedStudent extends ActiveRecord
 {
@@ -61,17 +66,13 @@ class AdmittedStudent extends ActiveRecord
             [['adm_refno', 'uon_prog_code', 'source_id', 'intake_code', 'student_category_id'], 'required'],
             [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id'], 'default', 'value' => null],
             [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id'], 'integer'],
-            [['doc_submission_status'], 'boolean'],
-            [['primary_email_verified_date', 'secondary_email_verified_date', 'password_changed_date'], 'safe'],
-            [['kcse_index_no', 'kuccps_prog_code', 'uon_prog_code'], 'string', 'max' => 20],
+            [['doc_submission_status', 'sync_status'], 'boolean'],
+            [['primary_email_verified_date', 'secondary_email_verified_date', 'password_changed_date', 'date_of_birth'], 'safe'],
+            [['kcse_index_no', 'primary_phone_no', 'alternative_phone_no', 'post_code', 'post_address', 'kuccps_prog_code', 'uon_prog_code', 'national_id', 'birth_cert_no', 'passport_no', 'service'], 'string', 'max' => 20],
             [['kcse_year'], 'string', 'max' => 10],
-            [['primary_phone_no', 'alternative_phone_no', 'post_address', 'national_id', 'birth_cert_no', 'passport_no'], 'string', 'max' => 12],
-            [['primary_email', 'alternative_email'], 'string', 'max' => 25],
-            [['post_code'], 'string', 'max' => 5],
-            [['town'], 'string', 'max' => 15],
-            [['admission_status', 'clearance_status'], 'string', 'max' => 30],
+            [['primary_email', 'alternative_email', 'surname', 'nationality'], 'string', 'max' => 50],
+            [['town', 'admission_status', 'clearance_status', 'service_number'], 'string', 'max' => 30],
             [['password', 'primary_email_salt', 'secondary_email_salt'], 'string', 'max' => 255],
-            [['surname'], 'string', 'max' => 50],
             [['other_names'], 'string', 'max' => 150],
             [['adm_refno'], 'unique'],
             [['source_id'], 'exist', 'skipOnError' => true, 'targetClass' => IntakeSource::class, 'targetAttribute' => ['source_id' => 'source_id']],
@@ -115,6 +116,11 @@ class AdmittedStudent extends ActiveRecord
             'other_names' => 'Other Names',
             'clearance_status' => 'Clearance Status',
             'password_changed_date' => 'Password Changed Date',
+            'service' => 'Service',
+            'sync_status' => 'Sync Status',
+            'service_number' => 'Service Number',
+            'nationality' => 'Nationality',
+            'date_of_birth' => 'Date Of Birth',
         ];
     }
 
