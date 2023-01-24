@@ -1,12 +1,8 @@
 <?php
-/**
- * @author Rufusy Idachi <idachirufus@gmail.com>
- */
 
 namespace app\models;
 
-use yii\db\ActiveQuery;
-use yii\db\ActiveRecord;
+use Yii;
 
 /**
  * This is the model class for table "smisportal.sm_admitted_student".
@@ -46,14 +42,14 @@ use yii\db\ActiveRecord;
  * @property string|null $service_number
  * @property string|null $nationality
  * @property string|null $date_of_birth
- * @property bool|null $profile_sync_status
+ * @property bool|null $profile_sync_status 
  */
-class AdmittedStudent extends ActiveRecord
+class SmisportalSmAdmittedStudent extends \yii\db\ActiveRecord
 {
     /**
      * {@inheritdoc}
      */
-    public static function tableName(): string
+    public static function tableName()
     {
         return 'smisportal.sm_admitted_student';
     }
@@ -61,7 +57,7 @@ class AdmittedStudent extends ActiveRecord
     /**
      * {@inheritdoc}
      */
-    public function rules(): array
+    public function rules()
     {
         return [
             [['adm_refno', 'uon_prog_code', 'source_id', 'intake_code', 'student_category_id'], 'required'],
@@ -76,15 +72,15 @@ class AdmittedStudent extends ActiveRecord
             [['password', 'primary_email_salt', 'secondary_email_salt'], 'string', 'max' => 255],
             [['other_names'], 'string', 'max' => 150],
             [['adm_refno'], 'unique'],
-            [['source_id'], 'exist', 'skipOnError' => true, 'targetClass' => IntakeSource::class, 'targetAttribute' => ['source_id' => 'source_id']],
-            [['intake_code'], 'exist', 'skipOnError' => true, 'targetClass' => Intake::class, 'targetAttribute' => ['intake_code' => 'intake_code']],
+            [['source_id'], 'exist', 'skipOnError' => true, 'targetClass' => SmisportalSmIntakeSource::class, 'targetAttribute' => ['source_id' => 'source_id']],
+            [['intake_code'], 'exist', 'skipOnError' => true, 'targetClass' => SmisportalSmIntakes::class, 'targetAttribute' => ['intake_code' => 'intake_code']],
         ];
     }
 
     /**
      * {@inheritdoc}
      */
-    public function attributeLabels(): array
+    public function attributeLabels()
     {
         return [
             'adm_refno' => 'Adm Refno',
@@ -124,21 +120,5 @@ class AdmittedStudent extends ActiveRecord
             'date_of_birth' => 'Date Of Birth',
             'profile_sync_status ' => 'Profile Sync Status',
         ];
-    }
-
-    /**
-     * @return ActiveQuery
-     */
-    public function getIntake(): ActiveQuery
-    {
-        return $this->hasOne(Intake::class, ['intake_code' => 'intake_code']);
-    }
-
-    /**
-     * @return ActiveQuery
-     */
-    public function getIntakeSource(): ActiveQuery
-    {
-        return $this->hasOne(IntakeSource::class, ['source_id' => 'source_id']);
     }
 }

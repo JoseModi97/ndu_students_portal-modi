@@ -462,7 +462,7 @@ class RegistrationController extends BaseController
 
             $admittedStudent = AdmittedStudent::findOne(Yii::$app->user->identity->adm_refno);
             $admittedStudent->doc_submission_status = true;
-            $admittedStudent->sync_status = false;
+            $admittedStudent->document_sync_status = false;
             if(!$admittedStudent->save()){
                 if(!$admittedStudent->validate()){
                     $transaction->rollBack();
