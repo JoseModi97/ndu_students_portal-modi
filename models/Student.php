@@ -8,8 +8,8 @@ namespace app\models;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
-/**
- * This is the model class for table "smisportal.sm_student".
+ /**
+ * This is the model class for table "smis.sm_student".
  *
  * @property int $student_id
  * @property string $student_number
@@ -17,7 +17,6 @@ use yii\db\ActiveRecord;
  * @property string $other_names
  * @property string $gender
  * @property string $country_code
- * @property string $dob
  * @property string|null $id_no
  * @property string|null $passport_no
  * @property string|null $service_number
@@ -31,6 +30,9 @@ use yii\db\ActiveRecord;
  * @property string|null $post_code
  * @property string|null $post_address
  * @property string|null $town
+ * @property string|null $service
+ * @property string|null $nationality
+ * @property string|null $date_of_birth
  */
 class Student extends ActiveRecord
 {
@@ -48,16 +50,17 @@ class Student extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['student_id', 'student_number', 'surname', 'other_names', 'gender', 'country_code', 'dob'], 'required'],
+            [['student_id', 'student_number', 'surname', 'other_names', 'gender', 'country_code'], 'required'],
             [['student_id', 'sponsor'], 'default', 'value' => null],
             [['student_id', 'sponsor'], 'integer'],
-            [['dob', 'registration_date'], 'safe'],
-            [['student_number', 'passport_no', 'service_number', 'post_address'], 'string', 'max' => 20],
-            [['surname', 'primary_phone_no', 'alternative_phone_no', 'town'], 'string', 'max' => 50],
+            [['registration_date', 'date_of_birth'], 'safe'],
+            [['student_number', 'passport_no', 'post_address', 'service '], 'string', 'max' => 20],
+            [['surname', 'primary_phone_no', 'alternative_phone_no', 'town', 'nationality'], 'string', 'max' => 50],
             [['other_names', 'primary_email', 'alternative_email'], 'string', 'max' => 100],
             [['gender'], 'string', 'max' => 1],
             [['country_code'], 'string', 'max' => 3],
             [['id_no', 'post_code'], 'string', 'max' => 10],
+            [['service_number'], 'string', 'max' => 30],
             [['blood_group'], 'string', 'max' => 5],
             [['student_id'], 'unique'],
             [['country_code'], 'exist', 'skipOnError' => true, 'targetClass' => Country::class, 'targetAttribute' => ['country_code' => 'country_code']],
@@ -76,7 +79,6 @@ class Student extends ActiveRecord
             'other_names' => 'Other Names',
             'gender' => 'Gender',
             'country_code' => 'Country Code',
-            'dob' => 'Dob',
             'id_no' => 'Id No',
             'passport_no' => 'Passport No',
             'service_number' => 'Service Number',
@@ -90,6 +92,9 @@ class Student extends ActiveRecord
             'post_code' => 'Post Code',
             'post_address' => 'Post Address',
             'town' => 'Town',
+            'service ' => 'Service',
+            'nationality' => 'Nationality',
+            'date_of_birth' => 'Date Of Birth',
         ];
     }
 
