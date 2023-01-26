@@ -51,9 +51,12 @@ class AppAsset extends AssetBundle
         /**
          * Third party js
          */
-        // daterangepicker
+        // Moment
         'https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js',
+        // Date range picker
         'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-daterangepicker/3.0.5/daterangepicker.min.js',
+        // Input mask
+        'https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.7/jquery.inputmask.min.js',
         //Summernote
         'https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote.min.js',
         // Axios

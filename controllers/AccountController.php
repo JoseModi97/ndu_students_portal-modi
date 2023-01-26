@@ -6,6 +6,7 @@
 namespace app\controllers;
 
 use app\helpers\SmisHelper;
+use app\models\AdmittedStudent;
 use app\models\NameChange;
 use app\models\search\NameChangeRequests;
 use app\models\Student;
@@ -79,6 +80,7 @@ class AccountController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try{
             $post = Yii::$app->request->post();
+
             $admRefno = Yii::$app->user->identity->adm_refno;
 
             $user = User::findOne($admRefno);
@@ -90,6 +92,8 @@ class AccountController extends BaseController
                 $student = Student::findOne($studentProgramme->student_id);
                 $this->updateProfile($student, $post, $transaction);
             }
+
+            $this->updateProfileSyncStatus($admRefno);
 
             $transaction->commit();
             $this->setFlash('success', 'Profile', 'Profile updated successfully.');
@@ -118,6 +122,12 @@ class AccountController extends BaseController
         $profile->post_address = $post['postAddress'];
         $profile->post_code = $post['postCode'];
         $profile->town = $post['town'];
+        $profile->service = $post['service'];
+        $profile->service_number = $post['serviceNumber'];
+        $profile->sponsor = $post['sponsor'];
+        $profile->nationality = $post['nationality'];
+        $profile->blood_group = $post['bloodGroup'];
+        $profile->date_of_birth = SmisHelper::formatDate($post['dateOfBirth'], 'Y-m-d');
         $profile->passport_no = $post['passportNumber'];
         if($profile instanceof User){
             $profile->national_id = $post['nationalIdNumber'];
@@ -125,6 +135,7 @@ class AccountController extends BaseController
         }else{
             $profile->id_no = $post['nationalIdNumber'];
         }
+
         if(!$profile->save()){
             if(!$profile->validate()){
                 $transaction->rollBack();
@@ -162,6 +173,9 @@ class AccountController extends BaseController
                     throw new Exception('Password not updated.');
                 }
             }
+
+            $this->updateProfileSyncStatus($admRefno);
+
             $transaction->commit();
             return $this->asJson(['success' => true, 'message' => 'Password changed successfully.']);
         }catch (Exception $ex){
@@ -241,6 +255,8 @@ class AccountController extends BaseController
                     throw new Exception('Emails not updated.');
                 }
             }
+
+            $this->updateProfileSyncStatus($admRefno);
 
             $transaction->commit();
             $this->setFlash('success', 'Emails', 'Follow the instructions sent to your inbox to verify your email address.');
@@ -635,5 +651,21 @@ class AccountController extends BaseController
         }
 
         return str_replace('/', '_', $regNumber) . '/' . $requestId . '/' . $newFileName;
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function updateProfileSyncStatus(string $admRefno)
+    {
+        $user = User::findOne($admRefno);
+        $user->profile_sync_status = false;
+        if(!$user->save()){
+            $errorMessage = 'Profile edit sync flag not updated.';
+            if(!$user->validate()){
+                $errorMessage = SmisHelper::getModelErrors($user->getErrors());
+            }
+            throw new Exception($errorMessage);
+        }
     }
 }
