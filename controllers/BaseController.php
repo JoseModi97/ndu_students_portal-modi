@@ -68,6 +68,18 @@ class BaseController extends Controller
                         $profileComplete = false;
                     } elseif (empty($identity->town)) {
                         $profileComplete = false;
+                    }elseif (empty($identity->service)) {
+                        $profileComplete = false;
+                    }elseif (empty($identity->service_number)) {
+                        $profileComplete = false;
+                    }elseif (empty($identity->blood_group)) {
+                        $profileComplete = false;
+                    }elseif (empty($identity->date_of_birth)) {
+                        $profileComplete = false;
+                    }elseif (empty($identity->nationality)) {
+                        $profileComplete = false;
+                    }elseif (empty($identity->sponsor)) {
+                        $profileComplete = false;
                     }
 
                     if (!$profileComplete) {
