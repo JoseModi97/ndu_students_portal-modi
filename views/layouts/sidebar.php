@@ -72,6 +72,36 @@ use yii\helpers\Url;
                         <p>Deferment</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Student fees</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Course Registration</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Student Exams</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Timetables</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Help</p>
+                    </a>
+                </li>
             </ul>
         </nav>
         <!-- /.sidebar-menu -->
