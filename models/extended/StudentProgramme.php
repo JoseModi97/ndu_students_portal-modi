@@ -18,7 +18,7 @@ class StudentProgramme extends \app\models\StudentProgramme
         $data = self::find()
             ->joinWith('programmeCurriculum.program')
             ->joinWith(['studentStatus' => function (ActiveQuery $query) {
-                return $query->andWhere(['=', StudentStatus::tableName() . '.status', 'CURRENT']);
+                return $query->andWhere(['=', StudentStatus::tableName() . '.status', 'ACTIVE']);
             }])
             ->where(['adm_refno' => \Yii::$app->user->id])
             ->asArray()
