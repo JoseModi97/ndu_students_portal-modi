@@ -18,7 +18,7 @@ class IdRequestStatus extends ActiveRecord
 {
     const STATUS_PENDING = 'PENDING';
     const STATUS_REJECTED = 'REJECTED';
-    const STATUS_APPROVED = 'APPROVED';
+    const STATUS_CLOSED = 'CLOSED';
 
     /**
      * @inheritdoc
@@ -62,13 +62,13 @@ class IdRequestStatus extends ActiveRecord
     }
 
     /**
-     * @param string $request_status
+     * @param string $requestStatus
      * @return array
      */
-    public static function loadRequestStatusByName(string $request_status = self::STATUS_PENDING): array
+    public static function loadRequestStatusByName(string $requestStatus = self::STATUS_PENDING): array
     {
         $data = IdRequestStatus::find()
-            ->where(['status_name' => $request_status])
+            ->where(['status_name' => $requestStatus])
             ->orderBy('status_id')
             ->asArray()
             ->all();

@@ -2,6 +2,7 @@
 
 namespace app\models;
 
+use app\controllers\BaseController;
 use Yii;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
@@ -21,7 +22,7 @@ use yii\db\ActiveRecord;
  * @property StudentIdDetail[] $studentIdDetails
  * @property StudentIdStatus[] $studentIdStatuses
  */
-class StudentId extends ActiveRecord
+class StudentId extends BaseController
 {
 
     /**
