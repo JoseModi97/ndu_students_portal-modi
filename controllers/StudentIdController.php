@@ -11,6 +11,7 @@ use app\models\StudentIdRequest;
 use app\models\StudentIdStatus;
 use Yii;
 use yii\filters\VerbFilter;
+use yii\web\ConflictHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
@@ -69,6 +70,7 @@ class StudentIdController extends BaseController
      * Creates a new StudentIdRequest model.
      * If creation is successful, the browser will be redirected to the 'index' page.
      * @return string|Response
+     * @throws ConflictHttpException
      */
     public function actionNewId(): string|Response
     {
@@ -80,8 +82,8 @@ class StudentIdController extends BaseController
 
         //check if student has an active and valid id
         $hasActiveId = StudentId::hasActiveAndValidId();
+
         if ($hasActiveId) {
-            //return to grid view
             $this->setFlash(
                 'danger',
                 'Active ID',
@@ -90,6 +92,10 @@ class StudentIdController extends BaseController
             return $this->redirect(['index']);
         }
 
+        $hasPendingRequest = StudentIdRequest::hasOpenIdRequest();
+        if ($hasPendingRequest) {
+            throw new ConflictHttpException('You already have a pending ID request');
+        }
         //preload default values
         $model->request_date = date('Y-m-d');
         $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;

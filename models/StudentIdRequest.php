@@ -2,7 +2,6 @@
 
 namespace app\models;
 
-use Yii;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
@@ -83,4 +82,20 @@ class StudentIdRequest extends ActiveRecord
     {
         return $this->hasOne(StudentProgramme::class, ['student_prog_curriculum_id' => 'student_prog_curr_id']);
     }
+
+    /**
+     * @return bool
+     */
+    public static function hasOpenIdRequest(): bool
+    {
+        $idRequest = self::find()
+            ->joinWith(['studentProgCurr', 'status'])
+            ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
+            ->andWhere(['<>', 'status_name', IdRequestStatus::STATUS_CLOSED])
+            ->asArray()
+            ->one();
+
+        return $idRequest != null;
+    }
+
 }
