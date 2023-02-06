@@ -8,6 +8,7 @@ use app\models\search\StudentIdRequestSearch;
 use app\models\search\StudentIdSearch;
 use app\models\StudentId;
 use app\models\StudentIdRequest;
+use app\models\StudentIdStatus;
 use Yii;
 use yii\filters\VerbFilter;
 use yii\web\NotFoundHttpException;
@@ -129,14 +130,15 @@ class StudentIdController extends BaseController
             throw new NotFoundHttpException('The requested page does not exist.');
         }
 
-        if ($model->load(Yii::$app->request->post()) && $model->save()) {
-            return $this->redirect(['index']);
+        $model->id_status = StudentIdStatus::ID_LOST;
+        if (!$model->save()) {
+            $this->setFlash(
+                'success',
+                'Unable to update ID',
+                'Unable to flag ID as lost, please try again'
+            );
         }
-
-        return $this->render('update-id-status', [
-            'model' => $model,
-        ]);
-
+        return $this->redirect(['index']);
     }
 
 
