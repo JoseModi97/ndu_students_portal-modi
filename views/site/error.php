@@ -11,6 +11,7 @@
  */
 
 use yii\helpers\Url;
+use yii\helpers\Html;
 
 $this->title = 'Error | ' . $name;
 $exception = Yii::$app->errorHandler->exception;
@@ -25,5 +26,6 @@ $exception = Yii::$app->errorHandler->exception;
     Do you need help? Send a message to smis_support@ndu.ac.ke
     <br/>
     <br/>
-    <a href="<?=Url::to(['/site/login'])?>">Click to go back home</a>
+    <a href="<?= Url::to(['/site/login']) ?>">Click to go back home</a> OR
+    <a href="<?= Url::to(Yii::$app->request->referrer) ?>">return to previous page</a>
 </p>
