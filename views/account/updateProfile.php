@@ -5,8 +5,10 @@
 
 /**
  * @var app\models\User $user
+ * @var app\models\Sponsor $sponsors[]
  */
 
+use app\models\Sponsor;
 use yii\helpers\Url;
 ?>
 
@@ -81,64 +83,14 @@ use yii\helpers\Url;
                     </div>
 
                     <div class="form-group row">
-                        <label for="national-id-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
-                            National Id number
+                        <label for="date-of-birth" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
+                            Date of birth
                         </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <input type="text" class="form-control" id="national-id-no" name="nationalIdNumber" value="<?=$user->national_id?>" required>
+                        <div class="col-sm-3 col-md-3 col-lg-3">
+                            <input type="text" name="dateOfBirth" id="date-of-birth" class="form-control" required/>
                         </div>
-                    </div>
-
-                    <div class="form-group row">
-                        <label for="birth-cert-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
-                            Birth certificate number
-                        </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <input type="text" class="form-control" id="birth-cert-no" name="birthCertificateNumber" value="<?=$user->birth_cert_no?>" required>
-                        </div>
-                    </div>
-
-                    <div class="form-group row">
-                        <label for="passport-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label">
-                            Passport number
-                        </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <input type="text" class="form-control" id="passport-no" name="passportNumber" value="<?=$user->passport_no?>">
-                        </div>
-                    </div>
-
-                    <div class="form-group row">
-                        <label for="service" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
-                            Service
-                        </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <select class="custom-select form-control" id="service" name="service" required>
-                                <option value="">-- select --</option>
-                                <option value="Kenya army">Kenya army</option>
-                                <option value="Kenya navy">Kenya navy</option>
-                                <option value="kenya air force">Kenya air force</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group row">
-                        <label for="service-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
-                            Service number
-                        </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <input type="text" class="form-control" id="service-no" name="serviceNumber" value="<?=$user->service_number?>" required>
-                        </div>
-                    </div>
-
-                    <div class="form-group row">
-                        <label for="sponsor" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
-                            Sponsor
-                        </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <select class="custom-select form-control" id="sponsor" name="sponsor" required>
-                                <option value="">-- select --</option>
-                                <option value="KDF">KDF</option>
-                            </select>
+                        <div class="col-sm-2 col-md-2 col-lg-2">
+                            <input type="text" class="form-control" disabled value="<?=$user->date_of_birth?>">
                         </div>
                     </div>
 
@@ -146,7 +98,7 @@ use yii\helpers\Url;
                         <label for="nationality" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
                             Nationality
                         </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
+                        <div class="col-sm-3 col-md-3 col-lg-3">
                             <select class="custom-select form-control" id="nationality" name="nationality" required>
                                 <option value="">-- select --</option>
                                 <option value="afghan">Afghan</option>
@@ -343,13 +295,104 @@ use yii\helpers\Url;
                                 <option value="zimbabwean">Zimbabwean</option>
                             </select>
                         </div>
+                        <div class="col-sm-2 col-md-2 col-lg-2">
+                            <input type="text" class="form-control" disabled value="<?=strtoupper($user->nationality)?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="national-id-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
+                            National Id number
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <input type="text" class="form-control" id="national-id-no" name="nationalIdNumber" value="<?=$user->national_id?>" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="birth-cert-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
+                            Birth certificate number
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <input type="text" class="form-control" id="birth-cert-no" name="birthCertificateNumber" value="<?=$user->birth_cert_no?>" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="passport-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label">
+                            Passport number
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <input type="text" class="form-control" id="passport-no" name="passportNumber" value="<?=$user->passport_no?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="service" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
+                            Service
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <select class="custom-select form-control" id="service" name="service" required>
+                                <option value="">-- select --</option>
+                                <option value="Kenya army">Kenya army</option>
+                                <option value="Kenya navy">Kenya navy</option>
+                                <option value="kenya air force">Kenya air force</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="selected-service" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label">
+                            Selected service
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <input type="text" id="selected-service" class="form-control" disabled value="<?=$user->service?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="service-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
+                            Service number
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <input type="text" class="form-control" id="service-no" name="serviceNumber" value="<?=$user->service_number?>" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="sponsor" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
+                            Sponsor
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <select class="custom-select form-control" id="sponsor" name="sponsor" required>
+                                <option value="">-- select --</option>
+                                <?php foreach ($sponsors as $sponsor):?>
+                                    <option value="<?=$sponsor['sponsor_id']?>"><?=$sponsor['sponsor_name'] . ' - ' . $sponsor['country_code']?></option>
+                                <?php endforeach;?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        <label for="selected-sponsor" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label">
+                            Selected sponsor
+                        </label>
+                        <div class="col-sm-5 col-md-5 col-lg-5">
+                            <?php if(!empty($user->sponsor)):
+                                $sponsor = Sponsor::findOne($user->sponsor);
+                                if($sponsor):
+                            ?>
+                            <input type="text" id="selected-sponsor" class="form-control" disabled value="<?=$sponsor->sponsor_name . ' - ' . $sponsor->country_code?>">
+                            <?php endif;
+                            endif;?>
+                        </div>
                     </div>
 
                     <div class="form-group row">
                         <label for="blood-group" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
                             Blood group
                         </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
+                        <div class="col-sm-3 col-md-3 col-lg-3">
                             <select class="custom-select form-control" id="blood-group" name="bloodGroup" required>
                                 <option value="">-- select --</option>
                                 <option value="A+">A+</option>
@@ -362,14 +405,8 @@ use yii\helpers\Url;
                                 <option value="AB-">AB-</option>
                             </select>
                         </div>
-                    </div>
-
-                    <div class="form-group row">
-                        <label for="date-of-birth" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
-                            Date of birth
-                        </label>
-                        <div class="col-sm-5 col-md-5 col-lg-5">
-                            <input type="text" name="dateOfBirth" id="date-of-birth" class="form-control" required/>
+                        <div class="col-sm-2 col-md-2 col-lg-2">
+                            <input type="text" class="form-control" disabled value="<?=$user->blood_group?>">
                         </div>
                     </div>
 

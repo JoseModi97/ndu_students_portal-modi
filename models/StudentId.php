@@ -22,7 +22,7 @@ use yii\db\ActiveRecord;
  * @property StudentIdDetail[] $studentIdDetails
  * @property StudentIdStatus[] $studentIdStatuses
  */
-class StudentId extends BaseController
+class StudentId extends ActiveRecord
 {
 
     /**

@@ -476,7 +476,7 @@ class RegistrationController extends BaseController
             $submittedDocs = SubmittedDocument::find()->where(['adm_refno' => $admittedStudent->adm_refno])->all();
             foreach ($submittedDocs as $submittedDoc){
                 $submittedDoc->verify_status = 'PENDING';
-                $submittedDoc->doc_comments = 'Submitted for approval';
+                $submittedDoc->doc_comments = '';
                 if(!$submittedDoc->save()) {
                     if (!$submittedDoc->validate()){
                         $transaction->rollBack();
@@ -487,6 +487,8 @@ class RegistrationController extends BaseController
                     }
                 }
             }
+
+            $this->sendEmailRegDocsSubmit($admittedStudent->surname, $admittedStudent->primary_email);
 
             $transaction->commit();
             $this->setFlash('success', 'Registration', 'Documents submitted successfully.');
@@ -499,5 +501,25 @@ class RegistrationController extends BaseController
             }
             return $this->asJson(['success' => false, 'message' => $message]);
         }
+    }
+
+    /**
+     * @param string $recipientName
+     * @param string $recipientEmail
+     * @return void
+     * @throws Exception
+     */
+    private function sendEmailRegDocsSubmit(string $recipientName, string $recipientEmail): void
+    {
+        $emails = [
+            'recipientEmail' => $recipientEmail,
+            'subject' => 'REGISTRATION DOCUMENTS SUBMISSION',
+            'params' => [
+                'recipient' => $recipientName,
+            ]
+        ];
+        $layout = '@app/mail/layouts/html';
+        $view = '@app/mail/views/regDocsSubmit';
+        SmisHelper::sendEmails([$emails], $layout, $view);
     }
 }

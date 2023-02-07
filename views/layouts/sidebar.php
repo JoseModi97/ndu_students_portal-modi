@@ -15,7 +15,7 @@ use yii\helpers\Url;
         <div class="user-panel mt-3 pb-3 mb-3 d-flex">
             <div class="info">
                 <a href="#" class="d-block btn-link">
-                    <?= Yii::$app->user->identity->other_names; ?>
+                    <?= Yii::$app->user->identity->surname . ' ' . Yii::$app->user->identity->other_names; ?>
                 </a>
             </div>
         </div>

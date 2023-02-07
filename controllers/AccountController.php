@@ -9,6 +9,7 @@ use app\helpers\SmisHelper;
 use app\models\AdmittedStudent;
 use app\models\NameChange;
 use app\models\search\NameChangeRequests;
+use app\models\Sponsor;
 use app\models\Student;
 use app\models\StudentProgramme;
 use app\models\User;
@@ -68,7 +69,8 @@ class AccountController extends BaseController
     {
         return $this->render('index', [
             'title' => $this->createPageTitle('profile'),
-            'user' => User::findOne(Yii::$app->user->identity->adm_refno)
+            'user' => User::findOne(Yii::$app->user->identity->adm_refno),
+            'sponsors' => Sponsor::find()->asArray()->all()
         ]);
     }
 
@@ -84,13 +86,13 @@ class AccountController extends BaseController
             $admRefno = Yii::$app->user->identity->adm_refno;
 
             $user = User::findOne($admRefno);
-            $this->updateProfile($user, $post, $transaction);
+            $this->updateProfile($user, $post);
 
             // If student is registered, also update the student table
             if(Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS){
                 $studentProgramme = StudentProgramme::find()->where(['adm_refno' => $admRefno])->one();
                 $student = Student::findOne($studentProgramme->student_id);
-                $this->updateProfile($student, $post, $transaction);
+                $this->updateProfile($student, $post);
             }
 
             $this->updateProfileSyncStatus($admRefno);
@@ -111,11 +113,10 @@ class AccountController extends BaseController
     /**
      * @param User|Student $profile
      * @param array $post
-     * @param $transaction
      * @return void
      * @throws Exception
      */
-    private function updateProfile(User|Student $profile, array $post, $transaction): void
+    private function updateProfile(User|Student $profile, array $post): void
     {
         $profile->primary_phone_no = $post['primaryPhone'];
         $profile->alternative_phone_no = $post['secondaryPhone'];
@@ -124,7 +125,8 @@ class AccountController extends BaseController
         $profile->town = $post['town'];
         $profile->service = $post['service'];
         $profile->service_number = $post['serviceNumber'];
-        $profile->sponsor = $post['sponsor'];
+//        $profile->sponsor = $post['sponsor'];
+        $profile->sponsor = 1;
         $profile->nationality = $post['nationality'];
         $profile->blood_group = $post['bloodGroup'];
         $profile->date_of_birth = SmisHelper::formatDate($post['dateOfBirth'], 'Y-m-d');
@@ -137,13 +139,11 @@ class AccountController extends BaseController
         }
 
         if(!$profile->save()){
+            $errorMessage = 'Profile not updated.';
             if(!$profile->validate()){
-                $transaction->rollBack();
                 $errorMessage = SmisHelper::getModelErrors($profile->getErrors());
-                $this->asJson(['success' => false, 'message' => $errorMessage]);
-            }else{
-                throw new Exception('Profile not updated.');
             }
+            throw new Exception($errorMessage);
         }
     }
 

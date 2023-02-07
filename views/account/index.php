@@ -7,6 +7,7 @@
  * @var yii\web\View $this
  * @var string $title
  * @var app\models\User $user
+ * @var app\models\Sponsor $sponsors[]
  */
 
 $this->title = $title;
@@ -23,7 +24,7 @@ $this->title = $title;
 <!-- Main content -->
 <section class="content">
     <div class="container-fluid">
-       <?= $this->render('updateProfile', ['user' => $user]); ?>
+       <?= $this->render('updateProfile', ['user' => $user, 'sponsors' => $sponsors]); ?>
 
        <?= $this->render('updateEmail', ['user' => $user]); ?>
 
