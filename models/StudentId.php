@@ -2,7 +2,6 @@
 
 namespace app\models;
 
-use app\controllers\BaseController;
 use Yii;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
