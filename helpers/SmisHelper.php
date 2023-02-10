@@ -6,12 +6,15 @@
 namespace app\helpers;
 
 use app\models\RequiredDocument;
+use app\models\StudentProgCurriculum;
+use app\models\StudentSemesterSessionProgress;
 use app\models\SubmittedDocument;
 use DateTime;
 use DateTimeZone;
 use Exception;
 use Yii;
 use yii\db\ActiveQuery;
+use yii\db\ActiveRecord;
 
 class SmisHelper
 {
@@ -153,5 +156,38 @@ class SmisHelper
         }else{
             return false;
         }
+    }
+
+    /**
+     * @return array|ActiveRecord|bool
+     */
+    public static function studentHasAvailableSessionToJoin(): array|ActiveRecord|bool
+    {
+        $admRefNo = Yii::$app->user->identity->adm_refno;
+        $studentProgCurr = StudentProgCurriculum::find()->select(['student_prog_curriculum_id'])
+            ->where(['adm_refno' => $admRefNo])->asArray()->one();
+
+        $studentSemSessProgress = StudentSemesterSessionProgress::find()->alias('sp')
+            ->select([
+                'sp.student_semester_session_id',
+                'sp.academic_progress_id'
+            ])
+            ->where(['sp.registration_date' => null])
+            ->joinWith(['academicProgress ap' => function (ActiveQuery $q) {
+                $q->select([
+                    'ap.academic_progress_id',
+                    'ap.student_prog_curriculum_id'
+                ]);
+            }], true, 'INNER JOIN')
+            ->andWhere(['ap.student_prog_curriculum_id' => $studentProgCurr['student_prog_curriculum_id']])
+            ->orderBy(['sp.student_semester_session_id' => SORT_DESC])
+            ->asArray()
+            ->one();
+
+        if(empty($studentSemSessProgress)){
+            return false;
+        }
+
+        return $studentSemSessProgress;
     }
 }

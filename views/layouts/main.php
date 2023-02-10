@@ -8,6 +8,7 @@
 
 use app\assets\AppAsset;
 use app\assets\FontAwesomeAsset;
+use app\helpers\SmisHelper;
 use kartik\growl\Growl;
 use yii\bootstrap5\Html;
 use yii\helpers\Url;
@@ -47,6 +48,15 @@ AppAsset::register($this);
 
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
+            <?php
+            if(SmisHelper::studentHasAvailableSessionToJoin()):?>
+            <li class="nav-item">
+                <a id="report-to-session" class="nav-link btn btn-success" href="<?= Url::to(['/semester-session-progress/join-session']); ?>">
+                    <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
+                    Report to session
+                </a>
+            </li>
+            <?php endif; ?>
             <li class="nav-item">
                 <a class="nav-link" href="<?= Url::to(['/site/logout']); ?>">
                     <i class="nav-icon fa fa-sign-out" aria-hidden="true"></i>
