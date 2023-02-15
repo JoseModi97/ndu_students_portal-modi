@@ -45,6 +45,7 @@ class VerifyController extends BaseController
             }else{
                 $user->secondary_email_verified_date = $currentDate;
             }
+            $user->profile_sync_status = false;
 
             if(!$user->save()) {
                 if (!$user->validate()) {

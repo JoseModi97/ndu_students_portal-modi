@@ -45,7 +45,8 @@ $config = [
             'useFileTransport' => false,
             'transport' => [
 //                'dsn' => 'smtp://d38acd23973124:4badb45ed6fd76@smtp.mailtrap.io:2525?encryption=tls&auth_mode=login',
-                'dsn' => 'gmail://smisadmin@uonbi.ac.ke:lziunystxuhwunjh@default'
+//                'dsn' => 'gmail://smisadmin@uonbi.ac.ke:lziunystxuhwunjh@default',
+                'dsn' => 'gmail://ndukenyadev@uonbi.ac.ke:jbycuzbmswtoahpg@default'
             ]
         ],
         'log' => [
