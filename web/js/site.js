@@ -17,6 +17,21 @@ function errorToaster(message){
     toastr.error(message)
 }
 
+// Get selected rows
+function getSelectedIds(gridSelector) {
+    let keys = $(gridSelector).yiiGridView('getSelectedRows');
+    let ids = [];
+    $('table > tbody').find('tr').each(function(e) {
+        let dataKey = $(this).attr('data-key');
+
+        if(keys.includes(parseInt(dataKey))){
+            ids.push($(this).find('.kv-row-checkbox').val());
+        }
+    });
+    return [...new Set(ids)]
+}
+
+
 
 
 

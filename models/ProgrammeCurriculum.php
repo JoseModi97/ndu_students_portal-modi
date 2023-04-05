@@ -5,6 +5,7 @@
 
 namespace app\models;
 
+use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
 /**
@@ -53,8 +54,8 @@ class ProgrammeCurriculum extends ActiveRecord
             [['average_type', 'prog_cur_prefix', 'status'], 'string', 'max' => 10],
             [['award_rounding'], 'string', 'max' => 20],
             [['prog_curriculum_id'], 'unique'],
-            [['grading_system_id'], 'exist', 'skipOnError' => true, 'targetClass' => SmisportalExGradingSystem::class, 'targetAttribute' => ['grading_system_id' => 'grading_system_id']],
-            [['prog_id'], 'exist', 'skipOnError' => true, 'targetClass' => SmisportalOrgProgrammes::class, 'targetAttribute' => ['prog_id' => 'prog_id']],
+//            [['grading_system_id'], 'exist', 'skipOnError' => true, 'targetClass' => SmisportalExGradingSystem::class, 'targetAttribute' => ['grading_system_id' => 'grading_system_id']],
+//            [['prog_id'], 'exist', 'skipOnError' => true, 'targetClass' => SmisportalOrgProgrammes::class, 'targetAttribute' => ['prog_id' => 'prog_id']],
         ];
     }
 
@@ -84,9 +85,9 @@ class ProgrammeCurriculum extends ActiveRecord
     }
 
     /**
-     * @return \yii\db\ActiveQuery
+     * @return ActiveQuery
      */
-    public function getProgram()
+    public function getProgram(): ActiveQuery
     {
         return $this->hasOne(Programmes::class, ['prog_id' => 'prog_id']);
     }

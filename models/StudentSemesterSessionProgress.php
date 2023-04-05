@@ -38,8 +38,8 @@ class StudentSemesterSessionProgress extends ActiveRecord
     {
         return [
             [['student_semester_session_id', 'academic_progress_id', 'sem_progress_number', 'promotion_status', 'rep_status_id', 'prom_status_id'], 'required'],
-            [['student_semester_session_id', 'semester_progress', 'academic_progress_id', 'sem_progress_number', 'billable', 'rep_status_id', 'prom_status_id'], 'default', 'value' => null],
-            [['student_semester_session_id', 'semester_progress', 'academic_progress_id', 'sem_progress_number', 'billable', 'rep_status_id', 'prom_status_id'], 'integer'],
+            [['student_semester_session_id', 'semester_progress', 'academic_progress_id', 'sem_progress_number', 'billable', 'rep_status_id', 'prom_status_id', 'acad_session_semester_id'], 'default', 'value' => null],
+            [['student_semester_session_id', 'semester_progress', 'academic_progress_id', 'sem_progress_number', 'billable', 'rep_status_id', 'prom_status_id', 'acad_session_semester_id'], 'integer'],
             [['registration_date'], 'safe'],
             [['reporting_sync_status'], 'boolean'],
             [['promotion_status'], 'string', 'max' => 20],
@@ -64,6 +64,7 @@ class StudentSemesterSessionProgress extends ActiveRecord
             'rep_status_id' => 'Rep Status ID',
             'prom_status_id' => 'Prom Status ID',
             'reporting_sync_status' => 'Reporting Sync Status',
+            'acad_session_semester_id' => 'Acad Session Semester ID',
         ];
     }
 

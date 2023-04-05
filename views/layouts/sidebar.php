@@ -79,7 +79,7 @@ use yii\helpers\Url;
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link">
+                    <a href="<?= Url::to(['/courses']); ?>" class="nav-link">
                         <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
                         <p>Course Registration</p>
                     </a>
