@@ -13,7 +13,7 @@
  */
 
 use app\models\CourseRegistration;
-use app\models\CourseRegistrationType;
+use app\models\CourseRegistrationStatus;
 use kartik\grid\GridView;
 use yii\helpers\Html;
 use yii\helpers\Url;
@@ -25,7 +25,7 @@ $this->title = $title;
 <!-- Content Header (Page header) -->
 <div class="content-header">
     <div class="page-header">
-        <h1>Registration  <i class="fa fa-angle-right" aria-hidden="true"></i>  Courses</h1>
+        <h1>Course registration</h1>
     </div>
 </div>
 <!-- /.content-header -->
@@ -46,68 +46,71 @@ $this->title = $title;
                     'vAlign' => 'middle',
                 ];
                 $codeCol = [
-                    'label' => 'Course Code',
+                    'label' => 'CODE',
                     'vAlign' => 'middle',
                     'value' => function($model){
                         return $model['programmeCurriculumCourse']['course']['course_code'];
                     }
                 ];
                 $nameCol = [
-                    'label' => 'Course Name',
+                    'label' => 'NAME',
                     'vAlign' => 'middle',
                     'value' => function($model){
                         return $model['programmeCurriculumCourse']['course']['course_name'];
                     }
                 ];
-                $selectExamTypeCol = [
-                    'label' => 'Select Exam Type',
+                $examTypeCol = [
+                    'label' => 'TYPE',
                     'vAlign' => 'middle',
                     'format' => 'raw',
-                    'hAlign' => 'center',
                     'value' => function($model){
                         $name = 'timetable-' . $model['timetable_id'] . '-exam-type';
                         return '
-                            <select class="exam-type" name="' . $name . '">
+                            <select id="'. $name .'" class="exam-type" name="' . $name . '">
                                 <option value=""></option>
-                                <option value="FA">First Attempt</option>
-                                <option value="RETAKE">Retake</option>
-                                <option value="SUPP">Supplementary</option>
+                                <option value="FA">FIRST ATTEMPT</option>
+                                <option value="RETAKE">RETAKE</option>
+                                <option value="SPECIAL">SPECIAL</option>
+                            </select>';
+                    }
+                ];
+                $groupCol = [
+                    'label' => 'GROUP',
+                    'vAlign' => 'middle',
+                    'format' => 'raw',
+                    'value' => function($model){
+                        $name = 'timetable-' . $model['timetable_id'] . '-class-group';
+                        return '
+                            <select id="'. $name .'" class="class-group" name="' . $name . '">
+                                <option value=""></option>
+                                <option value="1">GROUP 1</option>
+                                <option value="2">GROUP 2</option>
+                                <option value="3">GROUP 3</option>
                             </select>';
                     }
                 ];
                 $statusCol = [
-                    'label' => 'Status',
+                    'label' => 'STATUS',
                     'vAlign' => 'middle',
-                    'hAlign' => 'center',
                     'format' => 'raw',
-                    'value' => function($model) use($studentSemesterSessionId){
-                        $courseReg = CourseRegistration::find()->select('student_course_reg_id')->where([
-                            'student_semester_session_id' => $studentSemesterSessionId,
-                            'timetable_id' => $model['timetable_id']
-                        ])->asArray()->one();
-                        if(empty($courseReg)){
-                            return '<div class="text-center status-pending">pending</div>';
-                        }
-                        return '<div class="text-center status-approved">registered</div>';
-                    }
-                ];
-                $examTypeCol = [
-                    'label' => 'Exam Type',
-                    'vAlign' => 'middle',
                     'value' => function($model) use($studentSemesterSessionId) {
-                        $courseReg = CourseRegistration::find()->select('course_registration_type_id')->where([
+                        $courseReg = CourseRegistration::find()->select(['course_reg_status_id'])->where([
                             'student_semester_session_id' => $studentSemesterSessionId,
                             'timetable_id' => $model['timetable_id']
                         ])->asArray()->one();
 
-                        if(empty($courseReg)){
-                            return '--';
+                        if (empty($courseReg)) {
+                            return '<div class="status-pending">PENDING</div>';
+                        } else {
+                            $courseRegStatus = CourseRegistrationStatus::find()->select(['course_reg_status_name'])
+                                ->where(['course_reg_status_id' => $courseReg['course_reg_status_id']])->asArray()->one();
+                            $status = $courseRegStatus['course_reg_status_name'];
+                            if ($status === 'CONFIRMED') {
+                                return '<div class="status-approved">CONFIRMED</div>';
+                            } elseif ($status === 'PROVISIONAL') {
+                                return '<div class="status-review">PROVISIONAL</div>';
+                            }
                         }
-
-                        $courseRegType = CourseRegistrationType::find()->select(['course_reg_type_name'])
-                            ->where(['course_reg_type_id' => $courseReg['course_registration_type_id']])->asArray()->one();
-
-                        return $courseRegType['course_reg_type_name'];
                     }
                 ];
 
@@ -123,22 +126,33 @@ $this->title = $title;
                     ],
                     $codeCol,
                     $nameCol,
-                    $selectExamTypeCol,
+                    $examTypeCol,
+                    $groupCol,
                     $statusCol,
-                    $examTypeCol
                 ];
 
                 $toolbar = [
                     [
-                        'content' => Html::button('<i class="fas fa-check"></i> Register', [
-                            'title' => 'Register for courses',
-                            'id' => 'register-for-course-btn',
-                            'class' => 'btn btn-success btn-spacer btn-sm',
-                        ]),
+                        'content' =>
+                            Html::button('Register', [
+                                'title' => 'Register for courses',
+                                'id' => 'register-for-course-btn',
+                                'class' => 'btn btn-success btn-spacer btn-sm',
+                            ]) . '&nbsp' .
+                            Html::a('Confirm registration',
+                                Url::to(['/courses/provisional']),
+                                [
+                                    'title' => 'Confirm course registration',
+                                    'class' => 'btn btn-success btn-spacer'
+                                ]
+                            ). '&nbsp' .
+                            Html::button('Drop courses', [
+                                'title' => 'Drop courses',
+                                'id' => 'drop-courses-btn',
+                                'class' => 'btn btn-success btn-spacer btn-sm',
+                            ]),
                         'options' => ['class' => 'btn-group mr-2']
                     ],
-                    '{export}',
-                    '{toggleData}',
                 ];
 
                 try{
@@ -155,14 +169,9 @@ $this->title = $title;
                         'striped' => false,
                         'bordered' => false,
                         'toolbar' => $toolbar,
-                        'toggleDataContainer' => ['class' => 'btn-group mr-2'],
-                        'toggleDataOptions' => ['minCount' => 50],
-                        'export' => [
-                            'fontAwesome' => true,
-                            'label' => 'Export requests'
-                        ],
+                        'export' => false,
                         'panel' => [
-                            'heading' => 'Register for courses',
+                            'heading' => '2022/2023 | Bsc. Computer science | Year 1 | Semester 1' ,
                         ],
                         'persistResize' => false,
                         'itemLabelSingle' => 'course',
@@ -183,9 +192,15 @@ $this->title = $title;
 
 <?php
 $registerForCoursesUrl = Url::to(['/courses/register']);
+$getSelectedExamTypesUrl = Url::to(['/courses/selected-exam-types']);
+$confirmedCoursesUrl = Url::to(['/courses/confirmed']);
+$dropCoursesUrl = Url::to(['/courses/drop']);
 
 $registerForCoursesJs = <<< JS
 const registerForCoursesUrl = '$registerForCoursesUrl';
+const getSelectedExamTypesUrl = '$getSelectedExamTypesUrl';
+const confirmedCoursesUrl = '$confirmedCoursesUrl';
+const dropCoursesUrl = '$dropCoursesUrl';
 
 const courseRegistrationLoader = $('.course-registration > .loader');
 courseRegistrationLoader.html(loader);
@@ -194,6 +209,9 @@ courseRegistrationLoader.hide();
 const courseRegistrationErrorDisplay =  $('.course-registration > .error-display');
 courseRegistrationErrorDisplay.hide();
 
+/**
+* Provisional registration.
+*/
 $('#register-for-courses-grid-pjax').on('click', '#register-for-course-btn', function (e){
     e.preventDefault();
     if(getSelectedIds('#register-for-courses-grid').length === 0){
@@ -241,6 +259,101 @@ $('#register-for-courses-grid-pjax').on('click', '#register-for-course-btn', fun
             }
          }
      }
+});
+
+/**
+* Get the exam types for the courses registered for and set their select field values.
+*/
+function getSelectedExamType(){
+    let timetableIds = [];
+    $('table > tbody').find('tr .exam-type').each(function (e){
+        let elementId = $(this).attr('id');
+        let timetableId = elementId.split('-')[1];
+        timetableIds.push(timetableId);
+    });
+    
+    axios.get(getSelectedExamTypesUrl, {
+        params: {
+            timetableIds: timetableIds
+        }
+    })
+    .then(response => {
+        let examTypes = response.data.examTypes;
+        Object.keys(examTypes).forEach(function(key) {
+            let examTypeElementId = '#timetable-' + key + '-exam-type';
+            $(examTypeElementId).val(examTypes[key]).change();
+        });
+    })
+    .catch(error => {
+        courseRegistrationLoader.hide();
+        courseRegistrationErrorDisplay.html('Fetching selected exam types: ' + error.message) 
+        courseRegistrationErrorDisplay.show();
+    });
+}
+getSelectedExamType();
+
+/**
+* Get confirmed courses and disable their select checkbox, exam type and class group input fields.
+* Confirmed courses are not editable from the portal.
+*/
+function getConfirmedCourses(){
+    let timetableIds = [];
+    $('table > tbody').find('tr .exam-type').each(function (e){
+        let elementId = $(this).attr('id');
+        let timetableId = elementId.split('-')[1];
+        timetableIds.push(timetableId);
+    });
+    
+    axios.get(confirmedCoursesUrl, {
+        params: {
+            timetableIds: timetableIds
+        }
+    })
+    .then(response => {
+        let confirmedTimetableIds = response.data.confirmedTimetableIds;
+        for (const id of confirmedTimetableIds) {
+            let examTypeElementId = '#timetable-' + id + '-exam-type';
+            $(examTypeElementId).attr("disabled", true);
+            $('.kv-row-checkbox[value="'+id+'"]').attr("disabled", true);
+        }
+    })
+    .catch(error => {
+        courseRegistrationLoader.hide();
+        courseRegistrationErrorDisplay.html('Fetching confirmed courses: ' + error.message) 
+        courseRegistrationErrorDisplay.show();
+    });
+}
+getConfirmedCourses();
+
+/**
+* Drop courses registration
+*/
+$('#register-for-courses-grid-pjax').on('click', '#drop-courses-btn', function (e){
+    e.preventDefault();
+    let timetableIds = getSelectedIds('#register-for-courses-grid');
+    if(timetableIds.length === 0){
+        alert('No courses have been selected.');
+    }else{
+        if(confirm('Drop courses?')){
+            courseRegistrationErrorDisplay.hide();
+            courseRegistrationLoader.show(); 
+            $.ajax({
+                url: dropCoursesUrl,
+                type: 'POST',
+                data: {'timetableIds' : timetableIds}
+            }).done(function (data){
+                courseRegistrationLoader.hide();
+                if(!data.success){
+                    courseRegistrationErrorDisplay.html(data.message);
+                    courseRegistrationErrorDisplay.show();
+                }
+            }).fail(function (data){
+                courseRegistrationLoader.hide();
+                courseRegistrationErrorDisplay.html(data.responseText);
+                courseRegistrationErrorDisplay.show();
+            });
+        }
+    }
 });
 JS;
 $this->registerJs($registerForCoursesJs, yii\web\View::POS_READY);

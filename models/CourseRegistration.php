@@ -4,6 +4,7 @@
  */
 namespace app\models;
 
+use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
 /**
@@ -58,5 +59,21 @@ class CourseRegistration extends ActiveRecord
             'source_ipaddress' => 'Source Ipaddress',
             'userid' => 'Userid',
         ];
+    }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getMarksheet(): ActiveQuery
+    {
+        return $this->hasOne(Marksheet::class, ['student_course_reg_id' => 'student_course_reg_id']);
+    }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getStatus(): ActiveQuery
+    {
+        return $this->hasOne(CourseRegistrationStatus::class, ['course_reg_status_id' => 'course_reg_status_id']);
     }
 }

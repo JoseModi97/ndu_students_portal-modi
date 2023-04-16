@@ -81,4 +81,12 @@ class ProgrammeCurriculumTimetable extends ActiveRecord
     {
         return $this->hasOne(ProgrammeCurriculumCourse::class, ['prog_curriculum_course_id' => 'prog_curriculum_course_id']);
     }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getCourseRegistration(): ActiveQuery
+    {
+        return $this->hasOne(CourseRegistration::class, ['timetable_id' => 'timetable_id']);
+    }
 }
