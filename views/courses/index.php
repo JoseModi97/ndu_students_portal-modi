@@ -10,6 +10,7 @@
  * @var yii\web\View $this
  * @var yii\data\ArrayDataProvider $timetableCoursesProvider
  * @var string $studentSemesterSessionId
+ * @var string[] $currentSessionDetails
  */
 
 use app\models\CourseRegistration;
@@ -34,10 +35,48 @@ $this->title = $title;
 <section class="content">
     <div class="container-fluid">
         <div class="row">
-            <div class="col-12 course-registration">
-                <div class="loader"></div>
-                <div class="error-display alert text-center" role="alert"></div>
+            <div class="col-12">
+                <div class="card card-primary card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            Please read instructions below:
+                        </h3>
+                    </div>
+                    <!-- /.card-header -->
+                    <div class="card-body">
+                        <ul>
+                            <li>Courses listed below are available for registration in your current session</li>
+                            <li>Registration steps:
+                                <ol>
+                                    <li>Select courses you want to register for</li>
+                                    <li>For each course, select their exam type and class group</li>
+                                    <li>Click on the <u>Register</u> button</li>
+                                    <li>Click on the <u>Confirm registration</u> button to complete the registration</li>
+                                </ol>
+                            </li>
+                            <li>Drop courses:
+                                <ol>
+                                    <li>You can't drop confirmed courses</li>
+                                    <li>Select courses you want to drop</li>
+                                    <li>Click on the <u>Drop courses</u> button</li>
+                                </ol>
+                            </li>
+                        </ul>
+                        <div class="bg-warning text-center" style="margin-bottom: 20px; padding: 20px 0;border-radius: .25rem">
+                            Only confirmed courses will be examined and displayed on the exam card
+                        </div>
+                        <div class="course-registration">
+                            <div class="loader"></div>
+                            <div class="error-display alert text-center" role="alert"></div>
+                        </div>
+                    </div>
+                    <!-- /.card-body -->
+                </div>
+                <!-- /.card -->
             </div>
+        </div>
+
+        <div class="row">
             <div class="col-12">
                 <?php
                 $idCol = [
@@ -150,7 +189,14 @@ $this->title = $title;
                                 'title' => 'Drop courses',
                                 'id' => 'drop-courses-btn',
                                 'class' => 'btn btn-success btn-spacer btn-sm',
-                            ]),
+                            ]). '&nbsp' .
+                            Html::a('Download exam card',
+                                Url::to(['/courses/exam-card']),
+                                [
+                                    'title' => 'Download exam card',
+                                    'class' => 'btn btn-success btn-spacer'
+                                ]
+                            ),
                         'options' => ['class' => 'btn-group mr-2']
                     ],
                 ];
@@ -171,7 +217,8 @@ $this->title = $title;
                         'toolbar' => $toolbar,
                         'export' => false,
                         'panel' => [
-                            'heading' => '2022/2023 | Bsc. Computer science | Year 1 | Semester 1' ,
+                            'heading' => $currentSessionDetails['academicSession'] . ' | ' . $currentSessionDetails['programme'] . ' | Year ' .
+                                $currentSessionDetails['level'] . ' | Semester ' . $currentSessionDetails['semester']
                         ],
                         'persistResize' => false,
                         'itemLabelSingle' => 'course',

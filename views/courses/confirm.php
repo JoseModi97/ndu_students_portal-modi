@@ -10,6 +10,7 @@
  * @var yii\web\View $this
  * @var yii\data\ArrayDataProvider $timetableCoursesProvider
  * @var string $studentSemesterSessionId
+ * @var string[] $currentSessionDetails
  */
 
 use kartik\grid\GridView;
@@ -118,7 +119,8 @@ $this->title = $title;
                         'toolbar' => $toolbar,
                         'export' => false,
                         'panel' => [
-                            'heading' => '2022/2023 | Bsc. Computer science | Year 1 | Semester 1' ,
+                            'heading' => $currentSessionDetails['academicSession'] . ' | ' . $currentSessionDetails['programme'] . ' | Year ' .
+                                $currentSessionDetails['level'] . ' | Semester ' . $currentSessionDetails['semester']
                         ],
                         'persistResize' => false,
                         'itemLabelSingle' => 'course',

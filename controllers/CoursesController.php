@@ -8,6 +8,10 @@
 namespace app\controllers;
 
 use app\helpers\SmisHelper;
+use app\models\AcademicLevel;
+use app\models\AcademicProgress;
+use app\models\AcademicSession;
+use app\models\AcademicSessionSemester;
 use app\models\CourseRegistration;
 use app\models\CourseRegistrationStatus;
 use app\models\CourseRegistrationType;
@@ -15,6 +19,7 @@ use app\models\Marksheet;
 use app\models\ProgCurrSemester;
 use app\models\ProgCurrSemesterGroup;
 use app\models\ProgrammeCurriculumTimetable;
+use app\models\Programmes;
 use app\models\Student;
 use app\models\StudentProgCurriculum;
 use app\models\StudentSemesterSessionProgress;
@@ -125,7 +130,8 @@ class CoursesController extends BaseController
             return $this->render('index', [
                 'title' => $this->createPageTitle('course registration'),
                 'timetableCoursesProvider' => $timetableCoursesProvider,
-                'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id']
+                'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id'],
+                'currentSessionDetails' => $this->currentSessionDetails()
             ]);
         }catch (Exception $ex){
             $message = $ex->getMessage();
@@ -332,7 +338,8 @@ class CoursesController extends BaseController
             return $this->render('confirm', [
                 'title' => $this->createPageTitle('confirm course registration'),
                 'timetableCoursesProvider' => $timetableCoursesProvider,
-                'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id']
+                'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id'],
+                'currentSessionDetails' => $this->currentSessionDetails()
             ]);
         }catch (Exception $ex){
             $message = $ex->getMessage();
@@ -500,5 +507,39 @@ class CoursesController extends BaseController
         }
 
         return false;
+    }
+
+    /**
+     * Current session details
+     * @return array
+     */
+    #[ArrayShape(['academicSession' => "mixed", 'programme' => "mixed", 'level' => "mixed", 'semester' => "mixed"])]
+    private function currentSessionDetails(): array
+    {
+        // Get the last academic session semester a student joined
+        $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
+        $academicProgressId = $studentSemSessProgress['academic_progress_id'];
+        $academicSessionSemesterId = $studentSemSessProgress['acad_session_semester_id'];
+
+        $academicProgress = AcademicProgress::findOne($academicProgressId);
+
+        $academicSession = AcademicSession::find()->select(['acad_session_name'])
+            ->where(['acad_session_id' => $academicProgress->acad_session_id])->asArray()->one();
+
+        $programme = Programmes::find()->select(['prog_full_name'])
+            ->where(['prog_code' => Yii::$app->user->identity->uon_prog_code])->asArray()->one();
+
+        $level = AcademicLevel::find()->select(['academic_level'])
+            ->where(['academic_level_id' => $academicProgress->academic_level_id])->asArray()->one();
+
+        $semester = AcademicSessionSemester::find()->select(['semester_code'])
+            ->where(['acad_session_semester_id' => $academicSessionSemesterId])->asArray()->one();
+
+        return [
+            'academicSession' => $academicSession['acad_session_name'],
+            'programme' => $programme['prog_full_name'],
+            'level' => $level['academic_level'],
+            'semester' => $semester['semester_code']
+        ];
     }
 }
