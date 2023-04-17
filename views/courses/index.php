@@ -194,7 +194,9 @@ $this->title = $title;
                                 Url::to(['/courses/exam-card']),
                                 [
                                     'title' => 'Download exam card',
-                                    'class' => 'btn btn-success btn-spacer'
+                                    'class' => 'btn btn-success btn-spacer',
+                                    'target' => '_blank',
+                                    'data-pjax' => '0'
                                 ]
                             ),
                         'options' => ['class' => 'btn-group mr-2']

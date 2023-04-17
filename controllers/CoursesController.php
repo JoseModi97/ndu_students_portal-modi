@@ -25,6 +25,7 @@ use app\models\StudentProgCurriculum;
 use app\models\StudentSemesterSessionProgress;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
+use kartik\mpdf\Pdf;
 use Throwable;
 use Yii;
 use yii\data\ArrayDataProvider;
@@ -452,6 +453,110 @@ class CoursesController extends BaseController
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
+        }
+    }
+
+    /**
+     * @return string
+     * @throws ServerErrorHttpException
+     */
+    public function actionExamCard(): string
+    {
+        try{
+            $name = Yii::$app->user->identity->surname . ' ' . Yii::$app->user->identity->other_names;
+
+            $studentProg = StudentProgCurriculum::find()->select(['registration_number'])
+                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
+
+            // Get the last academic session semester a student joined
+            $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
+            $studentSemesterSessionId = $studentSemSessProgress['student_semester_session_id'];
+
+            $courses = ProgrammeCurriculumTimetable::find()->alias('tt')
+                ->select([
+                    'tt.timetable_id',
+                    'tt.exam_date',
+                    'tt.exam_venue',
+                    'tt.exam_mode',
+                    'tt.prog_curriculum_course_id'
+                ])
+                ->joinWith(['examMode em' => function(ActiveQuery $q) {
+                    $q->select([
+                        'em.exam_mode_id',
+                        'em.exam_mode_name'
+                    ]);
+                }], true, 'INNER JOIN')
+                ->joinWith(['programmeCurriculumCourse pcc' => function (ActiveQuery $q) {
+                    $q->select([
+                        'pcc.prog_curriculum_course_id',
+                        'pcc.course_id'
+                    ]);
+                }], true, 'INNER JOIN')
+                ->joinWith(['programmeCurriculumCourse.course cse' => function (ActiveQuery $q) {
+                    $q->select([
+                        'cse.course_id',
+                        'cse.course_code',
+                        'cse.course_name'
+                    ]);
+                }], true, 'INNER JOIN')
+                ->joinWith(['courseRegistration cr' => function(ActiveQuery $q) {
+                    $q->select([
+                        'cr.student_course_reg_id',
+                        'cr.timetable_id',
+                    ]);
+                }], true, 'INNER JOIN')
+                ->where(['cr.student_semester_session_id' => $studentSemesterSessionId])
+                ->joinWith(['courseRegistration.status st' => function(ActiveQuery $q) {
+                    $q->select([
+                        'st.course_reg_status_id',
+                    ]);
+                }], true, 'INNER JOIN')
+                ->andWhere(['st.course_reg_status_name' => 'CONFIRMED'])
+                ->asArray()
+                ->all();
+
+            $content = $this->renderPartial('examCard', [
+                'name' => $name,
+                'regNumber' => $studentProg['registration_number'],
+                'currentSessionDetails' => $this->currentSessionDetails(),
+                'courses' => $courses
+            ]);
+
+            // setup kartik\mpdf\Pdf component
+            $pdf = new Pdf([
+                'filename' => 'exam_card',
+                // set to use core fonts only
+                'mode' => Pdf::MODE_CORE,
+                // A4 paper format
+                'format' => Pdf::FORMAT_A4,
+                // portrait orientation
+                'orientation' => Pdf::ORIENT_LANDSCAPE,
+                // stream to browser inline
+                'destination' => Pdf::DEST_BROWSER,
+                // your html content input
+                'content' => $content,
+                // format content from your own css file if needed or use the
+                // enhanced bootstrap css built by Krajee for mPDF formatting
+                'cssFile' => '@vendor/kartik-v/yii2-mpdf/src/assets/kv-mpdf-bootstrap.min.css',
+                // any css to be embedded if required
+                'cssInline' => '.kv-heading-1{font-size:18px}',
+                // set mPDF properties on the fly
+                'options' => ['title' => 'Krajee Report Title'],
+                // call mPDF methods on the fly
+                'methods' => [
+                    'SetHeader'=>['NATIONAL DEFENCE UNIVERSITY OF KENYA||EXAM CARD'],
+                    'SetFooter'=>['PRINTED BY ' . $name . ' ON ' . SmisHelper::formatDate('now', 'd-m-Y') . '||'],
+                ]
+            ]);
+
+            // return the pdf output as per the destination setting
+            return $pdf->render();
+        }catch (Exception $ex){
+            $message = $ex->getMessage();
+            if(YII_ENV_DEV){
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            throw new ServerErrorHttpException($message, 500);
         }
     }
 
