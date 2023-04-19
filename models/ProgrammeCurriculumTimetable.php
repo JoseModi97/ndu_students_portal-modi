@@ -69,6 +69,14 @@ class ProgrammeCurriculumTimetable extends ActiveRecord
     /**
      * @return ActiveQuery
      */
+    public function getExamVenue(): ActiveQuery
+    {
+        return $this->hasOne(Room::class, ['room_id' => 'exam_venue']);
+    }
+
+    /**
+     * @return ActiveQuery
+     */
     public function getProgrammeCurriculumSemesterGroup(): ActiveQuery
     {
         return $this->hasOne(ProgCurrSemesterGroup::class, ['prog_curriculum_sem_group_id' => 'prog_curriculum_sem_group_id']);

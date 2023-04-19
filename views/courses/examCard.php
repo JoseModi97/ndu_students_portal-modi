@@ -57,14 +57,15 @@ use yii\web\ServerErrorHttpException;
                                 }
                                 throw new ServerErrorHttpException($message, 500);
                             }
-                            $venue = $course['exam_venue'];
+                            $venue = $course['examVenue']['room_name'] . ' (' . $course['examVenue']['room_code'] . ')';
+                            $venue = $course['examVenue']['room_name'];
                         ?>
                         <tr>
                             <td><?=$count?></td>
                             <td><?=$code?></td>
                             <td><?=$name?></td>
                             <td><?=$date?></td>
-                            <td><?=$name?></td>
+                            <td><?=$venue?></td>
                         </tr>
                         <?php
                             $count++;

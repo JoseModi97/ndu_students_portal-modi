@@ -486,6 +486,13 @@ class CoursesController extends BaseController
                         'em.exam_mode_name'
                     ]);
                 }], true, 'INNER JOIN')
+                ->joinWith(['examVenue ev' => function(ActiveQuery $q) {
+                    $q->select([
+                        'ev.room_id',
+                        'ev.room_name',
+                        'ev.room_code'
+                    ]);
+                }], true, 'INNER JOIN')
                 ->joinWith(['programmeCurriculumCourse pcc' => function (ActiveQuery $q) {
                     $q->select([
                         'pcc.prog_curriculum_course_id',
