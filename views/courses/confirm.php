@@ -13,6 +13,8 @@
  * @var string[] $currentSessionDetails
  */
 
+use app\models\ClassGroup;
+use app\models\CourseRegistration;
 use kartik\grid\GridView;
 use yii\helpers\Html;
 use yii\helpers\Url;
@@ -69,9 +71,19 @@ $this->title = $title;
                 $groupCol = [
                     'label' => 'GROUP',
                     'vAlign' => 'middle',
-                    'format' => 'raw',
-                    'value' => function($model){
-                        return 'GROUP 1';
+                    'value' => function($model) use($studentSemesterSessionId) {
+                        $courseReg = CourseRegistration::find()->select(['class_code'])->where([
+                            'student_semester_session_id' => $studentSemesterSessionId,
+                            'timetable_id' => $model['timetable_id']
+                        ])->asArray()->one();
+
+                        if(empty($courseReg)){
+                            return '';
+                        }else{
+                            $classGroup = ClassGroup::find()->select(['class_description'])
+                                ->where(['class_code' => $courseReg['class_code']])->asArray()->one();
+                            return strtoupper($classGroup['class_description']);
+                        }
                     }
                 ];
 

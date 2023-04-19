@@ -18,6 +18,8 @@ use yii\db\ActiveRecord;
  * @property int $course_reg_status_id
  * @property string|null $source_ipaddress
  * @property string|null $userid
+ * @property int|null $class_code
+ * @property bool|null $sync_status
  */
 class CourseRegistration extends ActiveRecord
 {
@@ -36,9 +38,10 @@ class CourseRegistration extends ActiveRecord
     {
         return [
             [['timetable_id', 'student_semester_session_id', 'course_registration_type_id', 'course_reg_status_id'], 'required'],
-            [['timetable_id', 'student_semester_session_id', 'course_registration_type_id', 'course_reg_status_id'], 'default', 'value' => null],
-            [['timetable_id', 'student_semester_session_id', 'course_registration_type_id', 'course_reg_status_id'], 'integer'],
+            [['timetable_id', 'student_semester_session_id', 'course_registration_type_id', 'course_reg_status_id', 'class_code'], 'default', 'value' => null],
+            [['timetable_id', 'student_semester_session_id', 'course_registration_type_id', 'course_reg_status_id', 'class_code'], 'integer'],
             [['registration_date'], 'safe'],
+            [['sync_status'], 'boolean'],
             [['source_ipaddress'], 'string', 'max' => 100],
             [['userid'], 'string', 'max' => 30],
         ];
@@ -58,6 +61,8 @@ class CourseRegistration extends ActiveRecord
             'course_reg_status_id' => 'Course Reg Status ID',
             'source_ipaddress' => 'Source Ipaddress',
             'userid' => 'Userid',
+            'class_code' => 'Class Code',
+            'sync_status' => 'Sync Status',
         ];
     }
 

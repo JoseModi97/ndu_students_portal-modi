@@ -12,14 +12,18 @@ use app\models\AcademicLevel;
 use app\models\AcademicProgress;
 use app\models\AcademicSession;
 use app\models\AcademicSessionSemester;
+use app\models\Course;
 use app\models\CourseRegistration;
 use app\models\CourseRegistrationStatus;
 use app\models\CourseRegistrationType;
 use app\models\Marksheet;
 use app\models\ProgCurrSemester;
 use app\models\ProgCurrSemesterGroup;
+use app\models\ProgrammeCurriculumCourse;
+use app\models\ProgrammeCurriculumLectureTimetable;
 use app\models\ProgrammeCurriculumTimetable;
 use app\models\Programmes;
+use app\models\Room;
 use app\models\Student;
 use app\models\StudentProgCurriculum;
 use app\models\StudentSemesterSessionProgress;
@@ -58,9 +62,10 @@ class CoursesController extends BaseController
     }
 
     /**
+     * @todo Check for registration deadlines and display date
      * @throws Exception
      */
-    public function actionIndex(): string
+    public function actionIndex(): Response|String
     {
         try{
             // Get the last academic session semester a student joined
@@ -85,10 +90,8 @@ class CoursesController extends BaseController
              * Session are created by the admin before placing a student in one.
              */
             if(empty($programmeCurriculumSemGroup)){
-                /**
-                 * @todo redirect back
-                 */
-                echo 'Join active session';
+                $this->setFlash('danger', 'Timetable courses', 'Please join an active semester session to view the created timetable');
+                return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
 
             $timetableCourses = ProgrammeCurriculumTimetable::find()->alias('tt')
@@ -143,7 +146,9 @@ class CoursesController extends BaseController
         }
     }
 
-    /**
+    /**.
+     * @todo Check for registration deadlines and special, retake, supplementary type conditions
+     *
      * Do provisional registration
      * @return Response
      */
@@ -164,7 +169,8 @@ class CoursesController extends BaseController
                 ->where(['student_id' => $studentProgCurr['student_id']])->asArray()->one();
 
             foreach ($courses as $course){
-                if($this->isRegistrationConfirmed($course['timetableId'])){
+                $timetableId = $course['timetableId'];
+                if($this->isRegistrationConfirmed($timetableId)){
                     continue;
                 }
 
@@ -175,7 +181,7 @@ class CoursesController extends BaseController
                     ->asArray()->one();
 
                 $courseReg = CourseRegistration::find()->where([
-                    'timetable_id' => $course['timetableId'],
+                    'timetable_id' => $timetableId,
                     'student_semester_session_id' => $studentSemesterSessionId
                 ])->one();
 
@@ -183,13 +189,54 @@ class CoursesController extends BaseController
                     $courseReg = new CourseRegistration();
                 }
 
-                $courseReg->timetable_id = $course['timetableId'];
+                $courseReg->timetable_id = $timetableId;
                 $courseReg->student_semester_session_id = $studentSemesterSessionId;
                 $courseReg->course_registration_type_id = $courseRegType['course_reg_type_id'];
                 $courseReg->registration_date = SmisHelper::formatDate('now', 'Y-m-d');
                 $courseReg->course_reg_status_id = $courseRegStatus['course_reg_status_id'];
                 $courseReg->source_ipaddress = '';
                 $courseReg->userid = $student['student_number'];
+                $courseReg->sync_status = false;
+
+                /**
+                 * Assign class group
+                 * Table cr_class_groups has the class_code as the pk which is also the group code.
+                 * Disable the auto increment on this table, to maintain the correct codes.
+                 */
+                $lectureTimetable = ProgrammeCurriculumLectureTimetable::find()->select(['lecture_room_id'])
+                    ->where(['timetable_id' => $timetableId])->asArray()->one();
+                $room = Room::find()->select(['room_capacity'])->where(['room_id' => $lectureTimetable['lecture_room_id']])
+                    ->asArray()->one();
+                $studentsRegisteredCount = CourseRegistration::find()->where(['timetable_id' => $timetableId])
+                    ->count();
+                $classCode = 1;
+                $roomCapacity = $room['room_capacity'];
+                if($studentsRegisteredCount >= $roomCapacity){
+                    $remainder = fmod($studentsRegisteredCount, $roomCapacity);
+                    $fullGroupsCount = ($studentsRegisteredCount - $remainder) / $roomCapacity;
+                    $classCode = $fullGroupsCount + 1;
+                }
+
+                /**
+                 * Check if a teaching timetable for the class group is created.
+                 * If there is none, skip registration
+                 */
+                $lectureTimetable = ProgrammeCurriculumLectureTimetable::find()
+                    ->where(['timetable_id' => $timetableId, 'class_code' => $classCode])->count();
+                if(!$lectureTimetable > 0){
+                    $examTimetable = ProgrammeCurriculumTimetable::find()->select(['prog_curriculum_course_id'])
+                        ->where(['timetable_id' => $timetableId])->asArray()->one();
+
+                    $progCurrCourse = ProgrammeCurriculumCourse::find()->select(['course_id'])
+                        ->where(['prog_curriculum_course_id' => $examTimetable['prog_curriculum_course_id']])->asArray()->one();
+
+                    $course = Course::find()->select(['course_code'])->where(['course_id' => $progCurrCourse['course_id']])->asArray()->one();
+
+                    throw new Exception('Teaching timetable for the course ' . $course['course_code'] . ' and class group ' .
+                        $classCode . ' is not created. Please contact your department for assistance.');
+                }
+
+                $courseReg->class_code = $classCode;
 
                 if(!$courseReg->save()){
                     if(!$courseReg->validate()){

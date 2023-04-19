@@ -13,6 +13,7 @@
  * @var string[] $currentSessionDetails
  */
 
+use app\models\ClassGroup;
 use app\models\CourseRegistration;
 use app\models\CourseRegistrationStatus;
 use kartik\grid\GridView;
@@ -116,16 +117,19 @@ $this->title = $title;
                 $groupCol = [
                     'label' => 'GROUP',
                     'vAlign' => 'middle',
-                    'format' => 'raw',
-                    'value' => function($model){
-                        $name = 'timetable-' . $model['timetable_id'] . '-class-group';
-                        return '
-                            <select id="'. $name .'" class="class-group" name="' . $name . '">
-                                <option value=""></option>
-                                <option value="1">GROUP 1</option>
-                                <option value="2">GROUP 2</option>
-                                <option value="3">GROUP 3</option>
-                            </select>';
+                    'value' => function($model) use($studentSemesterSessionId) {
+                        $courseReg = CourseRegistration::find()->select(['class_code'])->where([
+                            'student_semester_session_id' => $studentSemesterSessionId,
+                            'timetable_id' => $model['timetable_id']
+                        ])->asArray()->one();
+
+                        if(empty($courseReg)){
+                            return '';
+                        }else{
+                            $classGroup = ClassGroup::find()->select(['class_description'])
+                                ->where(['class_code' => $courseReg['class_code']])->asArray()->one();
+                            return strtoupper($classGroup['class_description']);
+                        }
                     }
                 ];
                 $statusCol = [
