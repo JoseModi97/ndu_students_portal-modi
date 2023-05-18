@@ -20,6 +20,7 @@ use yii\db\ActiveRecord;
  * @property int $rep_status_id
  * @property int $prom_status_id
  * @property bool|null $reporting_sync_status
+ * @property int|null $acad_session_semester_id
  */
 class StudentSemesterSessionProgress extends ActiveRecord
 {

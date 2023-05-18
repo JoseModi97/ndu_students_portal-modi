@@ -71,6 +71,11 @@ class CoursesController extends BaseController
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
             $academicSessionSemesterId = $studentSemSessProgress['acad_session_semester_id'];
+            $level = $studentSemSessProgress['academicProgress']['academicLevel']['academic_level'];
+            /**
+             * @todo add column studey_center_group_id to table smisportal.sm_admitted_student
+             */
+            $studyCenterGroupId = 41;
 
             // Check if the student's semester is ongoing. i.e. the current date is within the semester's start and end dates.
             $progCurrSemester = ProgCurrSemester::find()->select(['prog_curriculum_semester_id'])
@@ -82,6 +87,8 @@ class CoursesController extends BaseController
                 ->where(['prog_curriculum_semester_id' => $progCurrSemester['prog_curriculum_semester_id']])
                 ->andWhere(['<=', 'start_date', $currentDate])
                 ->andWhere(['>=', 'end_date', $currentDate])
+                ->andWhere(['programme_level' => $level])
+                ->andWhere(['study_centre_group_id' => $studyCenterGroupId])
                 ->asArray()->one();
 
             /**
@@ -148,6 +155,7 @@ class CoursesController extends BaseController
 
     /**.
      * @todo Check for registration deadlines and special, retake, supplementary type conditions
+     * Retake, there exist
      *
      * Do provisional registration
      * @return Response
@@ -173,6 +181,12 @@ class CoursesController extends BaseController
                 if($this->isRegistrationConfirmed($timetableId)){
                     continue;
                 }
+
+
+
+
+
+
 
                 $courseRegStatus = CourseRegistrationStatus::find()->where(['course_reg_status_name' => 'PROVISIONAL'])
                     ->asArray()->one();
@@ -205,12 +219,22 @@ class CoursesController extends BaseController
                  */
                 $lectureTimetable = ProgrammeCurriculumLectureTimetable::find()->select(['lecture_room_id'])
                     ->where(['timetable_id' => $timetableId])->asArray()->one();
+
+                if(empty($lectureTimetable)){
+                    throw new Exception('Teaching timetable for one of the courses selected is not created. 
+                    Please contact your department for assistance.');
+                }
+
                 $room = Room::find()->select(['room_capacity'])->where(['room_id' => $lectureTimetable['lecture_room_id']])
                     ->asArray()->one();
+                $roomCapacity = 1000; // default capacity
+                if(!empty($room)){
+                    $roomCapacity = $room['room_capacity'];
+                }
+
                 $studentsRegisteredCount = CourseRegistration::find()->where(['timetable_id' => $timetableId])
                     ->count();
                 $classCode = 1;
-                $roomCapacity = $room['room_capacity'];
                 if($studentsRegisteredCount >= $roomCapacity){
                     $remainder = fmod($studentsRegisteredCount, $roomCapacity);
                     $fullGroupsCount = ($studentsRegisteredCount - $remainder) / $roomCapacity;
@@ -632,9 +656,18 @@ class CoursesController extends BaseController
                 'sp.acad_session_semester_id'
             ])
             ->joinWith(['academicProgress ap' => function (ActiveQuery $q) {
-                $q->select(['ap.academic_progress_id']);
+                $q->select([
+                    'ap.academic_progress_id',
+                    'ap.academic_level_id'
+                ]);
             }], true, 'INNER JOIN')
             ->where(['ap.student_prog_curriculum_id' => $studentProgCurr['student_prog_curriculum_id']])
+            ->joinWith(['academicProgress.academicLevel al' => function(ActiveQuery $q){
+                $q->select([
+                    'al.academic_level_id',
+                    'al.academic_level'
+                ]);
+            }], true, 'INNER JOIN')
             ->orderBy(['sp.student_semester_session_id' => SORT_DESC])
             ->asArray()
             ->one();

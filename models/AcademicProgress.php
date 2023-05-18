@@ -4,6 +4,7 @@
  */
 namespace app\models;
 
+use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 
 /**
@@ -52,5 +53,13 @@ class AcademicProgress extends ActiveRecord
             'progress_status_id' => 'Progress Status ID',
             'current_status' => 'Current Status',
         ];
+    }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getAcademicLevel(): ActiveQuery
+    {
+        return $this->hasOne(AcademicLevel::class, ['academic_level_id' => 'academic_level_id']);
     }
 }

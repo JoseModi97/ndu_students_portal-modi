@@ -167,6 +167,10 @@ class SmisHelper
         $studentProgCurr = StudentProgCurriculum::find()->select(['student_prog_curriculum_id'])
             ->where(['adm_refno' => $admRefNo])->asArray()->one();
 
+        if(empty($studentProgCurr)){
+            return false;
+        }
+
         $studentSemSessProgress = StudentSemesterSessionProgress::find()->alias('sp')
             ->select([
                 'sp.student_semester_session_id',
