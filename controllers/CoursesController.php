@@ -12,6 +12,7 @@ use app\models\AcademicLevel;
 use app\models\AcademicProgress;
 use app\models\AcademicSession;
 use app\models\AcademicSessionSemester;
+use app\models\AdmittedStudent;
 use app\models\Course;
 use app\models\CourseRegistration;
 use app\models\CourseRegistrationStatus;
@@ -72,10 +73,10 @@ class CoursesController extends BaseController
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
             $academicSessionSemesterId = $studentSemSessProgress['acad_session_semester_id'];
             $level = $studentSemSessProgress['academicProgress']['academicLevel']['academic_level'];
-            /**
-             * @todo add column studey_center_group_id to table smisportal.sm_admitted_student
-             */
-            $studyCenterGroupId = 41;
+
+            $admittedStudent = AdmittedStudent::find()->select('study_centre_group_id')
+                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
+            $studyCenterGroupId = $admittedStudent['study_centre_group_id'];
 
             // Check if the student's semester is ongoing. i.e. the current date is within the semester's start and end dates.
             $progCurrSemester = ProgCurrSemester::find()->select(['prog_curriculum_semester_id'])

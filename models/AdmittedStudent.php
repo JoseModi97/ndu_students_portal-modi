@@ -68,7 +68,7 @@ class AdmittedStudent extends ActiveRecord
         return [
             [['adm_refno', 'uon_prog_code', 'source_id', 'intake_code', 'student_category_id'], 'required'],
             [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id', 'sponsor'], 'default', 'value' => null],
-            [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id', 'sponsor'], 'integer'],
+            [['adm_refno', 'source_id', 'application_refno', 'intake_code', 'student_category_id', 'sponsor', 'study_centre_group_id'], 'integer'],
             [['doc_submission_status', 'document_sync_status', 'profile_sync_status'], 'boolean'],
             [['primary_email_verified_date', 'secondary_email_verified_date', 'password_changed_date', 'date_of_birth'], 'safe'],
             [['kcse_index_no', 'primary_phone_no', 'alternative_phone_no', 'post_code', 'post_address', 'kuccps_prog_code', 'uon_prog_code', 'national_id', 'birth_cert_no', 'passport_no', 'service'], 'string', 'max' => 20],
@@ -128,6 +128,7 @@ class AdmittedStudent extends ActiveRecord
             'profile_sync_status' => 'Profile Sync Status',
             'sponsor' => 'Sponsor',
             'blood_group' => 'Blood Group',
+            'study_centre_group_id' => 'Study center group id'
         ];
     }
 
