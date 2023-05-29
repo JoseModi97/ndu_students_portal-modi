@@ -37,6 +37,7 @@ class ProgrammeCurriculumTimetable extends ActiveRecord
             [['timetable_id', 'prog_curriculum_course_id', 'prog_curriculum_sem_group_id', 'exam_venue', 'exam_mode'], 'default', 'value' => null],
             [['timetable_id', 'prog_curriculum_course_id', 'prog_curriculum_sem_group_id', 'exam_venue', 'exam_mode'], 'integer'],
             [['exam_date'], 'safe'],
+            [['mrksheet_id'], 'safe'],
             [['timetable_id'], 'unique'],
             [['exam_mode'], 'exist', 'skipOnError' => true, 'targetClass' => ExamMode::class, 'targetAttribute' => ['exam_mode' => 'exam_mode_id']],
             [['prog_curriculum_sem_group_id'], 'exist', 'skipOnError' => true, 'targetClass' => ProgCurrSemesterGroup::class, 'targetAttribute' => ['prog_curriculum_sem_group_id' => 'prog_curriculum_sem_group_id']],
@@ -55,6 +56,7 @@ class ProgrammeCurriculumTimetable extends ActiveRecord
             'exam_date' => 'Exam Date',
             'exam_venue' => 'Exam Venue',
             'exam_mode' => 'Exam Mode',
+            'mrksheet_id' => 'Mrksheet id'
         ];
     }
 

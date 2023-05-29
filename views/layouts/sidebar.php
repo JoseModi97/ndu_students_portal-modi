@@ -97,6 +97,12 @@ use yii\helpers\Url;
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="<?= Url::to(['/results']); ?>" class="nav-link">
+                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <p>Results</p>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="#" class="nav-link">
                         <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
                         <p>Help</p>

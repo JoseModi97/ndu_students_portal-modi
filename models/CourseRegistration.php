@@ -81,4 +81,20 @@ class CourseRegistration extends ActiveRecord
     {
         return $this->hasOne(CourseRegistrationStatus::class, ['course_reg_status_id' => 'course_reg_status_id']);
     }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getSemesterSessionProgress(): ActiveQuery
+    {
+        return $this->hasOne(StudentSemesterSessionProgress::class, ['student_semester_session_id' => 'student_semester_session_id']);
+    }
+
+    /**
+     * @return ActiveQuery
+     */
+    public function getCourseRegistrationType(): ActiveQuery
+    {
+        return $this->hasOne(CourseRegistrationType::class, ['course_reg_type_id' => 'course_registration_type_id']);
+    }
 }
