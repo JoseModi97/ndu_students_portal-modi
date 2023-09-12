@@ -9,7 +9,7 @@ use yii\helpers\Html;
 
 /* @var $this yii\web\View */
 /* @var $model app\models\StudentIdRequest */
-/* @var $form kartik\widgets\ActiveForm */
+/* @var $form ActiveForm */
 ?>
 
 <div class="student-id-request-form">
@@ -20,7 +20,7 @@ use yii\helpers\Html;
 
     <?= $form->field($model, 'request_type_id')->widget(Select2::class, [
         'data' => IdRequestType::loadRequestTypeByName(),
-        'options' => ['placeholder' => 'Choose Smisportal.sm id request type'],
+        'options' => ['placeholder' => 'Choose id request type'],
         'pluginOptions' => [
             'allowClear' => true
         ],

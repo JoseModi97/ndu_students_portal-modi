@@ -10,6 +10,7 @@ use app\models\StudentId;
 use app\models\StudentIdRequest;
 use app\models\StudentIdStatus;
 use Yii;
+use yii\db\Expression;
 use yii\filters\VerbFilter;
 use yii\web\ConflictHttpException;
 use yii\web\NotFoundHttpException;
@@ -74,50 +75,50 @@ class StudentIdController extends BaseController
      */
     public function actionNewId(): string|Response
     {
+        // Create a new instance of StudentIdRequest
         $model = new StudentIdRequest();
 
+        // Load POST data into the model and save if valid
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
             return $this->redirect(['index']);
         }
 
-        //check if student has an active and valid id
-        $hasActiveId = StudentId::hasActiveAndValidId();
-
-        if ($hasActiveId) {
+        // Check if student has an active and valid ID
+        if (StudentId::hasActiveAndValidId()) {
             $this->setFlash(
                 'danger',
                 'Active ID',
-                'You already have an active and current student id, you cannot request for another one'
+                'You already have an active and current student ID, you cannot request for another one'
             );
-            return $this->redirect(['index']);
-        }
-
-        $hasPendingRequest = StudentIdRequest::hasOpenIdRequest();
-        if ($hasPendingRequest) {
+        } elseif (StudentIdRequest::hasOpenIdRequest()) {
+            // Check if there is a pending ID request
             throw new ConflictHttpException('You already have a pending ID request');
+        } else {
+            // Preload default values for the model
+            $model->request_date = date('Y-m-d H:i:s');
+            $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;
+            $model->request_type_id = IdRequestType::findOne(['id_type_desc' => IdRequestType::ID_REPLACEMENT])->request_type_id;
+
+            // Check if the student has enough funds (replace with actual fee balance checking logic)
+            $hasEnoughFunds = true; //TODO replace with actual fee blance checking logic
+
+            if (!$hasEnoughFunds) {
+                $this->setFlash(
+                    'danger',
+                    'Insufficient funds',
+                    'Insufficient funds. Please top up your student account and try again'
+                );
+            } else {
+                // Set the view title and render the corresponding view
+                $this->view->title = 'New ID Replacement request';
+                return $this->render('new-id-request', [
+                    'model' => $model,
+                ]);
+            }
         }
-        //preload default values
-        $model->request_date = date('Y-m-d');
-        $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;
-        $model->request_type_id = IdRequestType::findOne([
-            'id_type_desc' => IdRequestType::ID_REPLACEMENT
-        ])->request_type_id;
 
-        //check if student has enough fee balance
-        $hasEnoughFunds = true; //@TODO tie in to fee balance checking
-
-        if ($hasEnoughFunds == false) {
-            $this->setFlash(
-                'danger',
-                'Insufficient funds',
-                'Insufficient funds. Please top up your student account and try again'
-            );
-            return $this->redirect(['index']);
-        }
-
-        return $this->render('new-id-request', [
-            'model' => $model,
-        ]);
+        // Redirect to the index page
+        return $this->redirect(['index']);
     }
 
 
