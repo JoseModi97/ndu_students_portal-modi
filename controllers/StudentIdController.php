@@ -100,7 +100,7 @@ class StudentIdController extends BaseController
             $model->request_type_id = IdRequestType::findOne(['id_type_desc' => IdRequestType::ID_REPLACEMENT])->request_type_id;
 
             // Check if the student has enough funds (replace with actual fee balance checking logic)
-            $hasEnoughFunds = true; //TODO replace with actual fee blance checking logic
+            $hasEnoughFunds = true; //TODO replace with actual fee balance checking logic
 
             if (!$hasEnoughFunds) {
                 $this->setFlash(
