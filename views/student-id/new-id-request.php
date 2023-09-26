@@ -5,8 +5,6 @@ use yii\helpers\Html;
 
 /* @var $this yii\web\View */
 /* @var $model app\models\StudentIdRequest */
-
-$this->title = 'New ID Replacement request';
 ?>
 
 <!-- Content Header (Page header) -->

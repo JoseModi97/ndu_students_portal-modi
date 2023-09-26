@@ -14,6 +14,7 @@ use yii\db\ActiveRecord;
  * @property string $request_date
  * @property integer $status_id
  * @property string $source
+ * @property boolean $student_id_sync_status
  *
  * @property IdRequestStatus $status
  * @property IdRequestType $requestType
@@ -38,9 +39,20 @@ class StudentIdRequest extends ActiveRecord
     {
         return [
             [['request_type_id', 'student_prog_curr_id', 'request_date', 'status_id', 'source'], 'required'],
-            [['request_type_id', 'student_prog_curr_id', 'status_id'], 'integer'],
+            [['request_type_id', 'student_prog_curr_id', 'status_id', 'receipt_number'], 'default', 'value' => null],
+            [['student_id_sync_status'], 'default', 'value' => false],
+            [['request_type_id', 'student_prog_curr_id', 'status_id', 'receipt_number'], 'integer'],
             [['request_date'], 'safe'],
-            [['source'], 'string', 'max' => 30]
+            [['student_id_sync_status'], 'boolean'],
+            [['source'], 'string', 'max' => 30],
+            [['status_id'], 'exist', 'skipOnError' => true, 'targetClass' => IdRequestStatus::class, 'targetAttribute' => ['status_id' => 'status_id']],
+            [['request_type_id'], 'exist', 'skipOnError' => true, 'targetClass' => IdRequestType::class, 'targetAttribute' => ['request_type_id' => 'request_type_id']],
+            [
+                ['student_prog_curr_id'], 'exist',
+                'skipOnError' => true,
+                'targetClass' => StudentProgramme::class,
+                'targetAttribute' => ['student_prog_curr_id' => 'student_prog_curriculum_id']
+            ],
         ];
     }
 
@@ -56,6 +68,7 @@ class StudentIdRequest extends ActiveRecord
             'request_date' => 'Request Date',
             'status_id' => 'Request status',
             'source' => 'Request reason',
+            'student_id_sync_status' => 'Student Id Sync Status'
         ];
     }
 
