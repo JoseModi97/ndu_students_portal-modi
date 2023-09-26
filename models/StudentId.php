@@ -94,10 +94,10 @@ class StudentId extends ActiveRecord
      */
     public static function hasActiveAndValidId(): bool
     {
+        $statusId = StudentStatus::evaluateStudentStatus();
         $currentProgramme = StudentProgramme::find()
-            ->joinWith(['studentStatus'])
             ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
-            ->andWhere(['status' => 'CURRENT'])
+            ->andWhere(['status_id' => $statusId])
             ->one();
 
         if ($currentProgramme == null) {
@@ -106,7 +106,7 @@ class StudentId extends ActiveRecord
 
         $idDetails = self::find()
             ->select('id_status')
-            ->where(['>=', 'valid_to', date('Y-m-d')])
+//            ->where(['>=', 'valid_to', date('Y-m-d')])
             ->andWhere(['id_status' => StudentIdStatus::ID_ACTIVE])
             ->andWhere(['student_prog_curr_id' => $currentProgramme->student_prog_curriculum_id])
             ->count();

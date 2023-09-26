@@ -17,6 +17,8 @@ use yii\db\ActiveRecord;
  */
 class StudentStatus extends ActiveRecord
 {
+    const STUDENT_STATUS_ACTIVE = 'ACTIVE';
+
     /**
      * {@inheritdoc}
      */
@@ -24,6 +26,7 @@ class StudentStatus extends ActiveRecord
     {
         return 'smisportal.sm_student_status';
     }
+
 
     /**
      * {@inheritdoc}
@@ -51,5 +54,18 @@ class StudentStatus extends ActiveRecord
             'status' => 'Status',
             'current_status' => 'Current Status',
         ];
+    }
+
+    /**
+     * @param string $status
+     * @return int
+     */
+    public static function evaluateStudentStatus(string $status = self::STUDENT_STATUS_ACTIVE): int
+    {
+        $status = self::findOne(['status' => $status]);
+        if ($status != null) {
+            return $status->status_id;
+        }
+        return 0;
     }
 }

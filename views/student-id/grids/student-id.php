@@ -5,6 +5,7 @@
 
 /* @var $dataProvider yii\data\ActiveDataProvider */
 
+use app\models\StudentId;
 use app\models\StudentIdStatus;
 use kartik\grid\GridView;
 use yii\helpers\Html;
@@ -43,6 +44,7 @@ $gridColumn = [
         ]
     ],
 ];
+
 ?>
 <?= GridView::widget([
     'id' => 'id-history',
