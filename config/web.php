@@ -14,7 +14,7 @@ $config = [
     'bootstrap' => ['log'],
     'aliases' => [
         '@bower' => '@vendor/bower-asset',
-        '@npm'   => '@vendor/npm-asset',
+        '@npm' => '@vendor/npm-asset',
         '@views' => '@app/views',
         '@regDocsUploadUrl' => '@app/uploads/registration/',
         '@changeNameDocsUploadDir' => '@app/uploads/change_name/',
@@ -24,13 +24,16 @@ $config = [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
             'cookieValidationKey' => 'D2CakKO1su98Fck8Q0JsQE-dp3i9mrs6',
         ],
+        'session' => [
+            'class' => 'yii\web\Session',
+        ],
         'cache' => [
             'class' => 'yii\caching\FileCache',
         ],
         'user' => [
             'identityClass' => 'app\models\User',
             'enableAutoLogin' => false,
-            'enableSession'	=> true,
+            'enableSession' => true,
             'authTimeout' => 3600
         ],
         'errorHandler' => [
@@ -66,6 +69,7 @@ $config = [
                 'home' => '/site/index',
                 'login' => '/site/login',
                 'logout' => '/site/logout',
+                '<controller>/<action:(report-lost-id)>/<id:\d+>' => '<controller>/<action>',
             ],
         ],
         'formatter' => [

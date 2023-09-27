@@ -55,10 +55,10 @@ use yii\helpers\Html;
             <?= Html::a('Cancel', ['index'], ['class' => 'btn btn-danger btn-lg']) ?>
         </div>
         <div class="col">
-            <?= Html::submitButton('Report as lost', [
+            <?= Html::submitButton('Submit request', [
                 'class' => $model->isNewRecord ? 'btn btn-success btn-lg btn-block' : 'btn btn-primary btn-lg btn-block',
                 'data' => [
-                    'confirm' => 'Are you sure want to request a new id, your student account will be charged a replacement fee?'
+                    'confirm' => 'Are you sure want to submit this request, your student account will be charged a replacement fee?'
                 ]
             ]) ?>
         </div>

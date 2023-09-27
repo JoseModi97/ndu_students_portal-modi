@@ -4,6 +4,7 @@
  */
 
 /* @var $this View */
+
 /* @var $content string */
 
 use app\assets\AppAsset;
@@ -23,8 +24,8 @@ AppAsset::register($this);
 <head>
     <meta charset="<?= Yii::$app->charset ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="shortcut icon" href="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" type="image/x-icon">
-    <link rel="icon" href="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" type="image/x-icon">
+    <link rel="shortcut icon" href="<?= Yii::getAlias('@web'); ?>/img/ndu-arms.png" type="image/x-icon">
+    <link rel="icon" href="<?= Yii::getAlias('@web'); ?>/img/ndu-arms.png" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <?php $this->registerCsrfMetaTags() ?>
     <title><?= Html::encode($this->title) ?></title>
@@ -49,13 +50,14 @@ AppAsset::register($this);
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
             <?php
-            if(SmisHelper::studentHasAvailableSessionToJoin()):?>
-            <li class="nav-item">
-                <a id="report-to-session" class="nav-link btn btn-success" href="<?= Url::to(['/semester-session-progress/join-session']); ?>">
-                    <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
-                    Report to session
-                </a>
-            </li>
+            if (SmisHelper::studentHasAvailableSessionToJoin()):?>
+                <li class="nav-item">
+                    <a id="report-to-session" class="nav-link btn btn-success"
+                       href="<?= Url::to(['/semester-session-progress/join-session']); ?>">
+                        <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
+                        Report to session
+                    </a>
+                </li>
             <?php endif; ?>
             <li class="nav-item">
                 <a class="nav-link" href="<?= Url::to(['/site/logout']); ?>">
@@ -71,13 +73,14 @@ AppAsset::register($this);
 
     <!-- Content Wrapper. Contains page content -->
     <div class="content-wrapper">
+        <?= \app\widgets\Alert::widget() ?>
         <?= $content ?>
     </div>
 
     <!-- /.content-wrapper -->
     <footer class="main-footer">
         <strong>
-            Do you need help? Send a message to smis_support@ndu.ac.ke
+            Do you need help? Send a message to <a href="mailto:smis_support@ndu.ac.ke">smis_support@ndu.ac.ke</a>
         </strong>
     </footer>
 
@@ -89,8 +92,8 @@ $flashType = '';
 $flashTitle = '';
 $flashIcon = '';
 $flashes = Yii::$app->session->getAllFlashes();
-if(!empty($flashes)){
-    if(!empty($flashes['new'])) {
+if (!empty($flashes)) {
+    if (!empty($flashes['new'])) {
         $flashMessage = $flashes['new']['message'];
 
         if ($flashes['new']['type'] === 'success') {
@@ -126,15 +129,15 @@ if(!empty($flashes)){
         }
     }
 
-    if(!empty($flashes['added'])){
-        foreach ($flashes['added'] as $addedFlash){
+    if (!empty($flashes['added'])) {
+        foreach ($flashes['added'] as $addedFlash) {
             $flashMessage = $addedFlash['message'];
-            if($addedFlash['type'] === 'success'){
+            if ($addedFlash['type'] === 'success') {
                 $flashType = Growl::TYPE_SUCCESS;
                 $flashTitle = 'Well done!';
                 $flashIcon = 'fas fa-check-circle';
             }
-            if($addedFlash['type'] === 'danger'){
+            if ($addedFlash['type'] === 'danger') {
                 $flashType = Growl::TYPE_DANGER;
                 $flashTitle = 'Oh snap!';
                 $flashIcon = 'fas fa-times-circle';

@@ -5,13 +5,14 @@
 
 /* @var $dataProvider yii\data\ActiveDataProvider */
 
-use app\models\StudentId;
 use app\models\StudentIdStatus;
 use kartik\grid\GridView;
 use yii\helpers\Html;
 
 ?>
 <?php
+$hasValidId = \app\models\StudentId::hasActiveAndValidId();
+
 $gridColumn = [
     ['class' => 'yii\grid\SerialColumn'],
     [
@@ -53,6 +54,8 @@ $gridColumn = [
         /* @var $model app\models\StudentId */
         if ($model->id_status === StudentIdStatus::ID_ACTIVE) {
             return ['class' => 'bg-info'];
+        } elseif ($model->id_status === StudentIdStatus::ID_EXPIRED) {
+            return ['class' => 'bg-warning'];
         } elseif ($model->id_status === StudentIdStatus::ID_LOST) {
             return ['class' => 'bg-danger'];
         }
@@ -66,7 +69,7 @@ $gridColumn = [
         'before' => '',
     ],
     // set your toolbar
-    'toolbar' => \app\models\StudentId::hasActiveAndValidId() ? '' : [
+    'toolbar' => $hasValidId ? '' : [
         [
             'content' => Html::a('<i class="fas fa-plus"></i> Request new ID', ['new-id'], [
                 'class' => 'btn btn-success'

@@ -68,10 +68,11 @@ class StudentIdSearch extends StudentId
     }
 
     /**
-     * @param $params
+     * @param array $params
+     * @param int $recordLimit
      * @return ActiveDataProvider
      */
-    public function activeStudentRecord($params): ActiveDataProvider
+    public function activeStudentRecord(array $params, int $recordLimit = 2): ActiveDataProvider
     {
         $query = StudentId::find()
             ->where(['in', 'student_prog_curr_id', StudentProgramme::loadStudentProgrammes()]);
@@ -79,7 +80,8 @@ class StudentIdSearch extends StudentId
 
         $dataProvider = new ActiveDataProvider([
             'query' => $query,
-            'sort' => ['defaultOrder' => ['id_status' => SORT_ASC]],
+//            'sort' => ['defaultOrder' => ['id_status' => SORT_ASC]],
+//            'pagination' => false
         ]);
 
         $this->load($params);

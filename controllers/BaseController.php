@@ -7,6 +7,8 @@ namespace app\controllers;
 
 use Exception;
 use Yii;
+use yii\base\Model;
+use yii\helpers\ArrayHelper;
 use yii\web\BadRequestHttpException;
 use yii\web\Controller;
 use yii\web\ServerErrorHttpException;
@@ -24,11 +26,11 @@ class BaseController extends Controller
      */
     public function init(): void
     {
-        try{
+        try {
             parent::init();
-        }catch(Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV) {
+            if (YII_ENV_DEV) {
                 $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -42,8 +44,8 @@ class BaseController extends Controller
      */
     public function beforeAction($action): bool
     {
-        if(parent::beforeAction($action)){
-            if(!Yii::$app->user->isGuest){
+        if (parent::beforeAction($action)) {
+            if (!Yii::$app->user->isGuest) {
                 $identity = Yii::$app->user->identity;
 
                 // These actions are accessible even when user profile is incomplete
@@ -59,7 +61,7 @@ class BaseController extends Controller
                      * Check if user's default/forgotten password has been updated.
                      * We require that these be updated to a password user will remember and also make sure it meets the set requirements.
                      */
-                    if (empty($identity->password_changed_date)){
+                    if (empty($identity->password_changed_date)) {
                         $this->setFlash('danger', 'Update password', 'You must change your password before you continue.');
                         $this->redirect(['/account/index']);
                         return false;
@@ -76,17 +78,17 @@ class BaseController extends Controller
                         $profileComplete = false;
                     } elseif (empty($identity->town)) {
                         $profileComplete = false;
-                    }elseif (empty($identity->service)) {
+                    } elseif (empty($identity->service)) {
                         $profileComplete = false;
-                    }elseif (empty($identity->service_number)) {
+                    } elseif (empty($identity->service_number)) {
                         $profileComplete = false;
-                    }elseif (empty($identity->blood_group)) {
+                    } elseif (empty($identity->blood_group)) {
                         $profileComplete = false;
-                    }elseif (empty($identity->date_of_birth)) {
+                    } elseif (empty($identity->date_of_birth)) {
                         $profileComplete = false;
-                    }elseif (empty($identity->nationality)) {
+                    } elseif (empty($identity->nationality)) {
                         $profileComplete = false;
-                    }elseif (empty($identity->sponsor)) {
+                    } elseif (empty($identity->sponsor)) {
                         $profileComplete = false;
                     }
 
@@ -158,5 +160,20 @@ class BaseController extends Controller
     protected function createPageTitle(string $title): string
     {
         return Yii::$app->params['sitename'] . ' - ' . $title;
+    }
+
+    /**
+     * @param array $models
+     * @return array
+     */
+    protected function mergeModelErrors(array $models): array
+    {
+        $errors = [];
+        foreach ($models as $model) {
+            if ($model instanceof Model && $model->hasErrors()) {
+                $errors = ArrayHelper::merge($errors, $model->getErrors());
+            }
+        }
+        return $errors;
     }
 }

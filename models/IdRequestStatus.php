@@ -74,4 +74,15 @@ class IdRequestStatus extends ActiveRecord
             ->all();
         return ArrayHelper::map($data, 'status_id', 'status_name');
     }
+
+    public static function getStatusIds()
+    {
+        $status = self::find()
+            ->where(['status_name' => [
+                self::STATUS_PENDING,
+                self::STATUS_REJECTED
+            ]])->asArray()->all();
+
+        return ArrayHelper::getColumn($status, 'status_id');;
+    }
 }

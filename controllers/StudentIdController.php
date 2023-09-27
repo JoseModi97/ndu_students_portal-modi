@@ -7,9 +7,11 @@ use app\models\IdRequestType;
 use app\models\search\StudentIdRequestSearch;
 use app\models\search\StudentIdSearch;
 use app\models\StudentId;
+use app\models\StudentIdDetail;
 use app\models\StudentIdRequest;
 use app\models\StudentIdStatus;
 use Yii;
+use yii\db\Exception;
 use yii\db\Expression;
 use yii\filters\VerbFilter;
 use yii\web\ConflictHttpException;
@@ -55,8 +57,10 @@ class StudentIdController extends BaseController
         $studentIdSearchModel = new StudentIdSearch();
         $studentIdDataProvider = $studentIdSearchModel->activeStudentRecord(Yii::$app->request->queryParams);
 
+        $statusIds = IdRequestStatus::getStatusIds();
+
         $studentIdRequestModel = new StudentIdRequestSearch();
-        $studentIdRequestProvider = $studentIdRequestModel->activeStudentRequests(Yii::$app->request->queryParams);
+        $studentIdRequestProvider = $studentIdRequestModel->activeStudentRequests(Yii::$app->request->queryParams, $statusIds);
 
 
         return $this->render('index', [
@@ -90,32 +94,35 @@ class StudentIdController extends BaseController
                 'Active ID',
                 'You already have an active and current student ID, you cannot request for another one'
             );
-        } elseif (StudentIdRequest::hasOpenIdRequest()) {
+        }
+
+        if (StudentIdRequest::hasOpenIdRequest()) {
             // Check if there is a pending ID request
             throw new ConflictHttpException('You already have a pending ID request');
-        } else {
-            // Preload default values for the model
-            $model->request_date = date('Y-m-d H:i:s');
-            $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;
-            $model->request_type_id = IdRequestType::findOne(['id_type_desc' => IdRequestType::ID_REPLACEMENT])->request_type_id;
-
-            // Check if the student has enough funds (replace with actual fee balance checking logic)
-            $hasEnoughFunds = true; //TODO replace with actual fee balance checking logic
-
-            if (!$hasEnoughFunds) {
-                $this->setFlash(
-                    'danger',
-                    'Insufficient funds',
-                    'Insufficient funds. Please top up your student account and try again'
-                );
-            } else {
-                // Set the view title and render the corresponding view
-                $this->view->title = 'New ID Replacement request';
-                return $this->render('new-id-request', [
-                    'model' => $model,
-                ]);
-            }
         }
+
+        // Preload default values for the model
+        $model->request_date = date('Y-m-d H:i:s');
+        $model->status_id = IdRequestStatus::findOne(['status_name' => IdRequestStatus::STATUS_PENDING])->status_id;
+        $model->request_type_id = IdRequestType::findOne(['id_type_desc' => IdRequestType::ID_REPLACEMENT])->request_type_id;
+
+        // Check if the student has enough funds (replace with actual fee balance checking logic)
+        $hasEnoughFunds = true; //TODO replace with actual fee balance checking logic
+
+        if (!$hasEnoughFunds) {
+            $this->setFlash(
+                'danger',
+                'Insufficient funds',
+                'Insufficient funds. Please top up your student account and try again'
+            );
+        } else {
+            // Set the view title and render the corresponding view
+            $this->view->title = 'New ID Replacement request';
+            return $this->render('new-id-request', [
+                'model' => $model,
+            ]);
+        }
+
 
         // Redirect to the index page
         return $this->redirect(['index']);
@@ -128,6 +135,7 @@ class StudentIdController extends BaseController
      * @param integer $id
      * @return string|Response
      * @throws NotFoundHttpException
+     * @throws Exception
      */
     public function actionReportLostId(int $id): string|Response
     {
@@ -137,14 +145,34 @@ class StudentIdController extends BaseController
             throw new NotFoundHttpException('The requested page does not exist.');
         }
 
+
+        $transaction = Yii::$app->db->beginTransaction();
         $model->id_status = StudentIdStatus::ID_LOST;
-        if (!$model->save()) {
-            $this->setFlash(
-                'success',
-                'Unable to update ID',
-                'Unable to flag ID as lost, please try again'
-            );
+
+        //insert to id status table
+        $idDetail = StudentIdDetail::findOne(['student_id_serial_no' => $id]);
+        $studentIdDetail = $idDetail == null ? new StudentIdDetail() : $idDetail;
+        $studentIdDetail->student_id_serial_no = $model->student_id_serial_no;
+        $studentIdDetail->student_id_status = $model->id_status;
+        $studentIdDetail->remarks = 'ID reported as lost';
+        $studentIdDetail->status_date = new Expression('NOW()');
+
+        $model->validate();
+        $studentIdDetail->validate();
+        if ($model->save() && $studentIdDetail->save()) {
+
+            Yii::$app->session->setFlash('success', "Successfully reported id as lost");
+            $transaction->commit();
+        } else {
+
+            $errors = $this->mergeModelErrors([$model, $studentIdDetail]);
+            foreach ($errors as $error) {
+                Yii::$app->session->setFlash('error', "Unable to flag ID as lost, please try again ---> {$error[0]}");
+            }
+            $transaction->rollBack();
         }
+
+
         return $this->redirect(['index']);
     }
 
