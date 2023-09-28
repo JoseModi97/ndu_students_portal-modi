@@ -29,27 +29,30 @@ $gridColumn = [
     'id_status',
     [
         'class' => 'kartik\grid\ActionColumn',
-        'header' => '#',
+        'header' => 'Print',
         'template' => '{update}',
         'visible' => $hasValidId,
         'width' => '7%',
         'buttons' => [
             'update' => function ($url, $model) {
                 /* @var $model app\models\StudentId */
-                return Html::a('PRINT ID', [
-                    'print-id', 'id' => $model->student_id_serial_no
-                ], [
-                    'title' => 'Print id card',
-                    'target' => '_blank',
-                    'class' => 'btn btn-sm btn-success'
-                ]);
+                if ($model->id_status == StudentIdStatus::ID_ACTIVE) {
+                    return Html::a('PRINT ID', [
+                        'print-id', 'id' => $model->student_id_serial_no
+                    ], [
+                        'title' => 'Print id card',
+                        'target' => '_blank',
+                        'class' => 'btn btn-sm btn-success'
+                    ]);
+                }
+                return '<span class="fa fa-ban fa-2x"></span>';
             }
         ]
     ],
 
     [
         'class' => 'kartik\grid\ActionColumn',
-        'header' => '#',
+        'header' => 'Report',
         'template' => '{report-lost}',
         'visible' => $hasValidId,
         'width' => '12%',
@@ -61,7 +64,7 @@ $gridColumn = [
                         'report-lost-id', 'id' => $model->student_id_serial_no
                     ], ['title' => 'Report this id as lost', 'class' => 'btn btn-sm btn-danger']);
                 }
-                return '';
+                return '<span class="fa fa-ban fa-2x"></span>';
             }
         ]
     ],
