@@ -31,9 +31,30 @@ $gridColumn = [
         'class' => 'kartik\grid\ActionColumn',
         'header' => '#',
         'template' => '{update}',
-        'width' => '13%',
+        'visible' => $hasValidId,
+        'width' => '7%',
         'buttons' => [
             'update' => function ($url, $model) {
+                /* @var $model app\models\StudentId */
+                return Html::a('PRINT ID', [
+                    'print-id', 'id' => $model->student_id_serial_no
+                ], [
+                    'title' => 'Print id card',
+                    'target' => '_blank',
+                    'class' => 'btn btn-sm btn-success'
+                ]);
+            }
+        ]
+    ],
+
+    [
+        'class' => 'kartik\grid\ActionColumn',
+        'header' => '#',
+        'template' => '{report-lost}',
+        'visible' => $hasValidId,
+        'width' => '12%',
+        'buttons' => [
+            'report-lost' => function ($url, $model) {
                 /* @var $model app\models\StudentId */
                 if ($model->id_status == StudentIdStatus::ID_ACTIVE) {
                     return Html::a('REPORT AS LOST', [

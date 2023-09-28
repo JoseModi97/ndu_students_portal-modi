@@ -14,6 +14,7 @@ use Yii;
 use yii\db\Exception;
 use yii\db\Expression;
 use yii\filters\VerbFilter;
+use yii\helpers\Json;
 use yii\web\ConflictHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -37,7 +38,7 @@ class StudentIdController extends BaseController
                 'rules' => [
                     [
                         'allow' => true,
-                        'actions' => ['index', 'new-id', 'report-lost-id'],
+                        'actions' => ['index', 'new-id', 'report-lost-id', 'print-id'],
                         'roles' => ['@']
                     ],
                     [
@@ -63,6 +64,7 @@ class StudentIdController extends BaseController
         $studentIdRequestProvider = $studentIdRequestModel->activeStudentRequests(Yii::$app->request->queryParams, $statusIds);
 
 
+        $this->view->title = 'My Student ID Page';
         return $this->render('index', [
             'idRequestSearchModel' => $studentIdRequestModel,
             'idRequestProvider' => $studentIdRequestProvider,
@@ -89,15 +91,10 @@ class StudentIdController extends BaseController
 
         // Check if student has an active and valid ID
         if (StudentId::hasActiveAndValidId()) {
-            $this->setFlash(
-                'danger',
-                'Active ID',
-                'You already have an active and current student ID, you cannot request for another one'
-            );
+            Yii::$app->session->setFlash('error', "You already have an active and current student ID, you cannot request for another one");
         }
 
         if (StudentIdRequest::hasOpenIdRequest()) {
-            // Check if there is a pending ID request
             throw new ConflictHttpException('You already have a pending ID request');
         }
 
@@ -110,11 +107,7 @@ class StudentIdController extends BaseController
         $hasEnoughFunds = true; //TODO replace with actual fee balance checking logic
 
         if (!$hasEnoughFunds) {
-            $this->setFlash(
-                'danger',
-                'Insufficient funds',
-                'Insufficient funds. Please top up your student account and try again'
-            );
+            Yii::$app->session->setFlash('error', "Insufficient funds. Please top up your student account and try again");
         } else {
             // Set the view title and render the corresponding view
             $this->view->title = 'New ID Replacement request';
@@ -172,10 +165,32 @@ class StudentIdController extends BaseController
             $transaction->rollBack();
         }
 
-
         return $this->redirect(['index']);
     }
 
+
+    /**
+     * @param $id
+     * @return false|string
+     * @throws Exception
+     */
+    public function actionPrintId($id): bool|string
+    {
+        $this->layout = 'id-layout';
+        $model = StudentId::findOne($id);
+
+        $requestStatus = StudentIdStatus::ID_ACTIVE;
+        $idRequest = StudentIdRequest::findOneByCurrProgId(
+            currProgId: $model->student_prog_curr_id,
+            statusName: $requestStatus);
+
+        $this->view->title = 'Print ID card';
+        return $this->render('print-single', [
+            'model' => $model,
+            'idRequest' => $idRequest
+        ]);
+
+    }
 
     /**
      * Finds the StudentIdRequest model based on its primary key value.

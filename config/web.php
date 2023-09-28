@@ -69,7 +69,7 @@ $config = [
                 'home' => '/site/index',
                 'login' => '/site/login',
                 'logout' => '/site/logout',
-                '<controller>/<action:(report-lost-id)>/<id:\d+>' => '<controller>/<action>',
+                '<controller>/<action:(report-lost-id|print-id)>/<id:\d+>' => '<controller>/<action>',
             ],
         ],
         'formatter' => [
