@@ -44,7 +44,8 @@ class ResultsController extends BaseController
     public function actionIndex(): string
     {
         try{
-            $regNumber = 'P15/245/2023';
+            $regNumber = 'P15/'.Yii::$app->user->identity->adm_refno.'/2023';
+
             $searchModel = new ResultsSearch();
             $dataProvider = $searchModel->search(Yii::$app->request->queryParams, [
                 'regNumber' => $regNumber

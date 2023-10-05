@@ -50,7 +50,7 @@ $this->title = $title;
                             <li>Registration steps:
                                 <ol>
                                     <li>Select courses you want to register for</li>
-                                    <li>For each course, select their exam type and class group</li>
+                                    <li>For each course select their exam type</li>
                                     <li>Click on the <u>Register</u> button</li>
                                     <li>Click on the <u>Confirm registration</u> button to complete the registration</li>
                                 </ol>
@@ -143,7 +143,7 @@ $this->title = $title;
                         ])->asArray()->one();
 
                         if (empty($courseReg)) {
-                            return '<div class="status-pending">PENDING</div>';
+                            return '';
                         } else {
                             $courseRegStatus = CourseRegistrationStatus::find()->select(['course_reg_status_name'])
                                 ->where(['course_reg_status_id' => $courseReg['course_reg_status_id']])->asArray()->one();
