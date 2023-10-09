@@ -66,4 +66,5 @@ class StudentIdStatus extends ActiveRecord
     {
         return $this->hasOne(StudentId::class, ['student_id_serial_no' => 'student_id_serial_no']);
     }
+
 }

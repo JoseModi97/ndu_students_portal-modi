@@ -29,7 +29,9 @@
         "rmrevin/yii2-fontawesome": "2.10.*",
         "kartik-v/yii2-widget-activeform": "^1.6",
         "mpdf/mpdf": "^8.1",
-        "kartik-v/yii2-mpdf": "dev-master"
+        "kartik-v/yii2-mpdf": "dev-master",
+        "picqer/php-barcode-generator": "^2.4",
+        "masgeek/yii2-print-html": "^4.0"
     },
     "require-dev": {
         "yiisoft/yii2-debug": "~2.1.0",
@@ -82,6 +84,10 @@
         {
             "type": "composer",
             "url": "https://asset-packagist.org"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/masgeek/yii2-print-html"
         }
     ]
 }

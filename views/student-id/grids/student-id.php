@@ -5,13 +5,14 @@
 
 /* @var $dataProvider yii\data\ActiveDataProvider */
 
-use app\models\StudentId;
 use app\models\StudentIdStatus;
 use kartik\grid\GridView;
 use yii\helpers\Html;
 
 ?>
 <?php
+$hasValidId = \app\models\StudentId::hasActiveAndValidId();
+
 $gridColumn = [
     ['class' => 'yii\grid\SerialColumn'],
     [
@@ -28,18 +29,42 @@ $gridColumn = [
     'id_status',
     [
         'class' => 'kartik\grid\ActionColumn',
-        'header' => '#',
+        'header' => 'Print',
         'template' => '{update}',
-        'width' => '13%',
+        'visible' => $hasValidId,
+        'width' => '7%',
         'buttons' => [
             'update' => function ($url, $model) {
+                /* @var $model app\models\StudentId */
+                if ($model->id_status == StudentIdStatus::ID_ACTIVE) {
+                    return Html::a('PRINT ID', [
+                        'print-id', 'id' => $model->student_id_serial_no
+                    ], [
+                        'title' => 'Print id card',
+                        'target' => '_blank',
+                        'class' => 'btn btn-sm btn-success'
+                    ]);
+                }
+                return '<span class="fa fa-ban fa-2x"></span>';
+            }
+        ]
+    ],
+
+    [
+        'class' => 'kartik\grid\ActionColumn',
+        'header' => 'Report',
+        'template' => '{report-lost}',
+        'visible' => $hasValidId,
+        'width' => '12%',
+        'buttons' => [
+            'report-lost' => function ($url, $model) {
                 /* @var $model app\models\StudentId */
                 if ($model->id_status == StudentIdStatus::ID_ACTIVE) {
                     return Html::a('REPORT AS LOST', [
                         'report-lost-id', 'id' => $model->student_id_serial_no
                     ], ['title' => 'Report this id as lost', 'class' => 'btn btn-sm btn-danger']);
                 }
-                return '';
+                return '<span class="fa fa-ban fa-2x"></span>';
             }
         ]
     ],
@@ -53,6 +78,8 @@ $gridColumn = [
         /* @var $model app\models\StudentId */
         if ($model->id_status === StudentIdStatus::ID_ACTIVE) {
             return ['class' => 'bg-info'];
+        } elseif ($model->id_status === StudentIdStatus::ID_EXPIRED) {
+            return ['class' => 'bg-warning'];
         } elseif ($model->id_status === StudentIdStatus::ID_LOST) {
             return ['class' => 'bg-danger'];
         }
@@ -66,7 +93,7 @@ $gridColumn = [
         'before' => '',
     ],
     // set your toolbar
-    'toolbar' => \app\models\StudentId::hasActiveAndValidId() ? '' : [
+    'toolbar' => $hasValidId ? '' : [
         [
             'content' => Html::a('<i class="fas fa-plus"></i> Request new ID', ['new-id'], [
                 'class' => 'btn btn-success'

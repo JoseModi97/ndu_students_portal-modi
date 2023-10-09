@@ -1,0 +1,120 @@
+@media print {
+    .noprint {
+        display: none !important;
+    }
+
+    a:link:after, a:visited:after {
+        display: none;
+        content: "";
+    }
+}
+
+.id-container {
+    font-family: monospace;
+    position: relative;
+    /*border: 1px solid green;*/
+    /*width: 324px;*/
+    /*height: 204px;*/
+    width: 480px;
+    height: 320px;
+}
+
+.id-card-bg {
+    position: absolute;
+    z-index: -20;
+}
+
+.id-container-front {
+    /*background-image: url("../images/uon_id_front_main.jpg");*/
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    font-size: 15px;
+}
+
+.id-container-back {
+    /*background-image: url("../images/fountain_logo.jpg");*/
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.passport-photo {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+}
+
+.signature {
+    display: none;
+    position: absolute;
+    top: 245px;
+    left: -20px;
+}
+
+.id-card-title {
+    position: absolute;
+    top: 95px;
+    left: 135px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #03347d;
+}
+
+.id-card-names {
+    position: absolute;
+    top: 120px;
+    left: 135px;
+    font-weight: bold;
+}
+
+.id-card-reg-no {
+    position: absolute;
+    top: 140px;
+    left: 135px;
+    font-weight: bold;
+    color: #121111;
+}
+
+.id-card-id-no {
+    position: absolute;
+    top: 160px;
+    left: 135px;
+    font-weight: bold;
+    color: #121111;
+}
+
+.id-card-course {
+    position: absolute;
+    top: 180px;
+    left: 135px;
+    font-weight: bold;
+    color: #121111;
+}
+
+.id-card-faculty {
+    position: absolute;
+    top: 200px;
+    left: 135px;
+    font-weight: bold;
+    color: #01012e;
+}
+
+.id-card-issue-date {
+    position: absolute;
+    left: 10px;
+}
+
+.id-card-expiry-date {
+    position: absolute;
+    left: 10px;
+    top: 20px;
+}
+
+.id-card-barcode {
+    padding: 5px;
+    position: absolute;
+    right: 15px;
+    top: 180px;
+    background: #ffffff;
+}

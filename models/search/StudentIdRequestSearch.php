@@ -69,12 +69,14 @@ class StudentIdRequestSearch extends StudentIdRequest
 
     /**
      * @param mixed $params
+     * @param array $statusIds
      * @return ActiveDataProvider
      */
-    public function activeStudentRequests(mixed $params): ActiveDataProvider
+    public function activeStudentRequests(mixed $params, array $statusIds = []): ActiveDataProvider
     {
         $query = StudentIdRequest::find()
-            ->where(['in', 'student_prog_curr_id', StudentProgramme::loadStudentProgrammes()]);
+            ->where(['in', 'student_prog_curr_id', StudentProgramme::loadStudentProgrammes()])
+            ->andWhere(['status_id' => $statusIds]);
 
         $dataProvider = new ActiveDataProvider([
             'query' => $query,
@@ -90,8 +92,7 @@ class StudentIdRequestSearch extends StudentIdRequest
         $query->andFilterWhere([
             'request_id' => $this->request_id,
             'request_type_id' => $this->request_type_id,
-            'request_date' => $this->request_date,
-            'status_id' => $this->status_id]);
+            'request_date' => $this->request_date]);
 
 
         return $dataProvider;

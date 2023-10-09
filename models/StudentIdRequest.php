@@ -111,4 +111,63 @@ class StudentIdRequest extends ActiveRecord
         return $idRequest != null;
     }
 
+    private static function baseSmisQuery(): string
+    {
+        $schema = "smisportal";
+        return <<<SQL
+SELECT
+	sm_student_id.student_id_serial_no,
+	sm_student_id.valid_from,
+	sm_student_id.valid_to,
+	sm_student_id.barcode,
+	sm_student_id.id_status,
+	sm_student.student_number,
+	sm_student_category.std_category_name,
+	sm_student_programme_curriculum.registration_number AS reg_no,
+	org_programme_curriculum.prog_curriculum_desc,
+	org_programmes.prog_code,
+	org_programmes.prog_short_name,
+	org_programmes.prog_full_name,
+	org_prog_type.prog_type_name,
+	CONCAT ( sm_student.surname, ' ', sm_student.other_names ) AS full_name,
+	COALESCE ( sm_student.id_no, sm_student.passport_no ) AS id_pp 
+FROM
+	$schema.sm_student_id
+	INNER JOIN $schema.sm_student_programme_curriculum ON sm_student_id.student_prog_curr_id = sm_student_programme_curriculum.student_prog_curriculum_id
+	INNER JOIN $schema.org_programme_curriculum ON sm_student_programme_curriculum.prog_curriculum_id = org_programme_curriculum.prog_curriculum_id
+	INNER JOIN $schema.org_programmes ON org_programme_curriculum.prog_id = org_programmes.prog_id
+	INNER JOIN $schema.org_prog_type ON org_programmes.prog_type_id = org_prog_type.prog_type_id
+	INNER JOIN $schema.sm_student ON sm_student_programme_curriculum.student_id = sm_student.student_id
+	INNER JOIN $schema.sm_student_category ON sm_student_programme_curriculum.student_category_id = sm_student_category.std_category_id
+SQL;
+    }
+
+
+    /**
+     * @param int $currProgId
+     * @param $statusName
+     * @return array|\yii\db\DataReader|null
+     * @throws \yii\db\Exception
+     */
+    public static function findOneByCurrProgId(int $currProgId, $statusName): \yii\db\DataReader|array|null
+    {
+        $query = self::baseSmisQuery();
+        $query .= <<<FILTER
+            WHERE sm_student_id.student_prog_curr_id = :currProgId
+            AND sm_student_id.id_status = :statusName
+FILTER;
+
+        $query = self::getDb()->createCommand($query);
+        $data = $query->bindValues([
+            'currProgId' => $currProgId,
+            'statusName' => $statusName
+        ])->queryOne();
+
+        if (!$data) {
+            return null;
+        }
+        return $data;
+
+    }
+
 }
