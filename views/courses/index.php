@@ -11,6 +11,7 @@
  * @var yii\data\ArrayDataProvider $timetableCoursesProvider
  * @var string $studentSemesterSessionId
  * @var string[] $currentSessionDetails
+ * @var bool $hasAvailableSessionToJoin
  */
 
 use app\models\ClassGroup;
@@ -64,7 +65,11 @@ $this->title = $title;
                             </li>
                         </ul>
                         <div class="bg-warning text-center" style="margin-bottom: 20px; padding: 20px 0;border-radius: .25rem">
-                            Only confirmed courses will be examined and displayed on the exam card
+                            <?php if($hasAvailableSessionToJoin):?>
+                                You must report to your session inorder to register for courses
+                            <?php else:?>
+                                Only confirmed courses will be examined and displayed on the exam card
+                            <?php endif;?>
                         </div>
                         <div class="course-registration">
                             <div class="loader"></div>
@@ -174,38 +179,42 @@ $this->title = $title;
                     $statusCol,
                 ];
 
-                $toolbar = [
-                    [
-                        'content' =>
-                            Html::button('Register', [
-                                'title' => 'Register for courses',
-                                'id' => 'register-for-course-btn',
-                                'class' => 'btn btn-success btn-spacer btn-sm',
-                            ]) . '&nbsp' .
-                            Html::a('Confirm registration',
-                                Url::to(['/courses/provisional']),
-                                [
-                                    'title' => 'Confirm course registration',
-                                    'class' => 'btn btn-success btn-spacer'
-                                ]
-                            ). '&nbsp' .
-                            Html::button('Drop courses', [
-                                'title' => 'Drop courses',
-                                'id' => 'drop-courses-btn',
-                                'class' => 'btn btn-success btn-spacer btn-sm',
-                            ]). '&nbsp' .
-                            Html::a('Download exam card',
-                                Url::to(['/courses/exam-card']),
-                                [
-                                    'title' => 'Download exam card',
-                                    'class' => 'btn btn-success btn-spacer',
-                                    'target' => '_blank',
-                                    'data-pjax' => '0'
-                                ]
-                            ),
-                        'options' => ['class' => 'btn-group mr-2']
-                    ],
-                ];
+                $toolbar = [];
+
+                if(!$hasAvailableSessionToJoin){
+                    $toolbar = [
+                        [
+                            'content' =>
+                                Html::button('Register', [
+                                    'title' => 'Register for courses',
+                                    'id' => 'register-for-course-btn',
+                                    'class' => 'btn btn-success btn-spacer btn-sm',
+                                ]) . '&nbsp' .
+                                Html::a('Confirm registration',
+                                    Url::to(['/courses/provisional']),
+                                    [
+                                        'title' => 'Confirm course registration',
+                                        'class' => 'btn btn-success btn-spacer'
+                                    ]
+                                ). '&nbsp' .
+                                Html::button('Drop courses', [
+                                    'title' => 'Drop courses',
+                                    'id' => 'drop-courses-btn',
+                                    'class' => 'btn btn-success btn-spacer btn-sm',
+                                ]). '&nbsp' .
+                                Html::a('Download exam card',
+                                    Url::to(['/courses/exam-card']),
+                                    [
+                                        'title' => 'Download exam card',
+                                        'class' => 'btn btn-success btn-spacer',
+                                        'target' => '_blank',
+                                        'data-pjax' => '0'
+                                    ]
+                                ),
+                            'options' => ['class' => 'btn-group mr-2']
+                        ],
+                    ];
+                }
 
                 try{
                     echo GridView::widget([

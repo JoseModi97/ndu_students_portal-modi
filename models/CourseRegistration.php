@@ -20,6 +20,7 @@ use yii\db\ActiveRecord;
  * @property string|null $userid
  * @property int|null $class_code
  * @property bool|null $sync_status
+ * @property string|null $registration_number
  */
 class CourseRegistration extends ActiveRecord
 {
@@ -44,6 +45,7 @@ class CourseRegistration extends ActiveRecord
             [['sync_status'], 'boolean'],
             [['source_ipaddress'], 'string', 'max' => 100],
             [['userid'], 'string', 'max' => 30],
+            [['registration_number'], 'string', 'max' => 20],
         ];
     }
 
@@ -63,6 +65,7 @@ class CourseRegistration extends ActiveRecord
             'userid' => 'Userid',
             'class_code' => 'Class Code',
             'sync_status' => 'Sync Status',
+            'registration_number' => 'Registration Number',
         ];
     }
 

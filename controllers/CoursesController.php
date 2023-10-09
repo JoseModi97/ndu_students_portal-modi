@@ -78,9 +78,20 @@ class CoursesController extends BaseController
                 ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
             $studyCenterGroupId = $admittedStudent['study_centre_group_id'];
 
+            /**
+             * If semester has ended i.e. a student is trying to register for courses in a semester whose end date is behind
+             * the current date, inform them to join an active session first.
+             * Session are created by the admin before placing a student in one.
+             */
+            $studentProgCurr = StudentProgCurriculum::find()->select(['prog_curriculum_id'])
+                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
+
             // Check if the student's semester is ongoing. i.e. the current date is within the semester's start and end dates.
             $progCurrSemester = ProgCurrSemester::find()->select(['prog_curriculum_semester_id'])
-                ->where(['acad_session_semester_id' => $academicSessionSemesterId])->asArray()->one();
+                ->where([
+                    'acad_session_semester_id' => $academicSessionSemesterId,
+                    'prog_curriculum_id' => $studentProgCurr['prog_curriculum_id']])
+                ->asArray()->one();
 
             $currentDate = SmisHelper::formatDate('now', 'Y-m-d');
 
@@ -92,16 +103,12 @@ class CoursesController extends BaseController
                 ->andWhere(['study_centre_group_id' => $studyCenterGroupId])
                 ->asArray()->one();
 
-            /**
-             * If semester has ended i.e. a student is trying to register for courses in a semester whose end date is behind
-             * the current date, inform them to join an active session first.
-             * Session are created by the admin before placing a student in one.
-             */
             if(empty($programmeCurriculumSemGroup)){
-                $this->setFlash('danger', 'Timetable courses', 'Please join an active semester session to view the created timetable');
+                $this->setFlash('danger', 'Timetable courses', 'Please join an active semester.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
 
+            // Get courses in a semester
             $timetableCourses = ProgrammeCurriculumTimetable::find()->alias('tt')
                 ->select([
                     'tt.timetable_id',
@@ -143,7 +150,8 @@ class CoursesController extends BaseController
                 'title' => $this->createPageTitle('course registration'),
                 'timetableCoursesProvider' => $timetableCoursesProvider,
                 'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id'],
-                'currentSessionDetails' => $this->currentSessionDetails()
+                'currentSessionDetails' => $this->currentSessionDetails(),
+                'hasAvailableSessionToJoin' => SmisHelper::studentHasAvailableSessionToJoin()
             ]);
         }catch (Exception $ex){
             $message = $ex->getMessage();
@@ -165,6 +173,10 @@ class CoursesController extends BaseController
     {
         $transaction = Yii::$app->db->beginTransaction();
         try{
+            if(SmisHelper::studentHasAvailableSessionToJoin()){
+                throw new Exception('You must report to your session inorder to register for courses');
+            }
+
             $post = Yii::$app->request->post();
             $courses = $post['courses'];
 
@@ -182,12 +194,6 @@ class CoursesController extends BaseController
                 if($this->isRegistrationConfirmed($timetableId)){
                     continue;
                 }
-
-
-
-
-
-
 
                 $courseRegStatus = CourseRegistrationStatus::find()->where(['course_reg_status_name' => 'PROVISIONAL'])
                     ->asArray()->one();
@@ -211,6 +217,7 @@ class CoursesController extends BaseController
                 $courseReg->course_reg_status_id = $courseRegStatus['course_reg_status_id'];
                 $courseReg->source_ipaddress = '';
                 $courseReg->userid = $student['student_number'];
+                $courseReg->registration_number = $student['student_number'];
                 $courseReg->sync_status = false;
 
                 /**
@@ -222,7 +229,7 @@ class CoursesController extends BaseController
                     ->where(['timetable_id' => $timetableId])->asArray()->one();
 
                 if(empty($lectureTimetable)){
-                    throw new Exception('Teaching timetable for one of the courses selected is not created. 
+                    throw new Exception('Teaching timetable for one of the courses selected is not created.
                     Please contact your department for assistance.');
                 }
 
