@@ -44,7 +44,10 @@ class ResultsController extends BaseController
     public function actionIndex(): string
     {
         try{
-            $regNumber = 'P15/'.Yii::$app->user->identity->adm_refno.'/2023';
+            $studentProgCurr = StudentProgCurriculum::find()->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+                ->asArray()->one();
+
+            $regNumber = $studentProgCurr['registration_number'];
 
             $searchModel = new ResultsSearch();
             $dataProvider = $searchModel->search(Yii::$app->request->queryParams, [
