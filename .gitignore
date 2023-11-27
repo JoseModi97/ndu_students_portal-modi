@@ -42,3 +42,5 @@ tests/_support/_generated
 /uploads
 
 /config/db.local.php
+
+/config/constants.php
