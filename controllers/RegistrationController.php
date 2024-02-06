@@ -49,11 +49,13 @@ class RegistrationController extends BaseController
         if(parent::beforeAction($action)){
             $identity = Yii::$app->user->identity;
 
+            // For registered students, we don't want them to reupload documents again under the same admRefNo
             if($identity->admission_status === parent::REGISTERED_STATUS){
                 $this->redirect(['/home/index']);
                 return false;
             }
 
+            // A student must not reupload documents, if they already have submitted documents before
             if($action->id == 'add-documents'){
                 if($identity->doc_submission_status){
                     $this->setFlash('success', 'Registration documents', 'Registration documents already submitted.');

@@ -48,15 +48,20 @@ class BaseController extends Controller
             if (!Yii::$app->user->isGuest) {
                 $identity = Yii::$app->user->identity;
 
-                // These actions are accessible even when user profile is incomplete
-                $exemptedActions = [
-                    'account',
-                    'error',
-                    'logout',
-                    'verify'
-                ];
+                $controllerId = Yii::$app->controller->id;
+                $actionId = Yii::$app->controller->action->id;
 
-                if (in_array('Yii::$app->controller->id', $exemptedActions)) {
+                // These controllers/actions are accessible even when user profile is incomplete
+                $exemptedControllers = Yii::$app->params['accessibleControllersIfProfileIncomplete'];
+                $exemptedActions = Yii::$app->params['accessibleActionsIfProfileIncomplete'];
+
+                $profileMustBeComplete = true;
+
+                if(in_array($controllerId, $exemptedControllers) || in_array($actionId, $exemptedActions)) {
+                    $profileMustBeComplete = false;
+                }
+
+                if ($profileMustBeComplete) {
                     /**
                      * Check if user's default/forgotten password has been updated.
                      * We require that these be updated to a password user will remember and also make sure it meets the set requirements.
