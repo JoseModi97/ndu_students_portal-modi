@@ -3,7 +3,9 @@
  * @author Rufusy Idachi <idachirufus@gmail.com>
  */
 
+use yii\base\InvalidConfigException;
 use yii\helpers\VarDumper;
+use yii\web\Application;
 
 require __DIR__ . '/../config/constants.php';
 require __DIR__ . '/../vendor/autoload.php';
@@ -24,4 +26,11 @@ function dd($v): void
 
 $config = require __DIR__ . '/../config/web.php';
 
-(new yii\web\Application($config))->run();
+try {
+    (new Application($config))->run();
+} catch (InvalidConfigException $e) {
+    $errorMessage = $e->getMessage();
+    ob_start();
+    require __DIR__ . '/../views/layouts/appInitError.php';
+    echo ob_get_clean();
+}
