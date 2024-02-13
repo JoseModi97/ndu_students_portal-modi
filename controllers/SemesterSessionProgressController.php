@@ -8,12 +8,10 @@
 namespace app\controllers;
 
 use app\helpers\SmisHelper;
-use app\models\StudentProgCurriculum;
 use app\models\StudentSemesterSessionProgress;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use Yii;
-use yii\db\ActiveQuery;
 use yii\filters\AccessControl;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;

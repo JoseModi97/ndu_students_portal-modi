@@ -71,32 +71,21 @@ class CoursesController extends BaseController
         try{
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
-            $academicSessionSemesterId = $studentSemSessProgress['acad_session_semester_id'];
-            $level = $studentSemSessProgress['academicProgress']['academicLevel']['academic_level'];
-
-            $admittedStudent = AdmittedStudent::find()->select('study_centre_group_id')
-                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
-            $studyCenterGroupId = $admittedStudent['study_centre_group_id'];
 
             /**
              * If semester has ended i.e. a student is trying to register for courses in a semester whose end date is behind
              * the current date, inform them to join an active session first.
              * Session are created by the admin before placing a student in one.
              */
-            $studentProgCurr = StudentProgCurriculum::find()->select(['prog_curriculum_id'])
+            $progCurrSemId = $studentSemSessProgress['prog_curriculum_semester_id'];
+            $level = $studentSemSessProgress['academicProgress']['academicLevel']['academic_level'];
+            $admittedStudent = AdmittedStudent::find()->select('study_centre_group_id')
                 ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
-
-            // Check if the student's semester is ongoing. i.e. the current date is within the semester's start and end dates.
-            $progCurrSemester = ProgCurrSemester::find()->select(['prog_curriculum_semester_id'])
-                ->where([
-                    'acad_session_semester_id' => $academicSessionSemesterId,
-                    'prog_curriculum_id' => $studentProgCurr['prog_curriculum_id']])
-                ->asArray()->one();
-
+            $studyCenterGroupId = $admittedStudent['study_centre_group_id'];
             $currentDate = SmisHelper::formatDate('now', 'Y-m-d');
 
             $programmeCurriculumSemGroup = ProgCurrSemesterGroup::find()->select(['prog_curriculum_sem_group_id'])
-                ->where(['prog_curriculum_semester_id' => $progCurrSemester['prog_curriculum_semester_id']])
+                ->where(['prog_curriculum_semester_id' => $progCurrSemId])
                 ->andWhere(['<=', 'start_date', $currentDate])
                 ->andWhere(['>=', 'end_date', $currentDate])
                 ->andWhere(['programme_level' => $level])
@@ -108,7 +97,7 @@ class CoursesController extends BaseController
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
 
-            // Get courses in a semester
+            // Get courses in the timetable in the semester
             $timetableCourses = ProgrammeCurriculumTimetable::find()->alias('tt')
                 ->select([
                     'tt.timetable_id',
@@ -298,6 +287,10 @@ class CoursesController extends BaseController
     public function actionSelectedExamTypes(): Response
     {
         try{
+            if(!array_key_exists('timetableIds', Yii::$app->request->get())) {
+                return $this->asJson(['success' => true, 'examTypes' => []]);
+            }
+
             $timetableIds = Yii::$app->request->get()['timetableIds'];
 
             // Get the last academic session semester a student joined
@@ -338,6 +331,10 @@ class CoursesController extends BaseController
     public function actionConfirmed(): Response
     {
         try{
+            if(!array_key_exists('timetableIds', Yii::$app->request->get())) {
+                return $this->asJson(['success' => true, 'confirmedTimetableIds' => []]);
+            }
+
             $timetableIds = Yii::$app->request->get()['timetableIds'];
             $confirmedTimetableIds = [];
             foreach ($timetableIds as $timetableId){
@@ -661,7 +658,7 @@ class CoursesController extends BaseController
             ->select([
                 'sp.student_semester_session_id',
                 'sp.academic_progress_id',
-                'sp.acad_session_semester_id'
+                'sp.prog_curriculum_semester_id'
             ])
             ->joinWith(['academicProgress ap' => function (ActiveQuery $q) {
                 $q->select([
@@ -719,7 +716,7 @@ class CoursesController extends BaseController
         // Get the last academic session semester a student joined
         $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
         $academicProgressId = $studentSemSessProgress['academic_progress_id'];
-        $academicSessionSemesterId = $studentSemSessProgress['acad_session_semester_id'];
+        $progCurrSemId = $studentSemSessProgress['prog_curriculum_semester_id'];
 
         $academicProgress = AcademicProgress::findOne($academicProgressId);
 
@@ -732,8 +729,11 @@ class CoursesController extends BaseController
         $level = AcademicLevel::find()->select(['academic_level'])
             ->where(['academic_level_id' => $academicProgress->academic_level_id])->asArray()->one();
 
+        $progCurrSem = ProgCurrSemester::find()->select(['acad_session_semester_id'])
+            ->where(['prog_curriculum_semester_id' => $progCurrSemId])->asArray()->one();
+
         $semester = AcademicSessionSemester::find()->select(['semester_code'])
-            ->where(['acad_session_semester_id' => $academicSessionSemesterId])->asArray()->one();
+            ->where(['acad_session_semester_id' => $progCurrSem['acad_session_semester_id']])->asArray()->one();
 
         return [
             'academicSession' => $academicSession['acad_session_name'],
