@@ -6,21 +6,13 @@
 namespace app\models;
 
 use Exception;
-use yii\base\InvalidArgumentException;
 use yii\base\Model;
 use yii\db\ActiveRecord;
 
-/**
- * LoginForm is the model behind the login form.
- *
- * @property-read User|null $user
- *
- */
 class LoginForm extends Model
 {
-    public $username;
-
-    public $password;
+    public string $username = '';
+    public string $password = '';
 
     /**
      * @return array the validation rules.
@@ -45,9 +37,7 @@ class LoginForm extends Model
     public function validatePassword(string $attribute)
     {
         if (!$this->hasErrors()) {
-
             $user = $this->getUser();
-
             try{
                 if (!$user || !$user->validatePassword($this->password)) {
                     $this->addError($attribute, 'Incorrect username or password.');

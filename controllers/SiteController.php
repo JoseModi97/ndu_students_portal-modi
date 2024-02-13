@@ -125,15 +125,11 @@ class SiteController extends BaseController
                 if($model->validate()){
                     if(Yii::$app->user->login($model->getUser())){
                         $this->setFlash('success', 'Login', 'Logged in successfully.');
-
-                        /**
-                         * Not fully registered students are redirected to the registration page.
-                         * Fully registered students are redirected to the portal dashboard.
-                         */
+                        // Not fully registered students are redirected to the registration page.
                         if(Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS){
                             return Yii::$app->response->redirect(['/registration/add-documents']);
                         }
-
+                        // Fully registered students are redirected to the portal dashboard.
                         return Yii::$app->response->redirect(['/account/index']);
                     }else{
                         throw new Exception('An error occurred while trying to log in.');
@@ -159,7 +155,6 @@ class SiteController extends BaseController
     public function actionLogout(): Response
     {
         Yii::$app->user->logout();
-
         return $this->goHome();
     }
 

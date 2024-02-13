@@ -174,66 +174,33 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findByUsername(string $username): bool|array|ActiveRecord|null
     {
-        $option = 'not_registered'; // Admitted student logging in to complete registration process.
-
-        if(str_contains($username, '/')){
-            $option = 'registered';
-        }
-
-        $admissionRefNumber = $username;
-
-        if($option === 'registered'){
-            $studentProgramme = StudentProgramme::find()->select(['adm_refno'])->where(['registration_number' => $username])
+        if(str_contains($username, '/')) {
+            $studentProg = StudentProgramme::find()->select(['adm_refno'])->where(['registration_number' => $username])
                 ->asArray()->one();
 
-            if(empty($studentProgramme)){
+            if(empty($studentProg)) {
                 return false;
             }
 
-            $admissionRefNumber = $studentProgramme['adm_refno'];
+            $username = $studentProg['adm_refno'];
         }
 
-        return self::find()->where(['adm_refno' => $admissionRefNumber])->one();
+        $user = self::find()->where(['adm_refno' => ltrim($username, '0')])->one();
+
+        if(empty($user)) {
+            return false;
+        }
+
+        return $user;
     }
 
     /**
-     * Validates password
-     * @param string $password password to validate
-     * @return bool if password provided is valid for current user
-     * @throws Exception
+     * @param string $password
+     * @return bool
      */
     public function validatePassword(string $password): bool
     {
-        /**
-         * An admitted student is given their admission ref number as their default password.
-         * This password is hashed with md5. However, passwords in the application are hashed using the Yii security component.
-         * Therefore, for default md5 passwords, we rehash them using the Yii security component.
-         * This is only done when the student logs in the system for the first time.
-         */
-        if(md5($password) === $this->password){
-            $transaction = Yii::$app->db->beginTransaction();
-            $this->password = Yii::$app->getSecurity()->generatePasswordHash($password);
-            if(!$this->save()){
-                if(!$this->validate()){
-                    $transaction->rollBack();
-                    $errorMessage = SmisHelper::getModelErrors($this->getErrors());
-                    throw new Exception($errorMessage);
-                }else{
-                    throw new Exception('Password not updated.');
-                }
-            }
-            $transaction->commit();
-        }
-
-        try{
-            if(Yii::$app->getSecurity()->validatePassword($password, $this->password)){
-                return true;
-            }else{
-                return false;
-            }
-        }catch (InvalidArgumentException $ex){
-            throw new Exception($ex->getMessage());
-        }
+        return Yii::$app->getSecurity()->validatePassword($password, $this->password);
     }
 
     /**
