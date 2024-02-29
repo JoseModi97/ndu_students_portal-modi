@@ -28,6 +28,10 @@ $this->title = $title;
                 <img class="mx-auto d-block" style="height: 100px;" src="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" alt="Logo">
             </div>
 
+            <div class="text-center" style="color:#0b1b34;">
+                <h4>STUDENT PORTAL</h4>
+            </div>
+
             <div id="login-form">
                 <?php
                 $form = ActiveForm::begin([
