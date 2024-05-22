@@ -73,39 +73,15 @@ use yii\helpers\Url;
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
-                        <p>Student fees</p>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a href="<?= Url::to(['/courses']); ?>" class="nav-link">
                         <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
                         <p>Course Registration</p>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
-                        <p>Student Exams</p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
-                        <p>Timetables</p>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a href="<?= Url::to(['/results']); ?>" class="nav-link">
                         <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
                         <p>Results</p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
-                        <p>Help</p>
                     </a>
                 </li>
             </ul>
