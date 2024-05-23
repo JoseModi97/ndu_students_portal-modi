@@ -14,6 +14,7 @@ final class StudentToBill
     public ?string $progCode;
     public ?string $progCurrId;
     public ?int $annualSemesters;
+    public ?int $progressId;
     public ?int $academicSessionId;
     public ?string $academicYear;
     public ?int $level;
@@ -22,7 +23,7 @@ final class StudentToBill
     public ?int $isInAFirstSemester;
     public ?int $isBilledAnnually;
 
-    public function __construct(private readonly string $regNumber)
+    public function __construct(public readonly string $regNumber)
     {
         $this->progCode = explode('/', $this->regNumber)[0];
 
@@ -31,6 +32,7 @@ final class StudentToBill
         $this->progCurrId = $progDetails['prog_curriculum_id'];
 
         $progress = $this->studentProgress();
+        $this->progressId = $progress['academic_progress_id'];
         $this->academicSessionId = $progress['acad_session_id'];
         $this->academicYear = $progress['acad_session_name'];
         $this->level = $progress['academic_level'];

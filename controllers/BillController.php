@@ -9,19 +9,22 @@ namespace app\controllers;
 
 use app\services\BillStudent;
 use app\services\StudentToBill;
+use Exception;
 use yii\web\Controller;
 
 class BillController extends Controller
 {
+    /**
+     * @throws Exception
+     */
     public function actionIndex()
     {
         $regNumber = 'ND201/0001/2022';
 
         $billStudent = new BillStudent(new StudentToBill($regNumber));
 
-        dd([
-            'admin fees' => $billStudent->totalAdminFees(),
-            'course fees' => $billStudent->totalCourseFees()
-        ]);
+        $billStudent->bill();
+
+
     }
 }

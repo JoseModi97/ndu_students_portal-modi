@@ -7,8 +7,19 @@ use app\enums\CourseFee;
 use app\enums\FeePriority;
 use app\enums\FeeStatus;
 use app\enums\FeeType;
+use app\enums\InvoiceStatus;
+use app\enums\InvoiceType;
+use app\enums\ReceiptStatus;
+use app\helpers\SmisHelper;
+use app\models\FeeItem;
+use app\models\FeeTransaction;
+use app\models\Invoice;
+use app\models\InvoiceDetail;
+use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use yii\db\Query;
+use yii\web\ServerErrorHttpException;
+use yii\web\UnprocessableEntityHttpException;
 
 /**
  * @author Rufusy Idachi <idachirufus@gmail.com>
@@ -17,15 +28,181 @@ use yii\db\Query;
  */
 final class BillStudent
 {
+    private ?array $payableFees;
+
     public function __construct(private readonly StudentToBill $student)
     {
+        $this->payableFees = $this->payableFees();
+    }
+
+    #[ArrayShape(['adminFees' => "array", 'courseFees' => "array", 'total' => "int|mixed"])]
+    public function payableFees(): array
+    {
+        $adminFees = $this->payableAdminFees();
+        $courseFees = $this->payableCourseFees();
+        return [
+            'adminFees' => $adminFees,
+            'courseFees' => $courseFees,
+            'total' => $adminFees['total'] + $courseFees['total']
+        ];
+    }
+
+    /**
+     * Check if student has enough balance to be deducted the amount payable
+     * @param int $amountPayable
+     * @return bool
+     */
+    public function isBalanceSufficient(int $amountPayable): bool
+    {
+        $transactions = (new Query())
+            ->select(['trans_amount', 'trans_type'])
+            ->from('smisportal.fss_fee_transactions')
+            ->where(['LIKE', 'progress_code', $this->student->regNumber . '%', false])
+            ->all();
+
+        if (empty($transactions)) {
+            return false;
+        }
+
+        $credits = 0;
+        $debits = 0;
+        foreach ($transactions as $transaction) {
+            if ($transaction['trans_type'] === InvoiceType::CR->value) {
+                $credits += $transaction['trans_amount'];
+            }
+
+            if ($transaction['trans_type'] === InvoiceType::DR->value) {
+                $debits += $transaction['trans_amount'];
+            }
+        }
+
+        if (($credits - $debits) < $amountPayable) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @return void
+     * @throws ServerErrorHttpException
+     * @throws UnprocessableEntityHttpException
+     * @throws \yii\db\Exception
+     */
+    public function bill(): void
+    {
+        $transaction = \Yii::$app->db->beginTransaction();
+        try {
+            // This condition should have been checked before and if False, the billing should have been aborted.
+            // We check it here again as a precaution
+            if ($this->isBalanceSufficient((int)$this->payableFees()['total'])) {
+                $invoice = $this->storeInvoice();
+                $this->storeTransaction($invoice);
+                $this->storeInvoiceDetails($invoice);
+            } else {
+                throw new UnprocessableEntityHttpException('Your have insufficient balance');
+            }
+            $transaction->commit();
+        } catch (Exception $ex) {
+            $transaction->rollBack();
+            throw $ex;
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function storeInvoice(): Invoice
+    {
+        $invoice = new Invoice();
+        $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
+        $invoice->invoice_desc = 'FEES PAYABLE FOR SEM ' . $this->student->semester;
+        $invoice->invoice_date = SmisHelper::formatDate('now', 'Y-m-d');
+        $invoice->last_update = $invoice->invoice_date;
+        $invoice->user_id = $this->student->regNumber;
+        $invoice->invoice_status = InvoiceStatus::FIRST->value;
+        $invoice->amount = $this->payableFees['total'];
+        $invoice->exchange_rate = 1;
+        $invoice->sync_status = false;
+        $invoice->reg_number = $this->student->regNumber;
+        $invoice->semester_id = $invoice->invoice_id;
+
+        if (!$invoice->save()) {
+            if (!$invoice->validate()) {
+                throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($invoice->getErrors()));
+            } else {
+                throw new ServerErrorHttpException('An error occurred while creating invoice');
+            }
+        }
+
+        return $invoice;
+    }
+
+    /**
+     * @param Invoice $invoice
+     * @return void
+     * @throws ServerErrorHttpException
+     * @throws UnprocessableEntityHttpException
+     */
+    private function storeTransaction(Invoice $invoice): void
+    {
+        $transaction = new FeeTransaction();
+        $transaction->trans_id = $invoice->invoice_id;
+        $transaction->academic_progress_id = $this->student->progressId;
+        $transaction->trans_date = $invoice->invoice_date;
+        $transaction->trans_type = InvoiceType::DR->value;
+        $transaction->trans_amount = $invoice->amount;
+        $transaction->trans_desc = $invoice->invoice_desc;
+        $transaction->user_id = $invoice->user_id;
+        $transaction->receipt_status = ReceiptStatus::INVOICED->value; // @todo value to set to be clarified
+        $transaction->exchange_rate = 1;
+        $transaction->progress_code = $this->student->regNumber . '-' . $this->student->academicYear;
+        $transaction->sync_status = false;
+
+        if (!$transaction->save()) {
+            if (!$transaction->validate()) {
+                throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($transaction->getErrors()));
+            } else {
+                throw new ServerErrorHttpException('An error occurred while creating transaction details');
+            }
+        }
+    }
+
+    /**
+     * @param Invoice $invoice
+     * @return void
+     * @throws ServerErrorHttpException
+     * @throws UnprocessableEntityHttpException
+     */
+    private function storeInvoiceDetails(Invoice $invoice): void
+    {
+        foreach ($this->payableFees['adminFees']['items'] as $item) {
+            $detail = new InvoiceDetail();
+            $detail->invoice_id = $invoice->invoice_id;
+            $detail->trans_date = $invoice->invoice_date;
+            $detail->last_updated = $detail->trans_date;
+            $detail->amount = $item['amount'];
+            $detail->user_id = $invoice->user_id;
+            $detail->invoice_detail_desc = $item['desc'];
+            $detail->charge_type_id = $invoice->invoice_id; // @todo value to set to be clarified
+            $detail->trans_code = FeeItem::find()->select('fee_code_alias')->where(['fee_description' => $item['desc']])
+                ->asArray()->one()['fee_code_alias'];
+            $detail->sync_status = false;
+
+            if (!$detail->save()) {
+                if (!$detail->validate()) {
+                    throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($detail->getErrors()));
+                } else {
+                    throw new ServerErrorHttpException('An error occurred while creating invoice details');
+                }
+            }
+        }
     }
 
     /**
      * @return array
      */
-    #[ArrayShape(['adminCharges' => "array", 'total' => "int"])]
-    public function totalAdminFees(): array
+    #[ArrayShape(['items' => "array", 'total' => "int"])]
+    private function payableAdminFees(): array
     {
         $adminFees = $this->fees(FeeType::ADMIN->value);
         $total = 0;
@@ -39,7 +216,8 @@ final class BillStudent
             if ($adminFee['frequency'] === ChargeFrequency::ONCE->value && $this->student->level === 1 && $this->student->isInAFirstSemester) {
                 $total += $adminFee['amount_charged'];
                 $adminCharges[] = [
-                    $adminFee['fee_description'] => $adminFee['amount_charged']
+                    'desc' => $adminFee['fee_description'],
+                    'amount' => $adminFee['amount_charged']
                 ];
             }
         }
@@ -49,7 +227,8 @@ final class BillStudent
                 if ($this->student->isInAFirstSemester) {
                     if ($adminFee['frequency'] === ChargeFrequency::ANNUAL->value) {
                         $adminCharges[] = [
-                            $adminFee['fee_description'] => $adminFee['amount_charged']
+                            'desc' => $adminFee['fee_description'],
+                            'amount' => $adminFee['amount_charged']
                         ];
 
                         $total += $adminFee['amount_charged'];
@@ -60,7 +239,8 @@ final class BillStudent
             } else {
                 if ($adminFee['frequency'] === ChargeFrequency::SEMESTER->value) {
                     $adminCharges[] = [
-                        $adminFee['fee_description'] => $adminFee['amount_charged']
+                        'desc' => $adminFee['fee_description'],
+                        'amount' => $adminFee['amount_charged']
                     ];
 
                     $total += $adminFee['amount_charged'];
@@ -69,7 +249,7 @@ final class BillStudent
         }
 
         return [
-            'adminCharges' => $adminCharges,
+            'items' => $adminCharges,
             'total' => $total
         ];
     }
@@ -77,8 +257,8 @@ final class BillStudent
     /**
      * @return array
      */
-    #[ArrayShape(['courseCharges' => "array", 'total' => "int"])]
-    public function totalCourseFees(): array
+    #[ArrayShape(['items' => "array", 'total' => "int"])]
+    private function payableCourseFees(): array
     {
         $fees = $this->fees(FeeType::COURSE->value);
 
@@ -141,7 +321,7 @@ final class BillStudent
         }
 
         return [
-            'courseCharges' => $courseCharges,
+            'items' => $courseCharges,
             'total' => $totalUnitAmount + $tuitionAmount
         ];
     }
