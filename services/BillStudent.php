@@ -2,6 +2,7 @@
 
 namespace app\services;
 
+use app\enums\AdminFee;
 use app\enums\ChargeFrequency;
 use app\enums\CourseFee;
 use app\enums\FeePriority;
@@ -18,6 +19,7 @@ use app\models\InvoiceDetail;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use yii\db\Query;
+use yii\web\NotFoundHttpException;
 use yii\web\ServerErrorHttpException;
 use yii\web\UnprocessableEntityHttpException;
 
@@ -28,18 +30,22 @@ use yii\web\UnprocessableEntityHttpException;
  */
 final class BillStudent
 {
-    private ?array $payableFees;
-
     public function __construct(private readonly StudentToBill $student)
     {
-        $this->payableFees = $this->payableFees();
     }
 
-    #[ArrayShape(['adminFees' => "array", 'courseFees' => "array", 'total' => "int|mixed"])]
-    public function payableFees(): array
+    /**
+     * Get the admin and course (unit/tuition) fees payable
+     * We disregard registration fees. This is charged outside this routine.
+     * @param array $courses
+     * @return array
+     * @throws NotFoundHttpException
+     */
+    #[ArrayShape(['adminFees' => "array", 'courseFees' => "array", 'total' => "int|\int|mixed|mixed"])]
+    public function payableFees(array $courses): array
     {
         $adminFees = $this->payableAdminFees();
-        $courseFees = $this->payableCourseFees();
+        $courseFees = $this->payableCourseFees($courses);
         return [
             'adminFees' => $adminFees,
             'courseFees' => $courseFees,
@@ -48,11 +54,35 @@ final class BillStudent
     }
 
     /**
+     * @throws UnprocessableEntityHttpException
+     * @throws ServerErrorHttpException
+     * @throws \yii\db\Exception
+     */
+    public function bill(array $payableFees): void
+    {
+        $transaction = \Yii::$app->db->beginTransaction();
+        try {
+            $totalToPay = $payableFees['total'];
+            if ($this->isBalanceSufficient($totalToPay)) {
+                $invoice = $this->storeInvoice($totalToPay);
+                $this->storeTransaction($invoice);
+                $this->storeInvoiceDetails($invoice, $payableFees);
+            } else {
+                throw new UnprocessableEntityHttpException('Your have insufficient balance');
+            }
+            $transaction->commit();
+        } catch (Exception $ex) {
+            $transaction->rollBack();
+            throw $ex;
+        }
+    }
+
+    /**
      * Check if student has enough balance to be deducted the amount payable
      * @param int $amountPayable
      * @return bool
      */
-    public function isBalanceSufficient(int $amountPayable): bool
+    private function isBalanceSufficient(int $amountPayable): bool
     {
         $transactions = (new Query())
             ->select(['trans_amount', 'trans_type'])
@@ -83,35 +113,9 @@ final class BillStudent
     }
 
     /**
-     * @return void
-     * @throws ServerErrorHttpException
-     * @throws UnprocessableEntityHttpException
-     * @throws \yii\db\Exception
-     */
-    public function bill(): void
-    {
-        $transaction = \Yii::$app->db->beginTransaction();
-        try {
-            // This condition should have been checked before and if False, the billing should have been aborted.
-            // We check it here again as a precaution
-            if ($this->isBalanceSufficient((int)$this->payableFees()['total'])) {
-                $invoice = $this->storeInvoice();
-                $this->storeTransaction($invoice);
-                $this->storeInvoiceDetails($invoice);
-            } else {
-                throw new UnprocessableEntityHttpException('Your have insufficient balance');
-            }
-            $transaction->commit();
-        } catch (Exception $ex) {
-            $transaction->rollBack();
-            throw $ex;
-        }
-    }
-
-    /**
      * @throws Exception
      */
-    private function storeInvoice(): Invoice
+    private function storeInvoice(int $amount): Invoice
     {
         $invoice = new Invoice();
         $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
@@ -120,21 +124,36 @@ final class BillStudent
         $invoice->last_update = $invoice->invoice_date;
         $invoice->user_id = $this->student->regNumber;
         $invoice->invoice_status = InvoiceStatus::FIRST->value;
-        $invoice->amount = $this->payableFees['total'];
+        $invoice->amount = $amount;
         $invoice->exchange_rate = 1;
         $invoice->sync_status = false;
         $invoice->reg_number = $this->student->regNumber;
         $invoice->semester_id = $invoice->invoice_id;
 
-        if (!$invoice->save()) {
-            if (!$invoice->validate()) {
-                throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($invoice->getErrors()));
-            } else {
-                throw new ServerErrorHttpException('An error occurred while creating invoice');
+        if ($invoice->save()) {
+            // Prepend the invoice pk to the invoice_id of the just created invoice and update it
+            $invoice->invoice_id = $invoice->id . '-' . $invoice->invoice_id;
+            if (!$invoice->save()) {
+                $this->checkForInvoiceStoreErrors($invoice);
             }
+        } else {
+            $this->checkForInvoiceStoreErrors($invoice);
         }
 
         return $invoice;
+    }
+
+    /**
+     * @throws ServerErrorHttpException
+     * @throws UnprocessableEntityHttpException
+     */
+    private function checkForInvoiceStoreErrors(Invoice $invoice)
+    {
+        if (!$invoice->validate()) {
+            throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($invoice->getErrors()));
+        } else {
+            throw new ServerErrorHttpException('An error occurred while creating invoice');
+        }
     }
 
     /**
@@ -169,24 +188,44 @@ final class BillStudent
 
     /**
      * @param Invoice $invoice
+     * @param array $payableFees
      * @return void
      * @throws ServerErrorHttpException
      * @throws UnprocessableEntityHttpException
      */
-    private function storeInvoiceDetails(Invoice $invoice): void
+    private function storeInvoiceDetails(Invoice $invoice, array $payableFees): void
     {
-        foreach ($this->payableFees['adminFees']['items'] as $item) {
+        /**
+         * Billing is done in two steps:
+         * First, we bill the admin (semester registration) fees
+         * Second, we bill admin + course (units/tuition) fees during course registration
+         * Therefore, at any point the payable fees will have either only admin or both admin and course fees
+         */
+        if (array_key_exists('courseFees', $payableFees)) {
+            $chargeDetails = array_merge($payableFees['adminFees']['items'], $payableFees['courseFees']['items']);
+        } else {
+            $chargeDetails = array_merge($payableFees['adminFees']['items']);
+        }
+
+        foreach ($chargeDetails as $chargeDetail) {
             $detail = new InvoiceDetail();
             $detail->invoice_id = $invoice->invoice_id;
-            $detail->trans_date = $invoice->invoice_date;
-            $detail->last_updated = $detail->trans_date;
-            $detail->amount = $item['amount'];
+            $detail->trans_date = $invoice->invoice_date;;
+            $detail->last_updated = $invoice->invoice_date;;
+            $detail->amount = $chargeDetail['amount'];
             $detail->user_id = $invoice->user_id;
-            $detail->invoice_detail_desc = $item['desc'];
             $detail->charge_type_id = $invoice->invoice_id; // @todo value to set to be clarified
-            $detail->trans_code = FeeItem::find()->select('fee_code_alias')->where(['fee_description' => $item['desc']])
-                ->asArray()->one()['fee_code_alias'];
             $detail->sync_status = false;
+
+            if (array_key_exists('type', $chargeDetail)) { // course fees
+                $detail->invoice_detail_desc = $chargeDetail['type']; // reg type e.g. FA, PROJECT
+                $detail->trans_code = $chargeDetail['desc']; // course code e.g. SMA101
+            } else { // admin fees
+                $detail->invoice_detail_desc = $chargeDetail['desc']; // fee desc e.g. Library fees
+                $detail->trans_code = FeeItem::find()->select('fee_code_alias')
+                    ->where(['fee_description' => $chargeDetail['desc']])
+                    ->asArray()->one()['fee_code_alias'];
+            }
 
             if (!$detail->save()) {
                 if (!$detail->validate()) {
@@ -205,6 +244,15 @@ final class BillStudent
     private function payableAdminFees(): array
     {
         $adminFees = $this->fees(FeeType::ADMIN->value);
+
+        // Remove the registration fees.
+        // This is charged outside this routine when a student joins in the semester session.
+        foreach ($adminFees as $key => $adminFee) {
+            if ($adminFee['fee_description'] === AdminFee::REGISTRATION_FEES->value) {
+                unset($adminFees[$key]);
+            }
+        }
+
         $total = 0;
         $adminCharges = [];
 
@@ -213,7 +261,10 @@ final class BillStudent
         // Fees like gown and cap during graduation. We take note of these types and assign them a priority of 2.
         // We assume that these will be charged outside this work flow.
         foreach ($adminFees as $adminFee) {
-            if ($adminFee['frequency'] === ChargeFrequency::ONCE->value && $this->student->level === 1 && $this->student->isInAFirstSemester) {
+            if ($adminFee['frequency'] === ChargeFrequency::ONCE->value &&
+                $this->student->level === 1 &&
+                $this->student->isInAFirstSemester) {
+
                 $total += $adminFee['amount_charged'];
                 $adminCharges[] = [
                     'desc' => $adminFee['fee_description'],
@@ -255,10 +306,12 @@ final class BillStudent
     }
 
     /**
+     * @param array $courses
      * @return array
+     * @throws NotFoundHttpException
      */
-    #[ArrayShape(['items' => "array", 'total' => "int"])]
-    private function payableCourseFees(): array
+    #[ArrayShape(['items' => "array", 'total' => "int|mixed"])]
+    private function payableCourseFees(array $courses): array
     {
         $fees = $this->fees(FeeType::COURSE->value);
 
@@ -266,29 +319,6 @@ final class BillStudent
         foreach ($fees as $fee) {
             $tempFees[$fee['fee_description']] = $fee['amount_charged'];
         }
-
-        $courses = [
-            [
-                'code' => 'SMA101',
-                'type' => 'FA'
-            ],
-            [
-                'code' => 'SMA102',
-                'type' => 'FA'
-            ],
-            [
-                'code' => 'SMA103',
-                'type' => 'FA'
-            ],
-            [
-                'code' => 'SMA104',
-                'type' => 'FA'
-            ],
-            [
-                'code' => 'SMA105',
-                'type' => 'PROJECT'
-            ]
-        ];
 
         $totalUnitAmount = 0;
         $tuitionAmount = 0;
@@ -299,9 +329,9 @@ final class BillStudent
             $courseFee = CourseFee::tryFrom($course['type']);
             $unitAmount = $tempFees[$courseFee->feeDescription()];
             $courseCharges[] = [
-                'code' => $course['code'],
-                'type' => $course['type'],
-                'amount' => $unitAmount
+                'desc' => $course['code'],
+                'amount' => $unitAmount,
+                'type' => $course['type']
             ];
             $totalUnitAmount += $unitAmount;
         }
@@ -310,13 +340,12 @@ final class BillStudent
             try {
                 $tuitionAmount = (int)$tempFees[CourseFee::tryFrom('TUITION')->feeDescription()];
                 $courseCharges['tuition'] = [
-                    'code' => 'TUITION',
-                    'type' => 'TUITION',
-                    'amount' => $tuitionAmount
+                    'desc' => 'TUITION',
+                    'amount' => $tuitionAmount,
+                    'type' => 'TUITION'
                 ];
             } catch (\Exception $ex) {
-                // Fail silently. We want the student to proceed with course registration.
-                // If a tuition charge is not defined, default it to zero. We shall reconcile later
+                throw new NotFoundHttpException('This program\'s TUITION fee is not set');
             }
         }
 

@@ -7,22 +7,30 @@
 
 namespace app\services;
 
+use app\enums\BillingType;
 use yii\db\Query;
+use yii\web\NotFoundHttpException;
+use yii\web\ServerErrorHttpException;
 
 final class StudentToBill
 {
+    private ?int $annualSemesters;
+    private ?int $progressNumber;
+
     public ?string $progCode;
     public ?string $progCurrId;
-    public ?int $annualSemesters;
     public ?int $progressId;
     public ?int $academicSessionId;
     public ?string $academicYear;
     public ?int $level;
     public ?int $semester;
-    public ?int $progressNumber;
     public ?int $isInAFirstSemester;
     public ?int $isBilledAnnually;
 
+    /**
+     * @throws NotFoundHttpException
+     * @throws ServerErrorHttpException
+     */
     public function __construct(public readonly string $regNumber)
     {
         $this->progCode = explode('/', $this->regNumber)[0];
@@ -59,14 +67,31 @@ final class StudentToBill
     /**
      * @return True is program is of Non-Integrated billing type. Admin fees billed per year
      * @return False if program is of Regular-Integrated billing type. Admin fees billed per teaching semester
+     * @throws ServerErrorHttpException
+     * @throws NotFoundHttpException
      */
     private function isBilledAnnually(): bool
     {
-        if ($this->progCode === 'ND201') {
+        $prog = (new Query())
+            ->select(['pc.prog_curriculum_id', 'bt.billing_type_desc'])
+            ->from('smisportal.org_programmes prog')
+            ->innerJoin('smisportal.org_programme_curriculum pc', 'pc.prog_id=prog.prog_id')
+            ->innerJoin('smisportal.fss_billing_type bt', 'bt.billing_type_id=pc.billing_type_id')
+            ->where(['prog.prog_code' => $this->progCode, 'pc.status' => 'ACTIVE'])
+            ->orderBy(['pc.prog_curriculum_id' => SORT_DESC])
+            ->one();
+
+        if (!$prog) {
+            throw new NotFoundHttpException('This program\'s billing type is not found');
+        }
+
+        if ($prog['billing_type_desc'] === BillingType::NON_INTEGRATED->value) {
             return true;
-        } else {
+        } else if ($prog['billing_type_desc'] === BillingType::REGULAR_INTEGRATED->value) {
             return false;
         }
+
+        throw new ServerErrorHttpException('This program\'s billing type is not recognized');
     }
 
     /**
