@@ -16,6 +16,7 @@ use app\models\FeeItem;
 use app\models\FeeTransaction;
 use app\models\Invoice;
 use app\models\InvoiceDetail;
+use app\models\Programmes;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use yii\db\Query;
@@ -41,15 +42,75 @@ final class BillStudent
      * @return array
      * @throws NotFoundHttpException
      */
-    #[ArrayShape(['adminFees' => "array", 'courseFees' => "array", 'total' => "int|\int|mixed|mixed"])]
     public function payableFees(array $courses): array
     {
+        $followUpRegistration = false;
+
+        /**
+         * A student is billed the semester registration fees before joining into a session.
+         * You must be in a session to do any course registration.
+         *
+         * During the initial course registration a student in billed the whole admin fees plus course unit/tuition fees.
+         * For programs billed per year, admin fees are only charged during the first semester. In follow-up course registration
+         * we only bill the course unit fees.
+         *
+         * For programs billed per semester, admin fees are charged each semester.
+         * These programs also have a tuition charge that is billed together with the admin charges as a block.
+         * Therefore, we have no course units charges hence for follow-ups, the student is billed nothing
+         */
+
+        $invoiceId = '%';
+        $invoiceId .= $this->student->regNumber . '-' . $this->student->academicYear;
+        if (!$this->student->isBilledAnnually) {
+//            $invoiceId .= '-SEM' . $this->student->semester;
+            $invoiceId .= '-SEM2';
+        }
+        $invoiceId .= '%';
+//        dd($invoiceId);
+
+        $invoiceDetails = InvoiceDetail::find()->where(['LIKE', 'invoice_id', $invoiceId, false])->asArray()->all();
+//        dd($invoiceDetails);
+        if (!empty($invoiceDetails)) {
+            foreach ($invoiceDetails as $key => $detail) {
+                if ($detail['invoice_detail_desc'] === AdminFee::REGISTRATION_FEES->value) {
+                    unset($invoiceDetails[$key]);
+                }
+            }
+        }
+
+        if (!empty($invoiceDetails)) {
+            $followUpRegistration = true;
+
+            $courseFeesPaid = 0;
+            foreach ($courses as $key => $course) {
+                foreach ($invoiceDetails as $detail) {
+                    if (($course['code'] === $detail['trans_code']) &&
+                        ($course['type'] === $detail['invoice_detail_desc'])
+                    ) {
+                        $courseFeesPaid += $detail['amount'];
+
+                        unset($courses[$key]);
+                    }
+                }
+            }
+        }
+//        dd($invoiceDetails);
         $adminFees = $this->payableAdminFees();
         $courseFees = $this->payableCourseFees($courses);
+
+        // For programs billed per semester we have a tuition fee
+        // This fee is billed together with other admin fees needed during the initial course registration
+        // Therefore, for follow-ups, the student is billed zero
+        if (!$this->student->isBilledAnnually && $followUpRegistration) {
+            $courseFees['total'] = $courseFees['total'] - $courseFees['items']['tuition']['amount'];
+            unset($courseFees['items']['tuition']);
+        }
+
         return [
+            'followUpRegistration' => $followUpRegistration,
             'adminFees' => $adminFees,
             'courseFees' => $courseFees,
-            'total' => $adminFees['total'] + $courseFees['total']
+            'total' => $followUpRegistration ? $courseFees['total'] : $adminFees['total'] + $courseFees['total']
         ];
     }
 
@@ -62,15 +123,17 @@ final class BillStudent
     {
         $transaction = \Yii::$app->db->beginTransaction();
         try {
-            $totalToPay = $payableFees['total'];
+//            dd($payableFees);
+            $totalToPay = (int)$payableFees['total'];
+
             if ($this->isBalanceSufficient($totalToPay)) {
                 $invoice = $this->storeInvoice($totalToPay);
                 $this->storeTransaction($invoice);
                 $this->storeInvoiceDetails($invoice, $payableFees);
             } else {
-                throw new UnprocessableEntityHttpException('Your have insufficient balance');
+                throw new UnprocessableEntityHttpException('You have insufficient balance');
             }
-            $transaction->commit();
+            $transaction->commit(); //@todo revert
         } catch (Exception $ex) {
             $transaction->rollBack();
             throw $ex;
@@ -118,7 +181,8 @@ final class BillStudent
     private function storeInvoice(int $amount): Invoice
     {
         $invoice = new Invoice();
-        $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
+        //$invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
+        $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM2'; // @todo
         $invoice->invoice_desc = 'FEES PAYABLE FOR SEM ' . $this->student->semester;
         $invoice->invoice_date = SmisHelper::formatDate('now', 'Y-m-d');
         $invoice->last_update = $invoice->invoice_date;
@@ -196,15 +260,20 @@ final class BillStudent
     private function storeInvoiceDetails(Invoice $invoice, array $payableFees): void
     {
         /**
-         * Billing is done in two steps:
+         * Billing is done in two or three steps:
          * First, we bill the admin (semester registration) fees
          * Second, we bill admin + course (units/tuition) fees during course registration
-         * Therefore, at any point the payable fees will have either only admin or both admin and course fees
+         * Third, we may bill follow-up course registration
+         * Therefore, at any point the payable fees will have admin and/or course fees
          */
-        if (array_key_exists('courseFees', $payableFees)) {
-            $chargeDetails = array_merge($payableFees['adminFees']['items'], $payableFees['courseFees']['items']);
+        if ($payableFees['followUpRegistration']) {
+            $chargeDetails = array_merge($payableFees['courseFees']['items']);
         } else {
-            $chargeDetails = array_merge($payableFees['adminFees']['items']);
+            if (array_key_exists('courseFees', $payableFees)) {
+                $chargeDetails = array_merge($payableFees['adminFees']['items'], $payableFees['courseFees']['items']);
+            } else {
+                $chargeDetails = array_merge($payableFees['adminFees']['items']);
+            }
         }
 
         foreach ($chargeDetails as $chargeDetail) {
@@ -288,7 +357,7 @@ final class BillStudent
                     $total = 0;
                 }
             } else {
-                if ($adminFee['frequency'] === ChargeFrequency::SEMESTER->value) {
+                if ($adminFee['frequency'] === ChargeFrequency::ANNUAL->value) { // @todo revert to SEMESTER
                     $adminCharges[] = [
                         'desc' => $adminFee['fee_description'],
                         'amount' => $adminFee['amount_charged']
@@ -328,6 +397,7 @@ final class BillStudent
             // have their charges already defined
             $courseFee = CourseFee::tryFrom($course['type']);
             $unitAmount = $tempFees[$courseFee->feeDescription()];
+            $unitAmount = 0; // @todo revert
             $courseCharges[] = [
                 'desc' => $course['code'],
                 'amount' => $unitAmount,
@@ -339,6 +409,7 @@ final class BillStudent
         if (!$this->student->isBilledAnnually) {
             try {
                 $tuitionAmount = (int)$tempFees[CourseFee::tryFrom('TUITION')->feeDescription()];
+                $tuitionAmount = 50000; // @todo revert
                 $courseCharges['tuition'] = [
                     'desc' => 'TUITION',
                     'amount' => $tuitionAmount,
@@ -378,13 +449,13 @@ final class BillStudent
                 'fi.priority' => FeePriority::PRIORITY_1->value,
                 'fi.publish' => FeeStatus::PUBLISHED->value
             ]);
-
-        if (!$this->student->isBilledAnnually) {
-            $fees->andWhere([
-                'pcc.level_of_study' => $this->student->level,
-                'pcc.semester' => $this->student->semester
-            ]);
-        }
+        // @todo revert
+//        if (!$this->student->isBilledAnnually) {
+//            $fees->andWhere([
+//                'pcc.level_of_study' => $this->student->level,
+//                'pcc.semester' => $this->student->semester
+//            ]);
+//        }
 
         return $fees->all();
     }

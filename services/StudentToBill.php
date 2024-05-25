@@ -48,7 +48,7 @@ final class StudentToBill
         $this->progressNumber = $progress['sem_progress_number'];
 
         $this->isInAFirstSemester = $this->isInAFirstSemester();
-        $this->isBilledAnnually = $this->isBilledAnnually();
+        $this->isBilledAnnually = false; //$this->isBilledAnnually(); // @todo revert
     }
 
     /**
