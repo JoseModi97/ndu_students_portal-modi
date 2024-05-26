@@ -42,7 +42,6 @@ class BillController extends Controller
          */
 
         $payableFees = [
-            'followUpRegistration' => false,
             'adminFees' => [
                 'items' => [
                     [
@@ -55,7 +54,7 @@ class BillController extends Controller
             'total' => 1000 // Grand total
         ];
 //        dd($payableFees);
-//        $billStudent->bill($payableFees);
+        $billStudent->bill($payableFees);
 
         /**
          * Join session and registration fees - When student hasn't joined session - controller
@@ -142,11 +141,11 @@ class BillController extends Controller
 
             // 2nd registration
             [
-                'code' => 'SMA113',
+                'code' => 'SMA115',
                 'type' => 'FA'
             ],
             [
-                'code' => 'SMA114',
+                'code' => 'SMA116',
                 'type' => 'FA'
             ],
         ];

@@ -24,8 +24,9 @@ final class StudentToBill
     public ?string $academicYear;
     public ?int $level;
     public ?int $semester;
-    public ?int $isInAFirstSemester;
-    public ?int $isBilledAnnually;
+    public ?bool $isInAFirstSemester;
+    public ?bool $isInATeachingSemester;
+    public ?bool $isBilledAnnually;
 
     /**
      * @throws NotFoundHttpException
@@ -48,6 +49,7 @@ final class StudentToBill
         $this->progressNumber = $progress['sem_progress_number'];
 
         $this->isInAFirstSemester = $this->isInAFirstSemester();
+        $this->isInATeachingSemester = $this->isInATeachingSemester();
         $this->isBilledAnnually = false; //$this->isBilledAnnually(); // @todo revert
     }
 
@@ -135,5 +137,17 @@ final class StudentToBill
             }
         }
         return false;
+    }
+
+    /**
+     * @return bool
+     */
+    private function isInATeachingSemester(): bool
+    {
+        if ($this->semester > $this->annualSemesters) {
+            return false;
+        } else {
+            return true;
+        }
     }
 }

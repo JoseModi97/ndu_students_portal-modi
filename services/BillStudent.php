@@ -80,37 +80,43 @@ final class BillStudent
 
         if (!empty($invoiceDetails)) {
             $followUpRegistration = true;
-
-            $courseFeesPaid = 0;
-            foreach ($courses as $key => $course) {
-                foreach ($invoiceDetails as $detail) {
-                    if (($course['code'] === $detail['trans_code']) &&
-                        ($course['type'] === $detail['invoice_detail_desc'])
-                    ) {
-                        $courseFeesPaid += $detail['amount'];
-
-                        unset($courses[$key]);
-                    }
-                }
-            }
         }
 //        dd($invoiceDetails);
+        //dd($followUpRegistration);
+
+        $totalFees = 0;
         $adminFees = $this->payableAdminFees();
-        $courseFees = $this->payableCourseFees($courses);
+
+        // Admin fees are not applicable at follow-up registrations
+        // Admin fees are not applicable in a supplementary semester
+        if ($followUpRegistration || !$this->student->isInATeachingSemester) {
+            $adminFees = [];
+        }
+
+//        dd($adminFees);
+
+        // Only calculate for courses not yet invoiced
+        $courseFees = $this->payableCourseFees($courses, $followUpRegistration);
+        //dd($courseFees);
 
         // For programs billed per semester we have a tuition fee
         // This fee is billed together with other admin fees needed during the initial course registration
         // Therefore, for follow-ups, the student is billed zero
-        if (!$this->student->isBilledAnnually && $followUpRegistration) {
-            $courseFees['total'] = $courseFees['total'] - $courseFees['items']['tuition']['amount'];
-            unset($courseFees['items']['tuition']);
-        }
+//        if ($followUpRegistration && !$this->student->isBilledAnnually) {
+//            // This array will contain the tuition fee amount. Since it's a follow-up, this had been already paid for.
+//            // So we remove it.
+//            $courseFees['total'] = $courseFees['total'] - $courseFees['items']['tuition']['amount'];
+//            unset($courseFees['items']['tuition']);
+//        }
+        //dd($courseFees);
+        $totalFees += $courseFees['total'];
 
         return [
-            'followUpRegistration' => $followUpRegistration,
+            //'followUpRegistration' => $followUpRegistration,
             'adminFees' => $adminFees,
             'courseFees' => $courseFees,
-            'total' => $followUpRegistration ? $courseFees['total'] : $adminFees['total'] + $courseFees['total']
+            'total' => $totalFees,
+            //'total' => $followUpRegistration ? $courseFees['total'] : $adminFees['total'] + $courseFees['total']
         ];
     }
 
@@ -264,17 +270,16 @@ final class BillStudent
          * First, we bill the admin (semester registration) fees
          * Second, we bill admin + course (units/tuition) fees during course registration
          * Third, we may bill follow-up course registration
-         * Therefore, at any point the payable fees will have admin and/or course fees
          */
-        if ($payableFees['followUpRegistration']) {
-            $chargeDetails = array_merge($payableFees['courseFees']['items']);
-        } else {
-            if (array_key_exists('courseFees', $payableFees)) {
-                $chargeDetails = array_merge($payableFees['adminFees']['items'], $payableFees['courseFees']['items']);
-            } else {
-                $chargeDetails = array_merge($payableFees['adminFees']['items']);
-            }
+        $chargeDetails = [];
+        if (array_key_exists('adminFees', $payableFees) && !empty($payableFees['adminFees'])) {
+            $chargeDetails = array_merge($payableFees['adminFees']['items']);
         }
+
+        if (array_key_exists('courseFees', $payableFees) && !empty($payableFees['courseFees'])) {
+            $chargeDetails = array_merge($payableFees['courseFees']['items']);
+        }
+dd($chargeDetails);
 
         foreach ($chargeDetails as $chargeDetail) {
             $detail = new InvoiceDetail();
@@ -376,11 +381,12 @@ final class BillStudent
 
     /**
      * @param array $courses
+     * @param bool $followUpRegistration
      * @return array
      * @throws NotFoundHttpException
      */
     #[ArrayShape(['items' => "array", 'total' => "int|mixed"])]
-    private function payableCourseFees(array $courses): array
+    private function payableCourseFees(array $courses, bool $followUpRegistration): array
     {
         $fees = $this->fees(FeeType::COURSE->value);
 
@@ -406,7 +412,13 @@ final class BillStudent
             $totalUnitAmount += $unitAmount;
         }
 
-        if (!$this->student->isBilledAnnually) {
+        /**
+         * Tuition fee is charged under the following terms:
+         * program must be billed per semester
+         * must be the initial registration
+         * student must be in a teaching semester
+         */
+        if (!$this->student->isBilledAnnually && !$followUpRegistration && $this->student->isInATeachingSemester) {
             try {
                 $tuitionAmount = (int)$tempFees[CourseFee::tryFrom('TUITION')->feeDescription()];
                 $tuitionAmount = 50000; // @todo revert
