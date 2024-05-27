@@ -19,6 +19,7 @@ use yii\db\ActiveRecord;
  * @property string $progress_code
  * @property bool $sync_status
  * @property int $fee_trans_id
+ * @property int|null $student_semester_session_id
  */
 class FeeTransaction extends ActiveRecord
 {
@@ -37,8 +38,8 @@ class FeeTransaction extends ActiveRecord
     {
         return [
             [['trans_id', 'academic_progress_id', 'trans_date', 'trans_type', 'trans_amount', 'user_id', 'progress_code'], 'required'],
-            [['academic_progress_id'], 'default', 'value' => null],
-            [['academic_progress_id'], 'integer'],
+            [['academic_progress_id', 'student_semester_session_id'], 'default', 'value' => null],
+            [['academic_progress_id', 'student_semester_session_id'], 'integer'],
             [['trans_date'], 'safe'],
             [['trans_amount', 'exchange_rate'], 'number'],
             [['sync_status'], 'boolean'],
@@ -68,6 +69,7 @@ class FeeTransaction extends ActiveRecord
             'progress_code' => 'Progress Code',
             'sync_status' => 'Sync Status',
             'fee_trans_id' => 'Fee Trans ID',
+            'student_semester_session_id' => 'Student Semester Session ID',
         ];
     }
 }

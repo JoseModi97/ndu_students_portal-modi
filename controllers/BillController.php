@@ -8,152 +8,131 @@
 namespace app\controllers;
 
 use app\enums\AdminFee;
-use app\enums\FeePriority;
-use app\enums\FeeStatus;
-use app\enums\FeeType;
-use app\models\Invoice;
-use app\models\InvoiceDetail;
+use app\models\StudentProgCurriculum;
 use app\services\BillStudent;
 use app\services\StudentToBill;
 use Exception;
-use yii\db\Query;
-use yii\web\Controller;
+use JetBrains\PhpStorm\ArrayShape;
+use Yii;
+use yii\filters\AccessControl;
+use yii\web\NotFoundHttpException;
+use yii\web\Response;
+use yii\web\ServerErrorHttpException;
 
-class BillController extends Controller
+final class BillController extends BaseController
 {
     /**
-     * @throws Exception
+     * Configure controller behaviours
+     * @return array[]
      */
-    public function actionIndex()
+    #[ArrayShape(['access' => "array"])]
+    public function behaviors(): array
     {
-        $regNumber = 'ND201/0001/2022';
-        $student = new StudentToBill($regNumber);
-        $billStudent = new BillStudent($student);
-
-        /**
-         * Join session and registration fees - When student hasn't joined session - controller
-         *
-         * Pay admin fees and course fees if balance fits - reg all courses - best case
-         *
-         * Worst case is pay for few courses and all admin fees
-         * RN pay admin fees + sma101, 102, 103
-         * Later pay for sma104, 105
-         *
-         */
-
-        $payableFees = [
-            'adminFees' => [
-                'items' => [
+        return [
+            'access' => [
+                'class' => AccessControl::class,
+                'rules' => [
                     [
-                        'desc' => AdminFee::REGISTRATION_FEES->value,
-                        'amount' => 1000 // Amount charged for this fee item
-                    ]
+                        'allow' => true,
+                        'roles' => ['@'],
+                    ],
                 ],
-                'total' => 1000 // Total amount charged for the admin fees items
-            ],
-            'total' => 1000 // Grand total
-        ];
-//        dd($payableFees);
-        $billStudent->bill($payableFees);
-
-        /**
-         * Join session and registration fees - When student hasn't joined session - controller
-         *
-         * Pay admin fees and course fees if balance fits - reg all courses - best case
-         *
-         * Worst case is pay for few courses and all admin fees
-         * RN pay admin fees + sma101, 102, 103
-         * Later pay for sma104, 105
-         *
-         * Non integrated
-         * Check if balance can pay all admin fees - Payable as a block - all admin fees go into a single invoice
-         * Check if balance can also pay for the course fees. If not inform students to remove some courses and recheck
-         * or abort process and top up
-         *
-         * Worst case: Full admin fees already paid for, now courses paid for later - Check if these fees have been paid
-         *
-         */
-
-        // get the session the student is in. with this
-        // I will have the semester code
-        // course registration will happen in the session the student is in
-        // check for any invoices in that session
-        // get the admin fees already paid for and the total
-        // get any courses paid for and the total
-        // subtract these totals from the main balance
-        // only courses can be paid for partially
-        $invoice = Invoice::find()->where(['semester_id' => 'ND201/0002/2022-2022/2023-SEM1'])->all();
-
-        $courses = [
-            // 1st registration
-//            [
-//                'code' => 'SMA101',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA102',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA103',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA104',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA105',
-//                'type' => 'FA'
-//            ],
-
-            // 2nd registration
-//            [
-//                'code' => 'SMA106',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA107',
-//                'type' => 'FA'
-//            ],
-
-            // semester 2
-//            [
-//                'code' => 'SMA108',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA109',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA110',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA111',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SMA112',
-//                'type' => 'FA'
-//            ],
-
-            // 2nd registration
-            [
-                'code' => 'SMA115',
-                'type' => 'FA'
-            ],
-            [
-                'code' => 'SMA116',
-                'type' => 'FA'
             ],
         ];
+    }
 
-//
-        $payableFees = $billStudent->payableFees($courses);
-//        dd($payableFees);
+    /**
+     * @throws NotFoundHttpException
+     * @throws ServerErrorHttpException
+     */
+    public function actionRaiseInvoice(array $courses = []): string
+    {
+//        $courses = [
+//            // 1st registration
+//            [
+//                'code' => 'SPH401',
+//                'type' => 'FA'
+//            ],
+//            [
+//                'code' => 'SPH402',
+//                'type' => 'FA'
+//            ],
+//            [
+//                'code' => 'SPH403',
+//                'type' => 'FA'
+//            ],
+//            [
+//                'code' => 'SPH404',
+//                'type' => 'FA'
+//            ],
+//            [
+//                'code' => 'SPH405',
+//                'type' => 'FA'
+//            ],
+//            [
+//                'code' => 'SPH406',
+//                'type' => 'FA'
+//            ],
+//        ];
 
-        $billStudent->bill($payableFees);
+        $regNumber = StudentProgCurriculum::find()->select('registration_number')
+            ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
+            ->asArray()->one()['registration_number'];
+
+        $billStudent = new BillStudent(new StudentToBill($regNumber));
+
+        // For now, we only bill semester and (admin + course) registration fees
+        // When no course is passed in, we know to raise for semester registration fees
+        // Else raise for course registration
+        if (empty($courses)) {
+            $invoiceFor = 'semesterRegistration';
+            $payableFees = [
+                'adminFees' => [
+                    'items' => [
+                        [
+                            'desc' => AdminFee::REGISTRATION_FEES->value,
+                            'amount' => 1000 // Amount charged for this fee item
+                        ]
+                    ],
+                    'total' => 1000 // Total amount charged for the admin fees items
+                ],
+                'total' => 1000 // Grand total
+            ];
+        } else {
+            $invoiceFor = 'courseRegistration';
+            $payableFees = $billStudent->payableFees($courses); //dd($payableFees);
+        }
+
+        $feeItems = $billStudent->detailedFeeItemsToBill($payableFees);
+
+        $transactions = $billStudent->totalTransactions();
+
+        return $this->render('invoice', [
+            'title' => 'smis - invoice',
+            'invoiceFor' => $invoiceFor,
+            'payableFees' => $payableFees,
+            'feeItems' => $feeItems,
+            'balance' => $transactions['credits'] - $transactions['debits']
+        ]);
+    }
+
+    /**
+     * @return Response
+     */
+    public function actionMakePayment(): Response
+    {
+        try {
+            $post = Yii::$app->request->post();
+            $payableFess = json_decode($post['payableFees'], true);
+            $this->billStudent->bill($payableFess);
+            $this->setFlash('success', 'Payment', 'Charges applied successfully.');
+            return $this->redirect(Yii::$app->homeUrl);
+        } catch (Exception $ex) {
+            $message = $ex->getMessage();
+            if (YII_ENV_DEV) {
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            return $this->asJson(['success' => false, 'message' => $message]);
+        }
     }
 }

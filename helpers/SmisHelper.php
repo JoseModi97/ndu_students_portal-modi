@@ -25,8 +25,8 @@ class SmisHelper
     public static function getModelErrors(array $modelErrors): string
     {
         $errorMsg = '';
-        foreach ($modelErrors as $attributeErrors){
-            for($i=0; $i < count($attributeErrors); $i++){
+        foreach ($modelErrors as $attributeErrors) {
+            for ($i = 0; $i < count($attributeErrors); $i++) {
                 $errorMsg .= ' ' . $attributeErrors[$i];
             }
         }
@@ -40,14 +40,14 @@ class SmisHelper
      * @param string $layout Layout of the email message
      * @param string $view body of the email message
      *
+     * @return void
      * @throws Exception if email not sent
      *
-     * @return void
      */
-    public static function sendEmails(array $emails, string $layout, string $view):void
+    public static function sendEmails(array $emails, string $layout, string $view): void
     {
-        foreach($emails as $email){
-            if(!empty($email['recipientEmail'])){
+        foreach ($emails as $email) {
+            if (!empty($email['recipientEmail'])) {
                 $recipientEmail = $email['recipientEmail'];
 //                if(YII_ENV_DEV){
 //                    $recipientEmail = Yii::$app->params['noReplyEmail'];
@@ -59,7 +59,7 @@ class SmisHelper
 
                 $body = Yii::$app->mailer->render($view, $email['params'], $layout);
                 $message->setHtmlBody($body);
-                if(!$message->send()){
+                if (!$message->send()) {
                     throw  new Exception('Email not sent.');
                 }
             }
@@ -116,7 +116,7 @@ class SmisHelper
                 'required_document_id',
                 'fk_document_id',
                 'fk_category_id'
-            ])->joinWith(['document doc' => function(ActiveQuery $q){
+            ])->joinWith(['document doc' => function (ActiveQuery $q) {
                 $q->select([
                     'doc.required',
                     'doc.document_id'
@@ -133,13 +133,13 @@ class SmisHelper
                 'sd.student_document_id',
                 'sd.required_document_id'
             ])
-            ->joinWith(['requiredDocument reqDoc' => function(ActiveQuery $q){
+            ->joinWith(['requiredDocument reqDoc' => function (ActiveQuery $q) {
                 $q->select([
                     'reqDoc.required_document_id',
                     'reqDoc.fk_document_id'
                 ]);
             }], true, 'INNER JOIN')
-            ->joinWith(['requiredDocument.document doc' => function(ActiveQuery $q){
+            ->joinWith(['requiredDocument.document doc' => function (ActiveQuery $q) {
                 $q->select([
                     'doc.document_id',
                     'doc.required',
@@ -151,9 +151,9 @@ class SmisHelper
             ])
             ->count();
 
-        if($requiredDocuments === $submittedDocuments){
+        if ($requiredDocuments === $submittedDocuments) {
             return true;
-        }else{
+        } else {
             return false;
         }
     }
@@ -167,7 +167,7 @@ class SmisHelper
         $studentProgCurr = StudentProgCurriculum::find()->select(['student_prog_curriculum_id'])
             ->where(['adm_refno' => $admRefNo])->asArray()->one();
 
-        if(empty($studentProgCurr)){
+        if (empty($studentProgCurr)) {
             return false;
         }
 
@@ -188,7 +188,7 @@ class SmisHelper
             ->asArray()
             ->one();
 
-        if(empty($studentSemSessProgress)){
+        if (empty($studentSemSessProgress)) {
             return false;
         }
 

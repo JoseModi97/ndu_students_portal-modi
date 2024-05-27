@@ -82,11 +82,12 @@ final class BillStudent
             $followUpRegistration = true;
         }
 //        dd($invoiceDetails);
-        //dd($followUpRegistration);
+//        dd($followUpRegistration);
 
         $totalFees = 0;
         $adminFees = $this->payableAdminFees();
 
+//        dd($this->student->isInATeachingSemester);
         // Admin fees are not applicable at follow-up registrations
         // Admin fees are not applicable in a supplementary semester
         if ($followUpRegistration || !$this->student->isInATeachingSemester) {
@@ -123,27 +124,45 @@ final class BillStudent
     /**
      * @throws UnprocessableEntityHttpException
      * @throws ServerErrorHttpException
-     * @throws \yii\db\Exception
+     * @throws Exception
      */
     public function bill(array $payableFees): void
     {
-        $transaction = \Yii::$app->db->beginTransaction();
-        try {
-//            dd($payableFees);
-            $totalToPay = (int)$payableFees['total'];
+//                    dd($payableFees);
+        $totalToPay = (int)$payableFees['total'];
 
-            if ($this->isBalanceSufficient($totalToPay)) {
-                $invoice = $this->storeInvoice($totalToPay);
-                $this->storeTransaction($invoice);
-                $this->storeInvoiceDetails($invoice, $payableFees);
-            } else {
-                throw new UnprocessableEntityHttpException('You have insufficient balance');
-            }
-            $transaction->commit(); //@todo revert
-        } catch (Exception $ex) {
-            $transaction->rollBack();
-            throw $ex;
+        if ($this->isBalanceSufficient($totalToPay)) {
+            $invoice = $this->storeInvoice($totalToPay);
+            $this->storeTransaction($invoice);
+            $this->storeInvoiceDetails($invoice, $payableFees);
+        } else {
+            throw new UnprocessableEntityHttpException('You have insufficient balance');
         }
+    }
+
+    /**
+     * @param array $payableFees
+     * @return array
+     */
+    public function detailedFeeItemsToBill(array $payableFees): array
+    {
+        /**
+         * Billing is done in two or three steps:
+         * First, we bill the admin (semester registration) fees
+         * Second, we bill admin + course (units/tuition) fees during course registration
+         * Third, we may bill follow-up course registration
+         */
+        $adminFeesItems = [];
+        $courseFeesItems = [];
+        if (array_key_exists('adminFees', $payableFees) && !empty($payableFees['adminFees'])) {
+            $adminFeesItems = array_merge($payableFees['adminFees']['items']);
+        }
+
+        if (array_key_exists('courseFees', $payableFees) && !empty($payableFees['courseFees'])) {
+            $courseFeesItems = array_merge($payableFees['courseFees']['items']);
+        }
+
+        return array_merge($adminFeesItems, $courseFeesItems);
     }
 
     /**
@@ -151,7 +170,20 @@ final class BillStudent
      * @param int $amountPayable
      * @return bool
      */
-    private function isBalanceSufficient(int $amountPayable): bool
+    public function isBalanceSufficient(int $amountPayable): bool
+    {
+        $totals = $this->totalTransactions();
+
+        if (($totals['credits'] - $totals['debits']) < $amountPayable) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @return array|bool
+     */
+    public function totalTransactions(): array|bool
     {
         $transactions = (new Query())
             ->select(['trans_amount', 'trans_type'])
@@ -175,10 +207,10 @@ final class BillStudent
             }
         }
 
-        if (($credits - $debits) < $amountPayable) {
-            return false;
-        }
-        return true;
+        return [
+            'credits' => $credits,
+            'debits' => $debits
+        ];
     }
 
     /**
@@ -246,6 +278,7 @@ final class BillStudent
         $transaction->exchange_rate = 1;
         $transaction->progress_code = $this->student->regNumber . '-' . $this->student->academicYear;
         $transaction->sync_status = false;
+        $transaction->student_semester_session_id = $this->student->semSessionId;
 
         if (!$transaction->save()) {
             if (!$transaction->validate()) {
@@ -265,39 +298,26 @@ final class BillStudent
      */
     private function storeInvoiceDetails(Invoice $invoice, array $payableFees): void
     {
-        /**
-         * Billing is done in two or three steps:
-         * First, we bill the admin (semester registration) fees
-         * Second, we bill admin + course (units/tuition) fees during course registration
-         * Third, we may bill follow-up course registration
-         */
-        $chargeDetails = [];
-        if (array_key_exists('adminFees', $payableFees) && !empty($payableFees['adminFees'])) {
-            $chargeDetails = array_merge($payableFees['adminFees']['items']);
-        }
+        $feeItems = $this->detailedFeeItemsToBill($payableFees);
+//        dd($feeItems);
 
-        if (array_key_exists('courseFees', $payableFees) && !empty($payableFees['courseFees'])) {
-            $chargeDetails = array_merge($payableFees['courseFees']['items']);
-        }
-dd($chargeDetails);
-
-        foreach ($chargeDetails as $chargeDetail) {
+        foreach ($feeItems as $feeItem) {
             $detail = new InvoiceDetail();
             $detail->invoice_id = $invoice->invoice_id;
             $detail->trans_date = $invoice->invoice_date;;
             $detail->last_updated = $invoice->invoice_date;;
-            $detail->amount = $chargeDetail['amount'];
+            $detail->amount = $feeItem['amount'];
             $detail->user_id = $invoice->user_id;
             $detail->charge_type_id = $invoice->invoice_id; // @todo value to set to be clarified
             $detail->sync_status = false;
 
-            if (array_key_exists('type', $chargeDetail)) { // course fees
-                $detail->invoice_detail_desc = $chargeDetail['type']; // reg type e.g. FA, PROJECT
-                $detail->trans_code = $chargeDetail['desc']; // course code e.g. SMA101
+            if (array_key_exists('type', $feeItem)) { // course fees
+                $detail->invoice_detail_desc = $feeItem['type']; // reg type e.g. FA, PROJECT
+                $detail->trans_code = $feeItem['desc']; // course code e.g. SMA101
             } else { // admin fees
-                $detail->invoice_detail_desc = $chargeDetail['desc']; // fee desc e.g. Library fees
+                $detail->invoice_detail_desc = $feeItem['desc']; // fee desc e.g. Library fees
                 $detail->trans_code = FeeItem::find()->select('fee_code_alias')
-                    ->where(['fee_description' => $chargeDetail['desc']])
+                    ->where(['fee_description' => $feeItem['desc']])
                     ->asArray()->one()['fee_code_alias'];
             }
 

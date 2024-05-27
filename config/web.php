@@ -75,7 +75,9 @@ $config = [
         'formatter' => [
             'defaultTimeZone' => 'Africa/Nairobi',
             'dateFormat' => 'd-M-Y',
-            'datetimeFormat' => 'd-M-Y H:i:s'
+            'datetimeFormat' => 'd-M-Y H:i:s',
+            'thousandSeparator' => ',',
+            'currencyCode' => 'KES',
         ],
         'assetManager' => [
             /**

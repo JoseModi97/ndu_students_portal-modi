@@ -21,6 +21,7 @@ final class StudentToBill
     public ?string $progCurrId;
     public ?int $progressId;
     public ?int $academicSessionId;
+    public ?int $semSessionId;
     public ?string $academicYear;
     public ?int $level;
     public ?int $semester;
@@ -43,6 +44,7 @@ final class StudentToBill
         $progress = $this->studentProgress();
         $this->progressId = $progress['academic_progress_id'];
         $this->academicSessionId = $progress['acad_session_id'];
+        $this->semSessionId = $progress['student_semester_session_id'];
         $this->academicYear = $progress['acad_session_name'];
         $this->level = $progress['academic_level'];
         $this->semester = $progress['semester_code'];
