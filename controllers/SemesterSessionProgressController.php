@@ -76,6 +76,7 @@ final class SemesterSessionProgressController extends BaseController
             $studentSemSessProgress = StudentSemesterSessionProgress::findOne($semSessProgressId);
             $studentSemSessProgress->registration_date = SmisHelper::formatDate('now', 'Y-m-d');
             $studentSemSessProgress->reporting_sync_status = false;
+            $studentSemSessProgress->promotion_status = 'PROMOTED';
             if (!$studentSemSessProgress->save()) {
                 if (!$studentSemSessProgress->validate()) {
                     $errorMessage = SmisHelper::getModelErrors($studentSemSessProgress->getErrors());

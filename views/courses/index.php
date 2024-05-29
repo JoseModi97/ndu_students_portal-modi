@@ -174,8 +174,8 @@ $this->title = $title;
                     ],
                     $codeCol,
                     $nameCol,
-//                    $examTypeCol,
-//                    $groupCol,
+                    $examTypeCol,
+                    $groupCol,
                     $statusCol,
                 ];
 

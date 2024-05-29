@@ -8,15 +8,14 @@
 namespace app\controllers;
 
 use app\enums\AdminFee;
+use app\helpers\SmisHelper;
 use app\models\StudentProgCurriculum;
 use app\services\BillStudent;
 use app\services\StudentToBill;
-use Exception;
 use JetBrains\PhpStorm\ArrayShape;
-use Yii;
+use yii\db\Query;
 use yii\filters\AccessControl;
 use yii\web\NotFoundHttpException;
-use yii\web\Response;
 use yii\web\ServerErrorHttpException;
 
 final class BillController extends BaseController
@@ -45,46 +44,19 @@ final class BillController extends BaseController
      * @throws NotFoundHttpException
      * @throws ServerErrorHttpException
      */
-    public function actionRaiseInvoice(array $courses = []): string
+    public function actionRaiseInvoice(string $marksheets = null): string
     {
-//        $courses = [
-//            // 1st registration
-//            [
-//                'code' => 'SPH401',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SPH402',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SPH403',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SPH404',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SPH405',
-//                'type' => 'FA'
-//            ],
-//            [
-//                'code' => 'SPH406',
-//                'type' => 'FA'
-//            ],
-//        ];
-
         $regNumber = StudentProgCurriculum::find()->select('registration_number')
             ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
             ->asArray()->one()['registration_number'];
 
         $billStudent = new BillStudent(new StudentToBill($regNumber));
+        $timetableIds = [];
 
         // For now, we only bill semester and (admin + course) registration fees
         // When no course is passed in, we know to raise for semester registration fees
         // Else raise for course registration
-        if (empty($courses)) {
+        if (empty($marksheets)) {
             $invoiceFor = 'semesterRegistration';
             $payableFees = [
                 'adminFees' => [
@@ -100,7 +72,35 @@ final class BillController extends BaseController
             ];
         } else {
             $invoiceFor = 'courseRegistration';
-            $payableFees = $billStudent->payableFees($courses); //dd($payableFees);
+
+            $semesterSessionId = SmisHelper::latestAcademicSessionForAStudent()['student_semester_session_id'];
+            $marksheetIds = explode('.', $marksheets);
+
+            $courses = (new Query())
+                ->select([
+                    'pct.timetable_id',
+                    'cs.course_code',
+                    'crt.course_reg_type_code'
+                ])
+                ->from('smisportal.cr_prog_curr_timetable pct')
+                ->innerJoin('smisportal.org_prog_curr_course pcc', 'pcc.prog_curriculum_course_id=pct.prog_curriculum_course_id')
+                ->innerJoin('smisportal.org_courses cs', 'cs.course_id=pcc.course_id')
+                ->innerJoin('smisportal.cr_course_registration cr', 'cr.timetable_id=pct.timetable_id')
+                ->innerJoin('smisportal.cr_course_reg_type crt', 'crt.course_reg_type_id=cr.course_registration_type_id')
+                ->where(['cr.student_semester_session_id' => $semesterSessionId])
+                ->andWhere(['pct.mrksheet_id' => $marksheetIds])
+                ->all();
+
+            $coursesToBill = [];
+            foreach ($courses as $course) {
+                $timetableIds[] = $course['timetable_id'];
+                $coursesToBill[] = [
+                    'code' => $course['course_code'],
+                    'type' => $course['course_reg_type_code']
+                ];
+            }
+
+            $payableFees = $billStudent->payableFees($coursesToBill);
         }
 
         $feeItems = $billStudent->detailedFeeItemsToBill($payableFees);
@@ -111,28 +111,9 @@ final class BillController extends BaseController
             'title' => 'smis - invoice',
             'invoiceFor' => $invoiceFor,
             'payableFees' => $payableFees,
+            'timetableIds' => $timetableIds,
             'feeItems' => $feeItems,
             'balance' => $transactions['credits'] - $transactions['debits']
         ]);
-    }
-
-    /**
-     * @return Response
-     */
-    public function actionMakePayment(): Response
-    {
-        try {
-            $post = Yii::$app->request->post();
-            $payableFess = json_decode($post['payableFees'], true);
-            $this->billStudent->bill($payableFess);
-            $this->setFlash('success', 'Payment', 'Charges applied successfully.');
-            return $this->redirect(Yii::$app->homeUrl);
-        } catch (Exception $ex) {
-            $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
-                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
-            }
-            return $this->asJson(['success' => false, 'message' => $message]);
-        }
     }
 }

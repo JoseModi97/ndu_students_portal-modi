@@ -448,14 +448,44 @@ final class CoursesController extends BaseController
     }
 
     /**
-     * Confirm course registration
+     * Raise invoice course registration
+     * @return Response
+     */
+    public function actionInvoice(): Response
+    {
+        $post = Yii::$app->request->post();
+        $marksheets = '';
+        foreach ($post['timetableIds'] as $timetableId) {
+            $timetable = ProgrammeCurriculumTimetable::find()
+                ->select('mrksheet_id')->where(['timetable_id' => $timetableId])->asArray()->one();
+            if ($timetable) {
+                $marksheets .= $timetable['mrksheet_id'] . '.';
+            }
+        }
+        return $this->redirect(['/bill/raise-invoice', 'marksheets' => rtrim($marksheets, '.')]);
+    }
+
+    /**
+     * Confirm and bill for course registration
      * @return Response
      */
     public function actionConfirm(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $timetableIds = Yii::$app->request->post()['timetableIds'];
+            $post = Yii::$app->request->post();
+            $payableFess = json_decode($post['payableFees'], true);
+            $timetableIds = json_decode($post['timetableIds'], true);
+
+            /**
+             * Bill admin and course units fees
+             */
+            $regNumber = StudentProgCurriculum::find()->select('registration_number')
+                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+                ->asArray()->one()['registration_number'];
+
+            $billStudent = new BillStudent(new StudentToBill($regNumber));
+            $billStudent->bill($payableFess);
 
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();

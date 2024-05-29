@@ -421,15 +421,19 @@ final class BillStudent
         foreach ($courses as $course) {
             // To always make sure that the course coming in can be billed, only allow students to register for units that
             // have their charges already defined
-            $courseFee = CourseFee::tryFrom($course['type']);
-            $unitAmount = $tempFees[$courseFee->feeDescription()];
-            $unitAmount = 0; // @todo revert
-            $courseCharges[] = [
-                'desc' => $course['code'],
-                'amount' => $unitAmount,
-                'type' => $course['type']
-            ];
-            $totalUnitAmount += $unitAmount;
+            try {
+                $courseFee = CourseFee::tryFrom($course['type']);
+                $unitAmount = $tempFees[$courseFee->feeDescription()];
+                $unitAmount = 0; // @todo revert
+                $courseCharges[] = [
+                    'desc' => $course['code'],
+                    'amount' => $unitAmount,
+                    'type' => $course['type']
+                ];
+                $totalUnitAmount += $unitAmount;
+            } catch (Exception $ex) {
+                throw new NotFoundHttpException('This program\'s ' . $course['type'] . ' fee is not set');
+            }
         }
 
         /**
@@ -447,7 +451,7 @@ final class BillStudent
                     'amount' => $tuitionAmount,
                     'type' => 'TUITION'
                 ];
-            } catch (\Exception $ex) {
+            } catch (Exception $ex) {
                 throw new NotFoundHttpException('This program\'s TUITION fee is not set');
             }
         }

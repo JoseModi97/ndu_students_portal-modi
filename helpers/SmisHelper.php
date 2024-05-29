@@ -194,4 +194,38 @@ class SmisHelper
 
         return $studentSemSessProgress;
     }
+
+    /**
+     * @return array|ActiveRecord|null
+     */
+    public static function latestAcademicSessionForAStudent(): array|ActiveRecord|null
+    {
+        $admRefNo = Yii::$app->user->identity->adm_refno;
+        $studentProgCurr = StudentProgCurriculum::find()->select(['student_prog_curriculum_id'])
+            ->where(['adm_refno' => $admRefNo])->asArray()->one();
+
+        // Get the last academic session semester a student joined
+        return StudentSemesterSessionProgress::find()->alias('sp')
+            ->select([
+                'sp.student_semester_session_id',
+                'sp.academic_progress_id',
+                'sp.prog_curriculum_semester_id'
+            ])
+            ->joinWith(['academicProgress ap' => function (ActiveQuery $q) {
+                $q->select([
+                    'ap.academic_progress_id',
+                    'ap.academic_level_id'
+                ]);
+            }], true, 'INNER JOIN')
+            ->where(['ap.student_prog_curriculum_id' => $studentProgCurr['student_prog_curriculum_id']])
+            ->joinWith(['academicProgress.academicLevel al' => function (ActiveQuery $q) {
+                $q->select([
+                    'al.academic_level_id',
+                    'al.academic_level'
+                ]);
+            }], true, 'INNER JOIN')
+            ->orderBy(['sp.student_semester_session_id' => SORT_DESC])
+            ->asArray()
+            ->one();
+    }
 }

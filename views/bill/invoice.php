@@ -12,6 +12,7 @@
  * @var string $balance
  * @var array $payableFees
  * @var string $invoiceFor
+ * @var array $timetableIds
  */
 
 use yii\helpers\Json;
@@ -69,7 +70,7 @@ use yii\helpers\Url;
                                 <div class="error-display alert text-center" role="alert"></div>
                             </div>
                             <div class="pull-right" style="margin-bottom: 10px;">
-                                <button id="pay" class="btn btn-success">Make Payment</button>
+                                <button id="pay" class="btn btn-success">Accept invoice</button>
                             </div>
                             <table class="table table-bordered">
                                 <thead>
@@ -117,12 +118,14 @@ $billingUrl = '';
 if ($invoiceFor === 'semesterRegistration') {
     $billingUrl = Url::to(['/semester-session-progress/join-session']);
 } elseif ($invoiceFor === 'courseRegistration') {
-    $billingUrl = Url::to(['/bill/make-payment']);
+    $billingUrl = Url::to(['/courses/confirm']);
 }
 $payableFeesJson = Json::encode($payableFees);
+$timetableIdsJson = Json::encode($timetableIds);
 $payJs = <<< JS
 const billingUrl = '$billingUrl';
 const payableFees = '$payableFeesJson';
+const timetableIds = '$timetableIdsJson';
 
 const paymentLoader = $('.prog-charges > .loader');
 paymentLoader.html(loader);
@@ -132,14 +135,15 @@ paymentErrorDisplay.hide();
 
 $('#pay').click(function (e){
     e.preventDefault();
-    if(confirm('Do you want to confirm this payment?')){
+    if(confirm('Accept invoice and continue?')){
         paymentErrorDisplay.hide();
         paymentLoader.show();
         $.ajax({
             url: billingUrl,
             type: 'POST',
             data: {
-                'payableFees': payableFees
+                'payableFees': payableFees,
+                'timetableIds': timetableIds
             }
         }).done(function (data){
             paymentLoader.hide();
