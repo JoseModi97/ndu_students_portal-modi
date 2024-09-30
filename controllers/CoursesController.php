@@ -28,6 +28,8 @@ use app\models\Room;
 use app\models\Student;
 use app\models\StudentProgCurriculum;
 use app\models\StudentSemesterSessionProgress;
+use app\services\BillStudent;
+use app\services\StudentToBill;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use kartik\mpdf\Pdf;
@@ -37,11 +39,29 @@ use yii\data\ArrayDataProvider;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 use yii\filters\AccessControl;
+use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
 
-class CoursesController extends BaseController
+final class CoursesController extends BaseController
 {
+    private ?BillStudent $billStudent;
+
+    /**
+     * @throws NotFoundHttpException
+     * @throws ServerErrorHttpException
+     */
+    public function init(): void
+    {
+        parent::init();
+
+        $regNumber = StudentProgCurriculum::find()->select('registration_number')
+            ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
+            ->asArray()->one()['registration_number'];
+
+        $this->billStudent = new BillStudent(new StudentToBill($regNumber));
+    }
+
     /**
      * Configure controller behaviours
      * @return array[]
@@ -63,12 +83,12 @@ class CoursesController extends BaseController
     }
 
     /**
-     * @todo Check for registration deadlines and display date
      * @throws Exception
+     * @todo Check for registration deadlines and display date
      */
-    public function actionIndex(): Response|String
+    public function actionIndex(): Response|string
     {
-        try{
+        try {
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
 
@@ -92,7 +112,7 @@ class CoursesController extends BaseController
                 ->andWhere(['study_centre_group_id' => $studyCenterGroupId])
                 ->asArray()->one();
 
-            if(empty($programmeCurriculumSemGroup)){
+            if (empty($programmeCurriculumSemGroup)) {
                 $this->setFlash('danger', 'Timetable courses', 'Please join an active semester.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
@@ -107,7 +127,7 @@ class CoursesController extends BaseController
                     'tt.prog_curriculum_course_id'
                 ])
                 ->where(['tt.prog_curriculum_sem_group_id' => $programmeCurriculumSemGroup['prog_curriculum_sem_group_id']])
-                ->joinWith(['examMode em' => function(ActiveQuery $q) {
+                ->joinWith(['examMode em' => function (ActiveQuery $q) {
                     $q->select([
                         'em.exam_mode_id',
                         'em.exam_mode_name'
@@ -142,9 +162,9 @@ class CoursesController extends BaseController
                 'currentSessionDetails' => $this->currentSessionDetails(),
                 'hasAvailableSessionToJoin' => SmisHelper::studentHasAvailableSessionToJoin()
             ]);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV) {
+            if (YII_ENV_DEV) {
                 $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -152,17 +172,17 @@ class CoursesController extends BaseController
     }
 
     /**.
+     * @return Response
      * @todo Check for registration deadlines and special, retake, supplementary type conditions
      * Retake, there exist
      *
      * Do provisional registration
-     * @return Response
      */
     public function actionRegister(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try{
-            if(SmisHelper::studentHasAvailableSessionToJoin()){
+        try {
+            if (SmisHelper::studentHasAvailableSessionToJoin()) {
                 throw new Exception('You must report to your session inorder to register for courses');
             }
 
@@ -178,9 +198,9 @@ class CoursesController extends BaseController
             $student = Student::find()->select(['student_number'])
                 ->where(['student_id' => $studentProgCurr['student_id']])->asArray()->one();
 
-            foreach ($courses as $course){
+            foreach ($courses as $course) {
                 $timetableId = $course['timetableId'];
-                if($this->isRegistrationConfirmed($timetableId)){
+                if ($this->isRegistrationConfirmed($timetableId)) {
                     continue;
                 }
 
@@ -195,7 +215,7 @@ class CoursesController extends BaseController
                     'student_semester_session_id' => $studentSemesterSessionId
                 ])->one();
 
-                if(empty($courseReg)){
+                if (empty($courseReg)) {
                     $courseReg = new CourseRegistration();
                 }
 
@@ -217,7 +237,7 @@ class CoursesController extends BaseController
                 $lectureTimetable = ProgrammeCurriculumLectureTimetable::find()->select(['lecture_room_id'])
                     ->where(['timetable_id' => $timetableId])->asArray()->one();
 
-                if(empty($lectureTimetable)){
+                if (empty($lectureTimetable)) {
                     throw new Exception('Teaching timetable for one of the courses selected is not created.
                     Please contact your department for assistance.');
                 }
@@ -225,14 +245,14 @@ class CoursesController extends BaseController
                 $room = Room::find()->select(['room_capacity'])->where(['room_id' => $lectureTimetable['lecture_room_id']])
                     ->asArray()->one();
                 $roomCapacity = 1000; // default capacity
-                if(!empty($room)){
+                if (!empty($room)) {
                     $roomCapacity = $room['room_capacity'];
                 }
 
                 $studentsRegisteredCount = CourseRegistration::find()->where(['timetable_id' => $timetableId])
                     ->count();
                 $classCode = 1;
-                if($studentsRegisteredCount >= $roomCapacity){
+                if ($studentsRegisteredCount >= $roomCapacity) {
                     $remainder = fmod($studentsRegisteredCount, $roomCapacity);
                     $fullGroupsCount = ($studentsRegisteredCount - $remainder) / $roomCapacity;
                     $classCode = $fullGroupsCount + 1;
@@ -244,7 +264,7 @@ class CoursesController extends BaseController
                  */
                 $lectureTimetable = ProgrammeCurriculumLectureTimetable::find()
                     ->where(['timetable_id' => $timetableId, 'class_code' => $classCode])->count();
-                if(!$lectureTimetable > 0){
+                if (!$lectureTimetable > 0) {
                     $examTimetable = ProgrammeCurriculumTimetable::find()->select(['prog_curriculum_course_id'])
                         ->where(['timetable_id' => $timetableId])->asArray()->one();
 
@@ -259,10 +279,10 @@ class CoursesController extends BaseController
 
                 $courseReg->class_code = $classCode;
 
-                if(!$courseReg->save()){
-                    if(!$courseReg->validate()){
+                if (!$courseReg->save()) {
+                    if (!$courseReg->validate()) {
                         throw new Exception(SmisHelper::getModelErrors($courseReg->getErrors()));
-                    }else{
+                    } else {
                         throw new Exception('Course registration failed.');
                     }
                 }
@@ -271,10 +291,10 @@ class CoursesController extends BaseController
             $transaction->commit();
             $this->setFlash('success', 'Course registration', 'Course registration done successfully.');
             return $this->redirect(['/courses']);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -286,8 +306,8 @@ class CoursesController extends BaseController
      */
     public function actionSelectedExamTypes(): Response
     {
-        try{
-            if(!array_key_exists('timetableIds', Yii::$app->request->get())) {
+        try {
+            if (!array_key_exists('timetableIds', Yii::$app->request->get())) {
                 return $this->asJson(['success' => true, 'examTypes' => []]);
             }
 
@@ -298,13 +318,13 @@ class CoursesController extends BaseController
             $studentSemesterSessionId = $studentSemSessProgress['student_semester_session_id'];
 
             $timetableExamTypes = [];
-            foreach ($timetableIds as $timetableId){
+            foreach ($timetableIds as $timetableId) {
                 $courseReg = CourseRegistration::find()->select(['course_registration_type_id'])->where([
                     'student_semester_session_id' => $studentSemesterSessionId,
                     'timetable_id' => $timetableId
                 ])->asArray()->one();
 
-                if(empty($courseReg)){
+                if (empty($courseReg)) {
                     continue;
                 }
 
@@ -315,9 +335,9 @@ class CoursesController extends BaseController
                 $timetableExamTypes[$timetableId] = $courseRegType['course_reg_type_code'];
             }
             return $this->asJson(['success' => true, 'examTypes' => $timetableExamTypes]);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -330,22 +350,22 @@ class CoursesController extends BaseController
      */
     public function actionConfirmed(): Response
     {
-        try{
-            if(!array_key_exists('timetableIds', Yii::$app->request->get())) {
+        try {
+            if (!array_key_exists('timetableIds', Yii::$app->request->get())) {
                 return $this->asJson(['success' => true, 'confirmedTimetableIds' => []]);
             }
 
             $timetableIds = Yii::$app->request->get()['timetableIds'];
             $confirmedTimetableIds = [];
-            foreach ($timetableIds as $timetableId){
-                if($this->isRegistrationConfirmed($timetableId)){
+            foreach ($timetableIds as $timetableId) {
+                if ($this->isRegistrationConfirmed($timetableId)) {
                     $confirmedTimetableIds[] = $timetableId;
                 }
             }
             return $this->asJson(['success' => true, 'confirmedTimetableIds' => $confirmedTimetableIds]);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -358,7 +378,7 @@ class CoursesController extends BaseController
      */
     public function actionProvisional(): string
     {
-        try{
+        try {
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
             $studentSemesterSessionId = $studentSemSessProgress['student_semester_session_id'];
@@ -371,7 +391,7 @@ class CoursesController extends BaseController
                     'tt.exam_mode',
                     'tt.prog_curriculum_course_id'
                 ])
-                ->joinWith(['examMode em' => function(ActiveQuery $q) {
+                ->joinWith(['examMode em' => function (ActiveQuery $q) {
                     $q->select([
                         'em.exam_mode_id',
                         'em.exam_mode_name'
@@ -390,14 +410,14 @@ class CoursesController extends BaseController
                         'cse.course_name'
                     ]);
                 }], true, 'INNER JOIN')
-                ->joinWith(['courseRegistration cr' => function(ActiveQuery $q) {
+                ->joinWith(['courseRegistration cr' => function (ActiveQuery $q) {
                     $q->select([
                         'cr.student_course_reg_id',
                         'cr.timetable_id',
                     ]);
                 }], true, 'INNER JOIN')
                 ->where(['cr.student_semester_session_id' => $studentSemesterSessionId])
-                ->joinWith(['courseRegistration.status st' => function(ActiveQuery $q) {
+                ->joinWith(['courseRegistration.status st' => function (ActiveQuery $q) {
                     $q->select([
                         'st.course_reg_status_id',
                     ]);
@@ -418,9 +438,9 @@ class CoursesController extends BaseController
                 'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id'],
                 'currentSessionDetails' => $this->currentSessionDetails()
             ]);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV) {
+            if (YII_ENV_DEV) {
                 $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -428,14 +448,44 @@ class CoursesController extends BaseController
     }
 
     /**
-     * Confirm course registration
+     * Raise invoice course registration
+     * @return Response
+     */
+    public function actionInvoice(): Response
+    {
+        $post = Yii::$app->request->post();
+        $marksheets = '';
+        foreach ($post['timetableIds'] as $timetableId) {
+            $timetable = ProgrammeCurriculumTimetable::find()
+                ->select('mrksheet_id')->where(['timetable_id' => $timetableId])->asArray()->one();
+            if ($timetable) {
+                $marksheets .= $timetable['mrksheet_id'] . '.';
+            }
+        }
+        return $this->redirect(['/bill/raise-invoice', 'marksheets' => rtrim($marksheets, '.')]);
+    }
+
+    /**
+     * Confirm and bill for course registration
      * @return Response
      */
     public function actionConfirm(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try{
-            $timetableIds = Yii::$app->request->post()['timetableIds'];
+        try {
+            $post = Yii::$app->request->post();
+            $payableFess = json_decode($post['payableFees'], true);
+            $timetableIds = json_decode($post['timetableIds'], true);
+
+            /**
+             * Bill admin and course units fees
+             */
+            $regNumber = StudentProgCurriculum::find()->select('registration_number')
+                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+                ->asArray()->one()['registration_number'];
+
+            $billStudent = new BillStudent(new StudentToBill($regNumber));
+            $billStudent->bill($payableFess);
 
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
@@ -444,32 +494,32 @@ class CoursesController extends BaseController
             $courseRegStatus = CourseRegistrationStatus::find()->select(['course_reg_status_id'])
                 ->where(['course_reg_status_name' => 'CONFIRMED'])->asArray()->one();
 
-            foreach ($timetableIds as $timetableId){
+            foreach ($timetableIds as $timetableId) {
                 $courseReg = CourseRegistration::find()->where([
                     'student_semester_session_id' => $studentSemesterSessionId,
                     'timetable_id' => $timetableId
                 ])->one();
 
                 $courseReg->course_reg_status_id = $courseRegStatus['course_reg_status_id'];
-                if($courseReg->save()){
+                if ($courseReg->save()) {
                     $marksheet = Marksheet::find()->where(['student_course_reg_id' => $courseReg->student_course_reg_id])->one();
 
-                    if(empty($marksheet)){
+                    if (empty($marksheet)) {
                         $marksheet = new Marksheet();
                     }
 
                     $marksheet->student_course_reg_id = $courseReg->student_course_reg_id;
-                    if(!$marksheet->save()){
-                        if(!$marksheet->validate()){
+                    if (!$marksheet->save()) {
+                        if (!$marksheet->validate()) {
                             throw new Exception(SmisHelper::getModelErrors($marksheet->getErrors()));
-                        }else{
+                        } else {
                             throw new Exception('Course marksheet registration failed.');
                         }
                     }
-                }else{
-                    if(!$courseReg->validate()){
+                } else {
+                    if (!$courseReg->validate()) {
                         throw new Exception(SmisHelper::getModelErrors($courseReg->getErrors()));
-                    }else{
+                    } else {
                         throw new Exception('Course registration confirmation failed.');
                     }
                 }
@@ -480,10 +530,10 @@ class CoursesController extends BaseController
                 'Course registration confirmation done successfully.');
 
             return $this->redirect(['/courses']);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -497,24 +547,24 @@ class CoursesController extends BaseController
     public function actionDrop(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try{
+        try {
             $timetableIds = Yii::$app->request->post()['timetableIds'];
 
             // Get the last academic session semester a student joined
             $studentSemSessProgress = $this->getLatestAcademicSessionForAStudent();
             $studentSemesterSessionId = $studentSemSessProgress['student_semester_session_id'];
 
-            foreach ($timetableIds as $timetableId){
+            foreach ($timetableIds as $timetableId) {
                 $courseReg = CourseRegistration::find()->where([
                     'student_semester_session_id' => $studentSemesterSessionId,
                     'timetable_id' => $timetableId
                 ])->one();
 
-                if(empty($courseReg) || $this->isRegistrationConfirmed($timetableId)){
+                if (empty($courseReg) || $this->isRegistrationConfirmed($timetableId)) {
                     continue;
                 }
 
-                if(!$courseReg->delete()){
+                if (!$courseReg->delete()) {
                     throw new Exception('Failed to drop courses.');
                 }
             }
@@ -522,10 +572,10 @@ class CoursesController extends BaseController
             $transaction->commit();
             $this->setFlash('success', 'Drop courses', 'Courses dropped successfully.');
             return $this->redirect(['/courses']);
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -538,7 +588,7 @@ class CoursesController extends BaseController
      */
     public function actionExamCard(): string
     {
-        try{
+        try {
             $name = Yii::$app->user->identity->surname . ' ' . Yii::$app->user->identity->other_names;
 
             $studentProg = StudentProgCurriculum::find()->select(['registration_number'])
@@ -556,13 +606,13 @@ class CoursesController extends BaseController
                     'tt.exam_mode',
                     'tt.prog_curriculum_course_id'
                 ])
-                ->joinWith(['examMode em' => function(ActiveQuery $q) {
+                ->joinWith(['examMode em' => function (ActiveQuery $q) {
                     $q->select([
                         'em.exam_mode_id',
                         'em.exam_mode_name'
                     ]);
                 }], true, 'INNER JOIN')
-                ->joinWith(['examVenue ev' => function(ActiveQuery $q) {
+                ->joinWith(['examVenue ev' => function (ActiveQuery $q) {
                     $q->select([
                         'ev.room_id',
                         'ev.room_name',
@@ -582,14 +632,14 @@ class CoursesController extends BaseController
                         'cse.course_name'
                     ]);
                 }], true, 'INNER JOIN')
-                ->joinWith(['courseRegistration cr' => function(ActiveQuery $q) {
+                ->joinWith(['courseRegistration cr' => function (ActiveQuery $q) {
                     $q->select([
                         'cr.student_course_reg_id',
                         'cr.timetable_id',
                     ]);
                 }], true, 'INNER JOIN')
                 ->where(['cr.student_semester_session_id' => $studentSemesterSessionId])
-                ->joinWith(['courseRegistration.status st' => function(ActiveQuery $q) {
+                ->joinWith(['courseRegistration.status st' => function (ActiveQuery $q) {
                     $q->select([
                         'st.course_reg_status_id',
                     ]);
@@ -627,16 +677,16 @@ class CoursesController extends BaseController
                 'options' => ['title' => 'Krajee Report Title'],
                 // call mPDF methods on the fly
                 'methods' => [
-                    'SetHeader'=>['NATIONAL DEFENCE UNIVERSITY OF KENYA||EXAM CARD'],
-                    'SetFooter'=>['PRINTED BY ' . $name . ' ON ' . SmisHelper::formatDate('now', 'd-m-Y') . '||'],
+                    'SetHeader' => ['NATIONAL DEFENCE UNIVERSITY OF KENYA||EXAM CARD'],
+                    'SetFooter' => ['PRINTED BY ' . $name . ' ON ' . SmisHelper::formatDate('now', 'd-m-Y') . '||'],
                 ]
             ]);
 
             // return the pdf output as per the destination setting
             return $pdf->render();
-        }catch (Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -667,7 +717,7 @@ class CoursesController extends BaseController
                 ]);
             }], true, 'INNER JOIN')
             ->where(['ap.student_prog_curriculum_id' => $studentProgCurr['student_prog_curriculum_id']])
-            ->joinWith(['academicProgress.academicLevel al' => function(ActiveQuery $q){
+            ->joinWith(['academicProgress.academicLevel al' => function (ActiveQuery $q) {
                 $q->select([
                     'al.academic_level_id',
                     'al.academic_level'
@@ -694,7 +744,7 @@ class CoursesController extends BaseController
             'timetable_id' => $timetableId
         ])->asArray()->one();
 
-        if(!empty($courseReg)){
+        if (!empty($courseReg)) {
             $courseRegStatus = CourseRegistrationStatus::find()->select(['course_reg_status_name'])
                 ->where(['course_reg_status_id' => $courseReg['course_reg_status_id']])->asArray()->one();
             $status = $courseRegStatus['course_reg_status_name'];

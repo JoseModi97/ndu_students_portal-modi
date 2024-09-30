@@ -53,7 +53,7 @@ AppAsset::register($this);
             if (SmisHelper::studentHasAvailableSessionToJoin()):?>
                 <li class="nav-item">
                     <a id="report-to-session" class="nav-link btn btn-success"
-                       href="<?= Url::to(['/semester-session-progress/join-session']); ?>">
+                       href="<?= Url::to(['/bill/raise-invoice']);?>">
                         <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
                         Report to session
                     </a>
