@@ -62,8 +62,7 @@ final class BillStudent
         $invoiceId = '%';
         $invoiceId .= $this->student->regNumber . '-' . $this->student->academicYear;
         if (!$this->student->isBilledAnnually) {
-//            $invoiceId .= '-SEM' . $this->student->semester;
-            $invoiceId .= '-SEM2';
+            $invoiceId .= '-SEM' . $this->student->semester;
         }
         $invoiceId .= '%';
 //        dd($invoiceId);
@@ -84,13 +83,14 @@ final class BillStudent
 //        dd($invoiceDetails);
 //        dd($followUpRegistration);
 
-        $totalFees = 0;
         $adminFees = $this->payableAdminFees();
+        $adminFeesTotal = $adminFees['total'];
 
 //        dd($this->student->isInATeachingSemester);
         // Admin fees are not applicable at follow-up registrations
         // Admin fees are not applicable in a supplementary semester
         if ($followUpRegistration || !$this->student->isInATeachingSemester) {
+            $adminFeesTotal = 0;
             $adminFees = [];
         }
 
@@ -110,13 +110,12 @@ final class BillStudent
 //            unset($courseFees['items']['tuition']);
 //        }
         //dd($courseFees);
-        $totalFees += $courseFees['total'];
 
         return [
             //'followUpRegistration' => $followUpRegistration,
             'adminFees' => $adminFees,
             'courseFees' => $courseFees,
-            'total' => $totalFees,
+            'total' => $adminFeesTotal + $courseFees['total'],
             //'total' => $followUpRegistration ? $courseFees['total'] : $adminFees['total'] + $courseFees['total']
         ];
     }
@@ -174,9 +173,14 @@ final class BillStudent
     {
         $totals = $this->totalTransactions();
 
+        if (empty($totals)) {
+            return false;
+        }
+
         if (($totals['credits'] - $totals['debits']) < $amountPayable) {
             return false;
         }
+
         return true;
     }
 
@@ -219,8 +223,7 @@ final class BillStudent
     private function storeInvoice(int $amount): Invoice
     {
         $invoice = new Invoice();
-        //$invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
-        $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM2'; // @todo
+        $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
         $invoice->invoice_desc = 'FEES PAYABLE FOR SEM ' . $this->student->semester;
         $invoice->invoice_date = SmisHelper::formatDate('now', 'Y-m-d');
         $invoice->last_update = $invoice->invoice_date;
@@ -382,7 +385,7 @@ final class BillStudent
                     $total = 0;
                 }
             } else {
-                if ($adminFee['frequency'] === ChargeFrequency::ANNUAL->value) { // @todo revert to SEMESTER
+                if ($adminFee['frequency'] === ChargeFrequency::SEMESTER->value) {
                     $adminCharges[] = [
                         'desc' => $adminFee['fee_description'],
                         'amount' => $adminFee['amount_charged']
@@ -424,7 +427,6 @@ final class BillStudent
             try {
                 $courseFee = CourseFee::tryFrom($course['type']);
                 $unitAmount = $tempFees[$courseFee->feeDescription()];
-                $unitAmount = 0; // @todo revert
                 $courseCharges[] = [
                     'desc' => $course['code'],
                     'amount' => $unitAmount,
@@ -445,7 +447,6 @@ final class BillStudent
         if (!$this->student->isBilledAnnually && !$followUpRegistration && $this->student->isInATeachingSemester) {
             try {
                 $tuitionAmount = (int)$tempFees[CourseFee::tryFrom('TUITION')->feeDescription()];
-                $tuitionAmount = 50000; // @todo revert
                 $courseCharges['tuition'] = [
                     'desc' => 'TUITION',
                     'amount' => $tuitionAmount,
@@ -485,13 +486,12 @@ final class BillStudent
                 'fi.priority' => FeePriority::PRIORITY_1->value,
                 'fi.publish' => FeeStatus::PUBLISHED->value
             ]);
-        // @todo revert
-//        if (!$this->student->isBilledAnnually) {
-//            $fees->andWhere([
-//                'pcc.level_of_study' => $this->student->level,
-//                'pcc.semester' => $this->student->semester
-//            ]);
-//        }
+        if (!$this->student->isBilledAnnually) {
+            $fees->andWhere([
+                'pcc.level_of_study' => $this->student->level,
+                'pcc.semester' => $this->student->semester
+            ]);
+        }
 
         return $fees->all();
     }

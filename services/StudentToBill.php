@@ -52,7 +52,7 @@ final class StudentToBill
 
         $this->isInAFirstSemester = $this->isInAFirstSemester();
         $this->isInATeachingSemester = $this->isInATeachingSemester();
-        $this->isBilledAnnually = false; //$this->isBilledAnnually(); // @todo revert
+        $this->isBilledAnnually = $this->isBilledAnnually();
     }
 
     /**

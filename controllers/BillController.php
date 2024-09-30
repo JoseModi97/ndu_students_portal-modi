@@ -113,7 +113,7 @@ final class BillController extends BaseController
             'payableFees' => $payableFees,
             'timetableIds' => $timetableIds,
             'feeItems' => $feeItems,
-            'balance' => $transactions['credits'] - $transactions['debits']
+            'balance' => (!$transactions) ? 0 : $transactions['credits'] - $transactions['debits']
         ]);
     }
 }
