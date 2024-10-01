@@ -31,7 +31,9 @@
         "mpdf/mpdf": "^8.1",
         "kartik-v/yii2-mpdf": "dev-master",
         "picqer/php-barcode-generator": "^2.4",
-        "masgeek/yii2-print-html": "^4.0"
+        "masgeek/yii2-print-html": "^4.0",
+        "stmswitcher/yii2-ldap-auth": "^0.2.0",
+        "ext-ldap": "*"
     },
     "require-dev": {
         "yiisoft/yii2-debug": "~2.1.0",

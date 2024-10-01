@@ -66,11 +66,11 @@ class BaseController extends Controller
                      * Check if user's default/forgotten password has been updated.
                      * We require that these be updated to a password user will remember and also make sure it meets the set requirements.
                      */
-                    if (empty($identity->password_changed_date)) {
-                        $this->setFlash('danger', 'Update password', 'You must change your password before you continue.');
-                        $this->redirect(['/account/index']);
-                        return false;
-                    }
+//                    if (empty($identity->password_changed_date)) {
+//                        $this->setFlash('danger', 'Update password', 'You must change your password before you continue.');
+//                        $this->redirect(['/account/index']);
+//                        return false;
+//                    }
 
                     /**
                      * Check if user profile is complete.

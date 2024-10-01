@@ -50,7 +50,7 @@ final class SemesterSessionProgressController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try {
             $studentSemSessProgress = SmisHelper::studentHasAvailableSessionToJoin();
-            if (empty($studentSemSessProgress)) {
+            if (!empty($studentSemSessProgress)) { // @todo revert to empty() after testing
                 $this->setFlash('danger', 'Semester session', 'No active session was found for you to join.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
@@ -58,35 +58,39 @@ final class SemesterSessionProgressController extends BaseController
             /**
              * Bill registration fees
              */
-            $post = Yii::$app->request->post();
-            $payableFess = json_decode($post['payableFees'], true);
 
-            $regNumber = StudentProgCurriculum::find()->select('registration_number')
-                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
-                ->asArray()->one()['registration_number'];
+            // @todo uncomment below when active
 
-            $billStudent = new BillStudent(new StudentToBill($regNumber));
-            $billStudent->bill($payableFess);
+//            $post = Yii::$app->request->post();
+//            $payableFess = json_decode($post['payableFees'], true);
+//
+//            $regNumber = StudentProgCurriculum::find()->select('registration_number')
+//                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+//                ->asArray()->one()['registration_number'];
+//
+//            $billStudent = new BillStudent(new StudentToBill($regNumber));
+//            $billStudent->bill($payableFess);
 
             /**
              * Register student in the session
              */
-            $studentSemSessProgress = SmisHelper::studentHasAvailableSessionToJoin();
-            $semSessProgressId = $studentSemSessProgress['student_semester_session_id'];
-            $studentSemSessProgress = StudentSemesterSessionProgress::findOne($semSessProgressId);
-            $studentSemSessProgress->registration_date = SmisHelper::formatDate('now', 'Y-m-d');
-            $studentSemSessProgress->reporting_sync_status = false;
-            $studentSemSessProgress->promotion_status = 'PROMOTED';
-            if (!$studentSemSessProgress->save()) {
-                if (!$studentSemSessProgress->validate()) {
-                    $errorMessage = SmisHelper::getModelErrors($studentSemSessProgress->getErrors());
-                    throw new Exception($errorMessage);
-                } else {
-                    throw new Exception('Student semester session progress was not saved.');
-                }
-            }
+            // @todo uncomment after testing
+//            $studentSemSessProgress = SmisHelper::studentHasAvailableSessionToJoin();
+//            $semSessProgressId = $studentSemSessProgress['student_semester_session_id'];
+//            $studentSemSessProgress = StudentSemesterSessionProgress::findOne($semSessProgressId);
+//            $studentSemSessProgress->registration_date = SmisHelper::formatDate('now', 'Y-m-d');
+//            $studentSemSessProgress->reporting_sync_status = false;
+//            $studentSemSessProgress->promotion_status = 'PROMOTED';
+//            if (!$studentSemSessProgress->save()) {
+//                if (!$studentSemSessProgress->validate()) {
+//                    $errorMessage = SmisHelper::getModelErrors($studentSemSessProgress->getErrors());
+//                    throw new Exception($errorMessage);
+//                } else {
+//                    throw new Exception('Student semester session progress was not saved.');
+//                }
+//            }
 
-            $transaction->commit();
+            $transaction->rollBack(); // @todo revert to commit after testing
             $this->setFlash('success', 'Semester session', 'You have reported to a session successfully.');
             return $this->redirect(Yii::$app->homeUrl);
         } catch (Exception $ex) {

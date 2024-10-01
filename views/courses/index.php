@@ -142,9 +142,12 @@ $this->title = $title;
                     'vAlign' => 'middle',
                     'format' => 'raw',
                     'value' => function($model) use($studentSemesterSessionId) {
+                        $regNumber = \app\models\StudentProgCurriculum::find()->select(['registration_number'])
+                            ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])->asArray()->one();
+
                         $courseReg = CourseRegistration::find()->select(['course_reg_status_id'])->where([
-                            'student_semester_session_id' => $studentSemesterSessionId,
-                            'timetable_id' => $model['timetable_id']
+                            'timetable_id' => $model['timetable_id'],
+                            'registration_number' => $regNumber
                         ])->asArray()->one();
 
                         if (empty($courseReg)) {

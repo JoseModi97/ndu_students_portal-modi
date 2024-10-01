@@ -60,7 +60,7 @@ class SiteController extends BaseController
      */
     public function beforeAction($action): bool
     {
-        if(parent::beforeAction($action)) {
+        if (parent::beforeAction($action)) {
             if ($action->id == 'error') {
                 $this->layout = 'error';
             }
@@ -74,7 +74,7 @@ class SiteController extends BaseController
      */
     public function actionIndex(): Response
     {
-        if(Yii::$app->user->isGuest){
+        if (Yii::$app->user->isGuest) {
             return $this->redirect(['/site/login']);
         }
         return $this->redirect(['/account/index']);
@@ -98,15 +98,15 @@ class SiteController extends BaseController
                  * Fully registered students are redirected to the portal dashboard.
                  * Not fully registered students are redirected to the registration page.
                  */
-                if(Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS){
+                if (Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS) {
                     return Yii::$app->response->redirect(['/registration/add-documents']);
                 }
 
                 return Yii::$app->response->redirect(['/account/index']);
             }
-        }catch(Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -121,32 +121,60 @@ class SiteController extends BaseController
     {
         try {
             $model = new LoginForm();
-            if($model->load(Yii::$app->request->post())){
-                if($model->validate()){
-                    if(Yii::$app->user->login($model->getUser())){
-                        $this->setFlash('success', 'Login', 'Logged in successfully.');
-                        // Not fully registered students are redirected to the registration page.
-                        if(Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS){
-                            return Yii::$app->response->redirect(['/registration/add-documents']);
-                        }
-                        // Fully registered students are redirected to the portal dashboard.
-                        return Yii::$app->response->redirect(['/account/index']);
-                    }else{
-                        throw new Exception('An error occurred while trying to log in.');
-                    }
-                }else{
-                    $this->setFlash('danger', 'Login', 'Incorrect username or password.');
-                    return $this->redirect(['/site/login']);
-                }
+
+            if (!$model->load(Yii::$app->request->post()) || !$model->validate()) {
+                return $this->incorrectCredentialsMessage();
             }
-            return $this->redirect(['/site/login']);
-        }catch(Exception $ex){
+
+            if (!Yii::$app->ldapAuth->authenticate($model->username, $model->password)) {
+                return $this->incorrectCredentialsMessage();
+            }
+
+            // @todo remove after testing
+            if ($model->username === '231610') {
+                // NR605/0001/2022
+                $model->username = '5293';
+            } elseif ($model->username === '231630') {
+                // NR605/0002/2022
+                $model->username = '5294';
+            }
+
+            $user = User::findByUsername($model->username);
+
+            if (!$user) {
+                return $this->incorrectCredentialsMessage();
+            }
+
+            if (Yii::$app->user->login($user)) {
+                $this->setFlash('success', 'Login', 'Logged in successfully.');
+
+                // Not fully registered students are redirected to the registration page.
+                if (Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS) {
+                    return Yii::$app->response->redirect(['/registration/add-documents']);
+                }
+
+                // Fully registered students are redirected to the portal dashboard.
+                return Yii::$app->response->redirect(['/account/index']);
+
+            } else {
+                throw new Exception('An error occurred while trying to log in.');
+            }
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
         }
+    }
+
+    /**
+     * @return Response
+     */
+    private function incorrectCredentialsMessage(): Response
+    {
+        $this->setFlash('danger', 'Login', 'Incorrect username or password.');
+        return $this->redirect(['/site/login']);
     }
 
     /**
@@ -170,9 +198,9 @@ class SiteController extends BaseController
                 'title' => $this->createPageTitle('I forgot my password'),
                 'model' => new ForgotPasswordForm()
             ]);
-        }catch(Exception $ex){
+        } catch (Exception $ex) {
             $message = $ex->getMessage();
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -190,18 +218,18 @@ class SiteController extends BaseController
             $post = Yii::$app->request->post();
 
             $email = $post['ForgotPasswordForm']['email'];
-            $refNumber =  $post['ForgotPasswordForm']['username'];
+            $refNumber = $post['ForgotPasswordForm']['username'];
 
             $user = User::find()->where(['primary_email' => $email, 'adm_refno' => $refNumber])->one();
-            if(!$user){
+            if (!$user) {
                 $user = User::find()->where(['alternative_email' => $email, 'adm_refno' => $refNumber])->one();
-                if(!$user){
+                if (!$user) {
                     $this->setFlash('danger', 'Password reset', 'Incorrect reference number or email');
                     return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
                 }
             }
 
-            if($user){
+            if ($user) {
                 $password = $user->generatePassword();
                 $user->password = $password['hash'];
                 $user->password_changed_date = null;
@@ -218,13 +246,13 @@ class SiteController extends BaseController
                     $layout = '@app/mail/layouts/html';
                     $view = '@app/mail/views/passwordReset';
                     SmisHelper::sendEmails([$emails], $layout, $view);
-                }else{
-                    if(!$user->validate()){
+                } else {
+                    if (!$user->validate()) {
                         $transaction->rollBack();
                         $errorMessage = SmisHelper::getModelErrors($user->getErrors());
                         $this->setFlash('danger', 'Password reset', $errorMessage);
                         return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
-                    }else{
+                    } else {
                         throw new Exception('Profile not updated.');
                     }
                 }

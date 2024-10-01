@@ -25,9 +25,6 @@ $this->title = $title;
 <section class="content">
     <div class="container-fluid">
        <?= $this->render('updateProfile', ['user' => $user, 'sponsors' => $sponsors]); ?>
-
        <?= $this->render('updateEmail', ['user' => $user]); ?>
-
-       <?= $this->render('updatePassword'); ?>
     </div>
 </section>

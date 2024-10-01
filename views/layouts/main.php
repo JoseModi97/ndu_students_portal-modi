@@ -49,8 +49,8 @@ AppAsset::register($this);
 
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
-            <?php
-            if (SmisHelper::studentHasAvailableSessionToJoin()):?>
+            <?php // @todo revert and check for truthy after testing
+            if (!SmisHelper::studentHasAvailableSessionToJoin()):?>
                 <li class="nav-item">
                     <a id="report-to-session" class="nav-link btn btn-success"
                        href="<?= Url::to(['/bill/raise-invoice']);?>">
