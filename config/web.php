@@ -36,6 +36,19 @@ $config = [
             'enableSession' => true,
             'authTimeout' => 3600
         ],
+        'ldapAuth' => [
+            'class' => 'app\components\LdapAuth',
+            'host' => '41.89.93.194',
+            'port' => 389,
+            'protocol' => 'ldap://',
+            'baseDn' => 'DC=AD,DC=UONBI,DC=AC,DC=KE',
+            'searchUserName' => 'CN=pwdappuser,CN=Users,DC=AD,DC=UONBI,DC=AC,DC=KE',
+            'searchUserPassword' => 'Kenya@2030',
+            'ldapVersion' => 3,
+            'followReferrals' => false,
+            'timeout' => 10,
+            'connectTimeout' => 10
+        ],
         'errorHandler' => [
             'errorAction' => 'site/error',
         ],
@@ -160,3 +173,4 @@ if (YII_ENV_DEV) {
 }
 
 return $config;
+

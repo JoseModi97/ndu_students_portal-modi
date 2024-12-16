@@ -85,8 +85,6 @@ class User extends ActiveRecord implements IdentityInterface
             [['other_names'], 'string', 'max' => 150],
             [['blood_group'], 'string', 'max' => 5],
             [['adm_refno'], 'unique'],
-            [['source_id'], 'exist', 'skipOnError' => true, 'targetClass' => IntakeSource::class, 'targetAttribute' => ['source_id' => 'source_id']],
-            [['intake_code'], 'exist', 'skipOnError' => true, 'targetClass' => Intake::class, 'targetAttribute' => ['intake_code' => 'intake_code']],
         ];
     }
 
@@ -148,7 +146,9 @@ class User extends ActiveRecord implements IdentityInterface
     /**
      * {@inheritdoc}
      */
-    public static function findIdentityByAccessToken($token, $type = null){}
+    public static function findIdentityByAccessToken($token, $type = null)
+    {
+    }
 
     /**
      * {@inheritdoc}
@@ -161,12 +161,16 @@ class User extends ActiveRecord implements IdentityInterface
     /**
      * {@inheritdoc}
      */
-    public function getAuthKey(){}
+    public function getAuthKey()
+    {
+    }
 
     /**
      * {@inheritdoc}
      */
-    public function validateAuthKey($authKey){}
+    public function validateAuthKey($authKey)
+    {
+    }
 
     /**
      * @param string $username admission reference number or registration number
@@ -174,11 +178,11 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findByUsername(string $username): bool|array|ActiveRecord|null
     {
-        if(str_contains($username, '/')) {
+        if (str_contains($username, '/')) {
             $studentProg = StudentProgramme::find()->select(['adm_refno'])->where(['registration_number' => $username])
                 ->asArray()->one();
 
-            if(empty($studentProg)) {
+            if (empty($studentProg)) {
                 return false;
             }
 
@@ -187,7 +191,7 @@ class User extends ActiveRecord implements IdentityInterface
 
         $user = self::find()->where(['adm_refno' => ltrim($username, '0')])->one();
 
-        if(empty($user)) {
+        if (empty($user)) {
             return false;
         }
 
@@ -212,11 +216,11 @@ class User extends ActiveRecord implements IdentityInterface
         $passwordMaker = '1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcefghijklmnopqrstuvwxyz-*/_$#()&!+';
         $plainPassword = substr(str_shuffle($passwordMaker), 0, 8);
 
-        try{
+        try {
             $hashPassword = Yii::$app->getSecurity()->generatePasswordHash($plainPassword);
-        }catch(Exception $ex){
+        } catch (Exception $ex) {
             $message = 'Failed to generate password hash.';
-            if(YII_ENV_DEV){
+            if (YII_ENV_DEV) {
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new Exception($message);

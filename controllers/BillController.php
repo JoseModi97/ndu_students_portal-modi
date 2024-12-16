@@ -50,26 +50,43 @@ final class BillController extends BaseController
             ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
             ->asArray()->one()['registration_number'];
 
-        $billStudent = new BillStudent(new StudentToBill($regNumber));
+//        $billStudent = new BillStudent(new StudentToBill($regNumber)); @todo uncomment remove when active
         $timetableIds = [];
 
         // For now, we only bill semester and (admin + course) registration fees
         // When no course is passed in, we know to raise for semester registration fees
         // Else raise for course registration
+
+        $payableFees = [
+            'adminFees' => [
+                'items' => [
+                    [
+                        'desc' => 'ADMIN AND/OR COURSE FEES - ** WILL NOT BE CHARGED. MODULE NOT YET ACTIVE **',
+                        'amount' => 0 // Amount charged for this fee item
+                    ]
+                ],
+                'total' => 0 // Total amount charged for the admin fees items
+            ],
+            'total' => 0 // Grand total
+        ];
+
         if (empty($marksheets)) {
             $invoiceFor = 'semesterRegistration';
-            $payableFees = [
-                'adminFees' => [
-                    'items' => [
-                        [
-                            'desc' => AdminFee::REGISTRATION_FEES->value,
-                            'amount' => 1000 // Amount charged for this fee item
-                        ]
-                    ],
-                    'total' => 1000 // Total amount charged for the admin fees items
-                ],
-                'total' => 1000 // Grand total
-            ];
+
+            // @todo uncomment below when active
+
+//            $payableFees = [
+//                'adminFees' => [
+//                    'items' => [
+//                        [
+//                            'desc' => AdminFee::REGISTRATION_FEES->value,
+//                            'amount' => 1000 // Amount charged for this fee item
+//                        ]
+//                    ],
+//                    'total' => 1000 // Total amount charged for the admin fees items
+//                ],
+//                'total' => 1000 // Grand total
+//            ];
         } else {
             $invoiceFor = 'courseRegistration';
 
@@ -100,12 +117,15 @@ final class BillController extends BaseController
                 ];
             }
 
-            $payableFees = $billStudent->payableFees($coursesToBill);
+            // @todo uncomment below when active
+//            $payableFees = $billStudent->payableFees($coursesToBill);
         }
 
-        $feeItems = $billStudent->detailedFeeItemsToBill($payableFees);
+//        $feeItems = $billStudent->detailedFeeItemsToBill($payableFees); @todo uncomment remove when active
+        $feeItems = $this->detailedFeeItemsToBill($payableFees); // @todo remove when active
 
-        $transactions = $billStudent->totalTransactions();
+//        $transactions = $billStudent->totalTransactions(); @todo uncomment remove when active
+        $transactions = null; // @todo remove when active
 
         return $this->render('invoice', [
             'title' => 'smis - invoice',
@@ -115,5 +135,26 @@ final class BillController extends BaseController
             'feeItems' => $feeItems,
             'balance' => (!$transactions) ? 0 : $transactions['credits'] - $transactions['debits']
         ]);
+    }
+
+    private function detailedFeeItemsToBill(array $payableFees): array
+    {
+        /**
+         * Billing is done in two or three steps:
+         * First, we bill the admin (semester registration) fees
+         * Second, we bill admin + course (units/tuition) fees during course registration
+         * Third, we may bill follow-up course registration
+         */
+        $adminFeesItems = [];
+        $courseFeesItems = [];
+        if (array_key_exists('adminFees', $payableFees) && !empty($payableFees['adminFees'])) {
+            $adminFeesItems = array_merge($payableFees['adminFees']['items']);
+        }
+
+        if (array_key_exists('courseFees', $payableFees) && !empty($payableFees['courseFees'])) {
+            $courseFeesItems = array_merge($payableFees['courseFees']['items']);
+        }
+
+        return array_merge($adminFeesItems, $courseFeesItems);
     }
 }

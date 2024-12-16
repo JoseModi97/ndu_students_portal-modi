@@ -131,9 +131,10 @@ $this->title = $title;
                         if(empty($courseReg)){
                             return '';
                         }else{
-                            $classGroup = ClassGroup::find()->select(['class_description'])
-                                ->where(['class_code' => $courseReg['class_code']])->asArray()->one();
-                            return strtoupper($classGroup['class_description']);
+                            return 'GROUP 1';
+//                            $classGroup = ClassGroup::find()->select(['class_description'])
+//                                ->where(['class_code' => $courseReg['class_code']])->asArray()->one();
+//                            return strtoupper($classGroup['class_description']);
                         }
                     }
                 ];
@@ -142,9 +143,12 @@ $this->title = $title;
                     'vAlign' => 'middle',
                     'format' => 'raw',
                     'value' => function($model) use($studentSemesterSessionId) {
+                        $regNumber = \app\models\StudentProgCurriculum::find()->select(['registration_number'])
+                            ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])->asArray()->one();
+
                         $courseReg = CourseRegistration::find()->select(['course_reg_status_id'])->where([
-                            'student_semester_session_id' => $studentSemesterSessionId,
-                            'timetable_id' => $model['timetable_id']
+                            'timetable_id' => $model['timetable_id'],
+                            'registration_number' => $regNumber
                         ])->asArray()->one();
 
                         if (empty($courseReg)) {
