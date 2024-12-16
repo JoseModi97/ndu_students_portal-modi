@@ -54,7 +54,7 @@ AppAsset::register($this);
                 <li class="nav-item">
                     <a id="report-to-session" class="nav-link btn btn-success"
                        href="<?= Url::to(['/bill/raise-invoice']);?>">
-                        <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
+                        <i class="nav-icon fa fa-calendar-check" aria-hidden="true"></i>
                         Report to session
                     </a>
                 </li>

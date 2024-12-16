@@ -131,12 +131,9 @@ class SiteController extends BaseController
             }
 
             // @todo remove after testing
-            if ($model->username === '231610') {
+            if ($model->username === '231630') {
                 // NR605/0001/2022
                 $model->username = '5293';
-            } elseif ($model->username === '231630') {
-                // NR605/0002/2022
-                $model->username = '5294';
             }
 
             $user = User::findByUsername($model->username);

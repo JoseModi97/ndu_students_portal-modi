@@ -3,6 +3,7 @@
  * @author Rufusy Idachi <idachirufus@gmail.com>
  */
 
+use app\helpers\SmisHelper;
 use yii\helpers\Url;
 
 ?>
@@ -30,6 +31,16 @@ use yii\helpers\Url;
                         <p>Home</p>
                     </a>
                 </li>
+                <?php // @todo revert and check for truthy after testing
+                if (!SmisHelper::studentHasAvailableSessionToJoin()):?>
+                    <li class="nav-item">
+                        <a id="report-to-session" class="nav-link"
+                           href="<?= Url::to(['/bill/raise-invoice']);?>">
+                            <i class="nav-icon fa fa-calendar-check" aria-hidden="true"></i>
+                            Report to session
+                        </a>
+                    </li>
+                <?php endif; ?>
                 <li class="nav-item">
                     <a href="<?= Url::to(['/account/index']); ?>" class="nav-link">
                         <i class="nav-icon fa fa-cog" aria-hidden="true"></i>
@@ -68,20 +79,26 @@ use yii\helpers\Url;
                 <?php endif; ?>
                 <li class="nav-item">
                     <a href="<?= Url::to(['/sm-withdrawal-request']); ?>" class="nav-link">
-                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <i class="nav-icon fa fa-pause" aria-hidden="true"></i>
                         <p>Deferment</p>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="<?= Url::to(['/courses']); ?>" class="nav-link">
-                        <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
+                        <i class="nav-icon fa fa-clipboard-list" aria-hidden="true"></i>
                         <p>Course Registration</p>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="<?= Url::to(['/results']); ?>" class="nav-link">
-                        <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
+                        <i class="nav-icon fa fa-poll" aria-hidden="true"></i>
                         <p>Results</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= Url::to(['/site/logout']); ?>">
+                        <i class="nav-icon fa fa-sign-out" aria-hidden="true"></i>
+                        sign out
                     </a>
                 </li>
             </ul>

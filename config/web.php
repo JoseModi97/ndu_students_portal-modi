@@ -38,7 +38,7 @@ $config = [
         ],
         'ldapAuth' => [
             'class' => 'app\components\LdapAuth',
-            'host' => 'dc1.ad.uonbi.ac.ke',
+            'host' => '41.89.93.194',
             'port' => 389,
             'protocol' => 'ldap://',
             'baseDn' => 'DC=AD,DC=UONBI,DC=AC,DC=KE',

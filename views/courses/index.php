@@ -131,9 +131,10 @@ $this->title = $title;
                         if(empty($courseReg)){
                             return '';
                         }else{
-                            $classGroup = ClassGroup::find()->select(['class_description'])
-                                ->where(['class_code' => $courseReg['class_code']])->asArray()->one();
-                            return strtoupper($classGroup['class_description']);
+                            return 'GROUP 1';
+//                            $classGroup = ClassGroup::find()->select(['class_description'])
+//                                ->where(['class_code' => $courseReg['class_code']])->asArray()->one();
+//                            return strtoupper($classGroup['class_description']);
                         }
                     }
                 ];

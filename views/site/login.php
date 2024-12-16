@@ -48,7 +48,8 @@ $this->title = $title;
                         'type' => 'password',
                         'class' => 'form-control'
                     ])
-                    ->label('Password', ['class' => 'required-control-label']);
+                    ->label('Password', ['class' => 'required-control-label'])
+                    ->hint('Type in your AD portal password', ['id' => 'password-hint', 'tag' => 'small', 'class' => 'text-muted']);
                 ?>
 
                 <div class="row">
@@ -59,11 +60,6 @@ $this->title = $title;
 
                 <?php ActiveForm::end(); ?>
 
-                <p class="mb-1" style="margin-top: 20px;">
-                    <?php
-                    echo Html::a('I forgot my password', ['/site/forgot-password'], ['title' => 'I forgot my password', 'class' => 'btn-link']);
-                    ?>
-                </p>
             </div>
         </div>
         <!-- /.login-card-body -->
