@@ -8,6 +8,7 @@ namespace app\controllers;
 use app\helpers\SmisHelper;
 use app\models\ForgotPasswordForm;
 use app\models\LoginForm;
+use app\models\StudentProgCurriculum;
 use app\models\User;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
@@ -136,7 +137,10 @@ class SiteController extends BaseController
                 $model->username = '5293';
             }
 
-            $user = User::findByUsername($model->username);
+            $studentProgCurr = StudentProgCurriculum::find()->select(['adm_refno'])
+                ->where(['registration_number' => $model->username])->asArray()->one();
+
+            $user = User::findByUsername($studentProgCurr['adm_refno']);
 
             if (!$user) {
                 return $this->incorrectCredentialsMessage();

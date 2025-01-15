@@ -41,7 +41,7 @@ $this->title = $title;
                 echo $form->field($model, 'username')
                     ->textInput(['class' => 'form-control'])
                     ->label('Username', ['class' => 'required-control-label'])
-                    ->hint('Type in your registration/admission reference number', ['id' => 'username-hint', 'tag' => 'small', 'class' => 'text-muted']);
+                    ->hint('Type in your registration number', ['id' => 'username-hint', 'tag' => 'small', 'class' => 'text-muted']);
 
                 echo $form->field($model, 'password')
                     ->textInput([
