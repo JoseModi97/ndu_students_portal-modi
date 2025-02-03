@@ -489,13 +489,14 @@ final class CoursesController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try {
             $post = Yii::$app->request->post();
-            $payableFess = json_decode($post['payableFees'], true);
-            $timetableIds = json_decode($post['timetableIds'], true);
+            $timetableIds = $post['timetableIds']; // @todo remove when billing
+
+//            $payableFess = json_decode($post['payableFees'], true); // @todo return when billing
+//            $timetableIds = json_decode($post['timetableIds'], true); // @todo return when billing
 
             /**
              * Bill admin and course units fees
              */
-
             // @todo uncomment below when active
 
 //            $regNumber = StudentProgCurriculum::find()->select('registration_number')

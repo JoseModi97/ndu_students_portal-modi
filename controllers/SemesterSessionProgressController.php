@@ -50,7 +50,7 @@ final class SemesterSessionProgressController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try {
             $studentSemSessProgress = SmisHelper::studentHasAvailableSessionToJoin();
-            if (!empty($studentSemSessProgress)) { // @todo revert to empty() after testing check for truthy
+            if (empty($studentSemSessProgress)) {
                 $this->setFlash('danger', 'Semester session', 'No active session was found for you to join.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
@@ -74,23 +74,21 @@ final class SemesterSessionProgressController extends BaseController
             /**
              * Register student in the session
              */
-            // @todo uncomment after testing
-//            $studentSemSessProgress = SmisHelper::studentHasAvailableSessionToJoin();
-//            $semSessProgressId = $studentSemSessProgress['student_semester_session_id'];
-//            $studentSemSessProgress = StudentSemesterSessionProgress::findOne($semSessProgressId);
-//            $studentSemSessProgress->registration_date = SmisHelper::formatDate('now', 'Y-m-d');
-//            $studentSemSessProgress->reporting_sync_status = false;
-//            $studentSemSessProgress->promotion_status = 'PROMOTED';
-//            if (!$studentSemSessProgress->save()) {
-//                if (!$studentSemSessProgress->validate()) {
-//                    $errorMessage = SmisHelper::getModelErrors($studentSemSessProgress->getErrors());
-//                    throw new Exception($errorMessage);
-//                } else {
-//                    throw new Exception('Student semester session progress was not saved.');
-//                }
-//            }
+            $semSessProgressId = $studentSemSessProgress['student_semester_session_id'];
+            $studentSemSessProgress = StudentSemesterSessionProgress::findOne($semSessProgressId);
+            $studentSemSessProgress->registration_date = SmisHelper::formatDate('now', 'Y-m-d');
+            $studentSemSessProgress->reporting_sync_status = false;
+            $studentSemSessProgress->promotion_status = 'PROMOTED';
+            if (!$studentSemSessProgress->save()) {
+                if (!$studentSemSessProgress->validate()) {
+                    $errorMessage = SmisHelper::getModelErrors($studentSemSessProgress->getErrors());
+                    throw new Exception($errorMessage);
+                } else {
+                    throw new Exception('Student semester session progress was not saved.');
+                }
+            }
 
-            $transaction->rollBack(); // @todo revert to commit after testing
+            $transaction->commit();
             $this->setFlash('success', 'Semester session', 'You have reported to a session successfully.');
             return $this->redirect(Yii::$app->homeUrl);
         } catch (Exception $ex) {
