@@ -75,7 +75,8 @@ class BaseController extends Controller
                         $profileComplete = false;
                     } elseif (empty($identity->blood_group)) {
                         $profileComplete = false;
-                    } elseif (empty($identity->date_of_birth)) {
+                    } elseif (empty($identity->date_of_birth) ||
+                        !in_array($identity->blood_group, ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'])) {
                         $profileComplete = false;
                     } elseif (strtolower($identity->nationality) === 'kenyan' && empty($identity->national_id)) {
                         // For Kenyans, passport is optional. National ID is mandatory.

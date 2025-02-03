@@ -144,6 +144,7 @@ class SiteController extends BaseController
 //            $primaryEmail = 'irene.adhiambo@niruc.ac.ke';
 
             // This email must match one in the AD
+            $primaryEmail = $model->username; // @todo remove this after all students have been created proper emails
             $user = User::findByUsername($primaryEmail);
 
             if (!$user) {
