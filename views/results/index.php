@@ -123,6 +123,11 @@ $this->title = $title;
                         return $cr['courseRegistrationType']['course_reg_type_code'];
                     }
                 ];
+                $finalCol = [
+                    'attribute' => 'final_mark',
+                    'label' => 'FINAL MARK',
+                    'vAlign' => 'middle'
+                ];
                 $gradeCol = [
                     'attribute' => 'grade',
                     'label' => 'GRADE',
@@ -135,6 +140,7 @@ $this->title = $title;
                     $codeCol,
                     $nameCol,
                     $examTypeCol,
+                    $finalCol,
                     $gradeCol
                 ];
 

@@ -45,7 +45,8 @@ class ResultsSearch extends StudentCourse
             ->select([
                 'sc.student_courses_id',
                 'sc.mrksheet_id',
-                'sc.grade'
+                'sc.grade',
+                'sc.final_mark'
             ])
             ->where(['like', 'sc.course_registration_id', $regNumber . '%', false])
             ->joinWith(['programmeCurriculumTimetable pct' => function(ActiveQuery $q){
