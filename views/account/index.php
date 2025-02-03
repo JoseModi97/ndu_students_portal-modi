@@ -16,7 +16,7 @@ $this->title = $title;
 <!-- Content Header (Page header) -->
 <div class="content-header">
     <div class="page-header">
-        <h1>Account  <i class="fa fa-angle-right" aria-hidden="true"></i>  Account Details</h1>
+        <h1>Account  <i class="fa fa-angle-right" aria-hidden="true"></i> Details</h1>
     </div>
 </div>
 <!-- /.content-header -->

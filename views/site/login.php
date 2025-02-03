@@ -60,6 +60,11 @@ $this->title = $title;
 
                 <?php ActiveForm::end(); ?>
 
+                <p class="mb-1" style="margin-top: 20px;">
+                    <a href="<?=Yii::$app->params['changePasswordUrl']?>" class="btn-link" target="_blank">
+                        I forgot my password</a>
+                </p>
+
             </div>
         </div>
         <!-- /.login-card-body -->

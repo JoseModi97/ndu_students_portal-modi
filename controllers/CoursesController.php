@@ -12,24 +12,19 @@ use app\models\AcademicLevel;
 use app\models\AcademicProgress;
 use app\models\AcademicSession;
 use app\models\AcademicSessionSemester;
-use app\models\AdmittedStudent;
-use app\models\Course;
 use app\models\CourseRegistration;
 use app\models\CourseRegistrationStatus;
 use app\models\CourseRegistrationType;
 use app\models\Marksheet;
 use app\models\ProgCurrSemester;
 use app\models\ProgCurrSemesterGroup;
-use app\models\ProgrammeCurriculumCourse;
 use app\models\ProgrammeCurriculumLectureTimetable;
 use app\models\ProgrammeCurriculumTimetable;
 use app\models\Programmes;
 use app\models\Room;
 use app\models\Student;
 use app\models\StudentProgCurriculum;
-use app\models\StudentSemesterSessionProgress;
 use app\services\BillStudent;
-use app\services\StudentToBill;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use kartik\mpdf\Pdf;
@@ -37,7 +32,6 @@ use Throwable;
 use Yii;
 use yii\data\ArrayDataProvider;
 use yii\db\ActiveQuery;
-use yii\db\ActiveRecord;
 use yii\filters\AccessControl;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -80,6 +74,20 @@ final class CoursesController extends BaseController
                 ],
             ],
         ];
+    }
+
+    public function beforeAction($action): bool
+    {
+        if (parent::beforeAction($action)) {
+            if ($action->id == 'index') {
+                if (Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS) {
+                    $this->redirect(['/home']);
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

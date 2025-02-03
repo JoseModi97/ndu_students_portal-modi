@@ -178,18 +178,8 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findByUsername(string $username): bool|array|ActiveRecord|null
     {
-        if (str_contains($username, '/')) {
-            $studentProg = StudentProgramme::find()->select(['adm_refno'])->where(['registration_number' => $username])
-                ->asArray()->one();
-
-            if (empty($studentProg)) {
-                return false;
-            }
-
-            $username = $studentProg['adm_refno'];
-        }
-
-        $user = self::find()->where(['adm_refno' => ltrim($username, '0')])->one();
+        // This email must match one in the AD
+        $user = self::find()->where(['primary_email' => $username])->one();
 
         if (empty($user)) {
             return false;

@@ -87,3 +87,15 @@ $.validator.addMethod("passwordStrength", function (value, element) {
     // }
     return false;
 });
+
+$.validator.addMethod("digitsOnly", function (value, element) {
+    return this.optional(element) || /^[0-9]+$/.test(value);
+}, "Only digits are allowed.");
+
+$.validator.addMethod("lettersOnly", function (value, element) {
+    return this.optional(element) || /^[A-Za-z]+$/.test(value);
+}, "Only letters are allowed.");
+
+$.validator.addMethod("universityEmail", function(value, element) {
+    return this.optional(element) || /^[a-zA-Z0-9._%+-]+@ndu\.ac\.ke$/.test(value);
+}, "Primary email must be a university email (@ndu.ac.ke)");

@@ -27,7 +27,7 @@
                         </p>
 
                         <p style="font-size: 16px; line-height: 1.625; color: #51545E; margin: .4em 0 1.1875em;">
-                            Congratulations for submitting all the requirements for your registration into the University of Nairobi.
+                            Congratulations for submitting all the requirements for your registration into the National Defence University-Kenya.
                             Your documents shall be reviewed internally, and you will be informed of the next steps upon the completion of this review.
                             You should receive feedback on this process within 48 hours.
                         </p>

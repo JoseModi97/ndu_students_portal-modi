@@ -50,7 +50,7 @@ final class SemesterSessionProgressController extends BaseController
         $transaction = Yii::$app->db->beginTransaction();
         try {
             $studentSemSessProgress = SmisHelper::studentHasAvailableSessionToJoin();
-            if (!empty($studentSemSessProgress)) { // @todo revert to empty() after testing
+            if (!empty($studentSemSessProgress)) { // @todo revert to empty() after testing check for truthy
                 $this->setFlash('danger', 'Semester session', 'No active session was found for you to join.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
             }
