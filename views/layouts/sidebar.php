@@ -38,7 +38,7 @@ use yii\helpers\Url;
                 if (SmisHelper::studentHasAvailableSessionToJoin()):?>
                     <li class="nav-item">
                         <a id="report-to-session" class="nav-link"
-                           href="<?= Url::to(['/bill/raise-invoice']); ?>">
+                           href="<?= Url::to(['/semester-session-progress/join-session']); ?>">
                             <i class="nav-icon fa fa-calendar-check" aria-hidden="true"></i>
                             Report to session
                         </a>
