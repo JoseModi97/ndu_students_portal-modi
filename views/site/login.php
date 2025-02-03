@@ -41,7 +41,7 @@ $this->title = $title;
                 echo $form->field($model, 'username')
                     ->textInput(['class' => 'form-control'])
                     ->label('Username', ['class' => 'required-control-label'])
-                    ->hint('Type in your registration/admission reference number', ['id' => 'username-hint', 'tag' => 'small', 'class' => 'text-muted']);
+                    ->hint('Type in your registration number', ['id' => 'username-hint', 'tag' => 'small', 'class' => 'text-muted']);
 
                 echo $form->field($model, 'password')
                     ->textInput([
@@ -59,6 +59,11 @@ $this->title = $title;
                 </div>
 
                 <?php ActiveForm::end(); ?>
+
+                <p class="mb-1" style="margin-top: 20px;">
+                    <a href="<?=Yii::$app->params['changePasswordUrl']?>" class="btn-link" target="_blank">
+                        I forgot my password</a>
+                </p>
 
             </div>
         </div>

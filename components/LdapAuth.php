@@ -13,22 +13,6 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
 {
     /**
      * @param string $username
-     * @return string|bool
-     * @throws Yii2LdapAuthException
-     */
-    private function findUserDn(string $username): string|bool
-    {
-        $entry = $this->searchUid($username);
-
-        if (!$entry) {
-            return false;
-        }
-
-        return $entry['distinguishedname'][0];
-    }
-
-    /**
-     * @param string $username
      * @param string $password
      * @param string|null $group
      *
@@ -37,7 +21,7 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
      */
     public function authenticate(string $username, string $password, ?string $group = null): bool
     {
-        $dn = $this->findUserDn($username);
+        $dn = $this->findUserEntry($username)['dn'];
 
         if (!@ldap_bind($this->getConnection(), $dn, $password)) {
             return false;
@@ -51,6 +35,27 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
     }
 
     /**
+     * @param string $username
+     * @return array|bool
+     * @throws Yii2LdapAuthException
+     */
+    public function findUserEntry(string $username): array|bool
+    {
+        $entry = $this->searchUid($username);
+
+        if (!$entry) {
+            return false;
+        }
+
+        $email = $entry['mail'][0] ?? null;
+
+        return [
+            'dn' => $entry['distinguishedname'][0],
+            'email' => $email
+        ];
+    }
+
+    /**
      * @param string $uid
      *
      * @return array|null Data from LDAP or null
@@ -61,6 +66,7 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
         $uid = str_replace(['/', '\\'], '', $uid);
 
         $filter = "(CN=$uid)";
+//        $filter = "(samaccountname=$uid)";
 
         $result = ldap_search(
             $this->getConnection(),

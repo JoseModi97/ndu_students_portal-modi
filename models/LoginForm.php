@@ -20,6 +20,12 @@ class LoginForm extends Model
         return [
             [['username', 'password'], 'required'],
             [['username', 'password'], 'trim'],
+            [
+                'username',
+                'match',
+                'pattern' => '/^[a-zA-Z0-9]+\/[a-zA-Z0-9]+\/[0-9]{4}$/',
+                'message' => 'Registration must be correct and in the format XX/0000/2022.',
+            ],
         ];
     }
 }

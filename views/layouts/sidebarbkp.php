@@ -56,6 +56,24 @@ use yii\helpers\Url;
                 if (Yii::$app->user->identity->admission_status === 'REGISTERED'):
                     ?>
                     <li class="nav-item">
+                        <a href="<?= Url::to(['/account/list-name-change']); ?>" class="nav-link">
+                            <i class="nav-icon fas fa-edit" aria-hidden="true"></i>
+                            <p>Name change</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="<?= Url::to(['/student-id']); ?>" class="nav-link">
+                            <i class="nav-icon fa fa-id-card" aria-hidden="true"></i>
+                            <p>Student ID</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="<?= Url::to(['/sm-withdrawal-request']); ?>" class="nav-link">
+                            <i class="nav-icon fa fa-pause" aria-hidden="true"></i>
+                            <p>Deferment</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="<?= Url::to(['/courses']); ?>" class="nav-link">
                             <i class="nav-icon fa fa-clipboard-list" aria-hidden="true"></i>
                             <p>Course Registration</p>

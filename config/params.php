@@ -20,5 +20,6 @@ return [
     'accessibleActionsIfProfileIncomplete' => [
         'error',
         'logout',
-    ]
+    ],
+    'changePasswordUrl' => 'http://adpassreset.ndu.ac.ke/'
 ];

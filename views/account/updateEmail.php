@@ -64,6 +64,7 @@ if(!empty($user->alternative_email) && !empty($secondaryEmailVerifiedDate)){
                         </label>
                         <div class="col-sm-5 col-md-5 col-lg-5">
                             <input type="email" class="form-control profile-email" id="primary-email" name="primaryEmail" value="<?=$user->primary_email?>" required>
+                            <small class="text-info">This MUST match the email in your AD account</small>
                             <?php if(!empty($user->primary_email) && empty($primaryEmailVerifiedDate)):?>
                                 <small class="text-danger">Not verified</small>
                             <?php elseif(!empty($user->primary_email) && !empty($primaryEmailVerifiedDate)):?>

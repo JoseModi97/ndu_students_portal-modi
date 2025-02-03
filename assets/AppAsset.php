@@ -29,8 +29,8 @@ class AppAsset extends AssetBundle
         'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css',
         // iCheck
         'https://cdnjs.cloudflare.com/ajax/libs/icheck-bootstrap/3.0.1/icheck-bootstrap.min.css',
-        // Datetimepicker
-        'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/css/bootstrap-datetimepicker.min.css',
+        // Datepicker
+        'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css',
         // Theme style
         'https://cdn.jsdelivr.net/npm/admin-lte@3.1/dist/css/adminlte.min.css',
         // Daterange picker
@@ -64,8 +64,8 @@ class AppAsset extends AssetBundle
         // Jquery validation
         'https://cdn.jsdelivr.net/npm/jquery-validation@1.19.3/dist/jquery.validate.min.js',
         'https://cdn.jsdelivr.net/npm/jquery-validation@1.19.3/dist/additional-methods.min.js',
-        // Datetimepicker
-        'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js',
+        // Date
+        'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js',
         // Aos
         'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js',
         // Toastr

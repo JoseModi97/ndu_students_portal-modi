@@ -5,11 +5,9 @@
 
 namespace app\models;
 
-use app\helpers\SmisHelper;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use Yii;
-use yii\base\InvalidArgumentException;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
@@ -178,23 +176,19 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findByUsername(string $username): bool|array|ActiveRecord|null
     {
-        if (str_contains($username, '/')) {
-            $studentProg = StudentProgramme::find()->select(['adm_refno'])->where(['registration_number' => $username])
-                ->asArray()->one();
-
-            if (empty($studentProg)) {
-                return false;
-            }
-
-            $username = $studentProg['adm_refno'];
-        }
-
-        $user = self::find()->where(['adm_refno' => ltrim($username, '0')])->one();
-
-        if (empty($user)) {
+        // @todo remove this after students have proper emails in the AD
+        $studentProg = StudentProgCurriculum::find()->select(['adm_refno'])->where(['registration_number' => $username])
+            ->asArray()->one();
+        $username = User::findOne($studentProg['adm_refno'])->primary_email;
+        if (empty($username)) {
             return false;
         }
 
+        // This email must match one in the AD
+        $user = self::find()->where(['primary_email' => $username])->one();
+        if (empty($user)) {
+            return false;
+        }
         return $user;
     }
 
