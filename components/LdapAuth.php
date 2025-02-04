@@ -21,6 +21,12 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
      */
     public function authenticate(string $username, string $password, ?string $group = null): bool
     {
+        $entry = $this->findUserEntry($username);
+
+        if (empty($entry)) {
+            return false;
+        }
+
         $dn = $this->findUserEntry($username)['dn'];
 
         if (!@ldap_bind($this->getConnection(), $dn, $password)) {
@@ -43,7 +49,7 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
     {
         $entry = $this->searchUid($username);
 
-        if (!$entry) {
+        if (empty($entry)) {
             return false;
         }
 
