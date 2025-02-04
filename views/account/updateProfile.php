@@ -293,8 +293,7 @@ if (nationality === 'kenyan') {
         digitsOnly: true
     };
     validationRules['passportNumber'] = {
-        required: false,
-        digitsOnly: true
+        required: false
     };
 } else {
    validationRules['nationalIdNumber'] = {
@@ -302,8 +301,7 @@ if (nationality === 'kenyan') {
         digitsOnly: true
     };
     validationRules['passportNumber'] = {
-        required: true,
-        digitsOnly: true
+        required: true
     };
 }
 
