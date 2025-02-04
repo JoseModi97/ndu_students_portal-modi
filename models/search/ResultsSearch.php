@@ -46,9 +46,11 @@ class ResultsSearch extends StudentCourse
                 'sc.student_courses_id',
                 'sc.mrksheet_id',
                 'sc.grade',
-                'sc.final_mark'
+                'sc.final_mark',
+                'sc.examtype_code'
             ])
             ->where(['like', 'sc.course_registration_id', $regNumber . '%', false])
+            ->andWhere(['not', ['result_status' => 'INVALID']])
             ->joinWith(['programmeCurriculumTimetable pct' => function(ActiveQuery $q){
                 $q->select([
                     'pct.timetable_id',
@@ -74,7 +76,8 @@ class ResultsSearch extends StudentCourse
                 $q->select([
                     'pcsg.prog_curriculum_sem_group_id',
                     'pcsg.prog_curriculum_semester_id',
-                    'pcsg.study_centre_group_id'
+                    'pcsg.study_centre_group_id',
+                    'pcsg.programme_level'
                 ]);
             }], true, 'INNER JOIN')
             ->joinWith(['programmeCurriculumTimetable.programmeCurriculumSemesterGroup.progCurrSemester ps' => function(ActiveQuery $q){
@@ -90,6 +93,12 @@ class ResultsSearch extends StudentCourse
                     'ass.acad_session_id',
                     'ass.semester_code',
                     'ass.acad_session_semester_desc'
+                ]);
+            }], true, 'INNER JOIN')
+            ->joinWith(['programmeCurriculumTimetable.programmeCurriculumSemesterGroup.progCurrSemester.academicSessionSemester.academicSession year' => function(ActiveQuery $q){
+                $q->select([
+                    'year.acad_session_id',
+                    'year.acad_session_name',
                 ]);
             }], true, 'INNER JOIN')
             ->asArray();
@@ -108,7 +117,10 @@ class ResultsSearch extends StudentCourse
             return $dataProvider;
         }
 
-//        $query->orderBy(['nc.name_change_id' => SORT_DESC]);
+        $query->orderBy([
+            'pcsg.programme_level' => SORT_ASC,
+            'ass.semester_code' => SORT_ASC,
+        ]);
 
         return $dataProvider;
     }
