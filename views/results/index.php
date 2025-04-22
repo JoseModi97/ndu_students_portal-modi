@@ -13,14 +13,18 @@
  * @var app\models\search\ResultsSearch $searchModel
  */
 
-use app\models\CourseRegistration;
-use app\models\ProgrammeCurriculumTimetable;
 use app\models\StudentProgCurriculum;
 use kartik\grid\GridView;
-use yii\db\ActiveQuery;
 use yii\web\ServerErrorHttpException;
 
 $this->title = $title;
+
+$studentProg = StudentProgCurriculum::find()->select(['registration_number'])
+    ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
+$exemptMarks = false;
+if (strncmp($studentProg['registration_number'], 'DC', 2) === 0) {
+    $exemptMarks = true;
+}
 ?>
 
 <!-- Content Header (Page header) -->
@@ -90,7 +94,7 @@ $this->title = $title;
                     'vAlign' => 'middle',
                     'group' => true,
                     'value' => function ($model) {
-                        if($model['examtype_code'] == 'SUPP'){
+                        if ($model['examtype_code'] == 'SUPP') {
                             return 'Supp Semester';
                         }
                         return 'Semester ' . $model['programmeCurriculumTimetable']['programmeCurriculumSemesterGroup']['progCurrSemester']
@@ -127,16 +131,28 @@ $this->title = $title;
                     'vAlign' => 'middle'
                 ];
 
-                $gridColumns = [
-                    ['class' => 'kartik\grid\SerialColumn'],
-                    $levelCol,
-                    $semCol,
-                    $codeCol,
-                    $nameCol,
-                    $examTypeCol,
-                    $finalCol,
-                    $gradeCol
-                ];
+                if ($exemptMarks) {
+                    $gridColumns = [
+                        ['class' => 'kartik\grid\SerialColumn'],
+                        $levelCol,
+                        $semCol,
+                        $codeCol,
+                        $nameCol,
+                        $examTypeCol,
+                        $gradeCol
+                    ];
+                } else {
+                    $gridColumns = [
+                        ['class' => 'kartik\grid\SerialColumn'],
+                        $levelCol,
+                        $semCol,
+                        $codeCol,
+                        $nameCol,
+                        $examTypeCol,
+                        $finalCol,
+                        $gradeCol
+                    ];
+                }
 
                 try {
                     echo GridView::widget([

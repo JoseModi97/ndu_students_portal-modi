@@ -177,7 +177,7 @@ class User extends ActiveRecord implements IdentityInterface
     public static function findByUsername(string $username): bool|array|ActiveRecord|null
     {
         // @todo remove this after students have proper emails in the AD
-        $student = Student::find()->select(['student_id'])->where(['student_number' => $username])->one();
+        $student = Student::find()->select(['student_id'])->where(['LIKE', 'student_number', '%' . $username . '%', false])->one();
         $studentProg = StudentProgCurriculum::find()->select(['adm_refno'])->where(['student_id' => $student['student_id']])
             ->asArray()->one();
         $user = self::find()->where(['adm_refno' => $studentProg['adm_refno']])->one();
