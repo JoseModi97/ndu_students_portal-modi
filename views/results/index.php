@@ -13,14 +13,18 @@
  * @var app\models\search\ResultsSearch $searchModel
  */
 
-use app\models\CourseRegistration;
-use app\models\ProgrammeCurriculumTimetable;
 use app\models\StudentProgCurriculum;
 use kartik\grid\GridView;
-use yii\db\ActiveQuery;
 use yii\web\ServerErrorHttpException;
 
 $this->title = $title;
+
+$studentProg = StudentProgCurriculum::find()->select(['registration_number'])
+    ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
+$exemptMarks = false;
+if (strncmp($studentProg['registration_number'], 'DC', 2) === 0) {
+    $exemptMarks = true;
+}
 ?>
 
 <!-- Content Header (Page header) -->
@@ -39,10 +43,12 @@ $this->title = $title;
                 <div class="card card-primary card-outline">
                     <!-- /.card-header -->
                     <div class="card-body">
-                        <div class="bg-warning text-center" style="margin-bottom: 20px; padding: 20px 0;border-radius: .25rem">
+                        <div class="bg-warning text-center"
+                             style="margin-bottom: 20px; padding: 20px 0;border-radius: .25rem">
                             While every effort is made to ensure that details are correct and up-to-date,
                             please reconfirm with your Faculty/School/Institute office in case of any missing unit.
-                            Please note that NOT ALL Faculties, Schools and Institutes have released their results online.
+                            Please note that NOT ALL Faculties, Schools and Institutes have released their results
+                            online.
                         </div>
                     </div>
                     <!-- /.card-body -->
@@ -54,74 +60,70 @@ $this->title = $title;
         <div class="row">
             <div class="col-12">
                 <?php
-                $semesterDesc = [
-                    'label' => 'CODE',
+                // $semesterDesc = [
+                //     'label' => 'CODE',
+                //     'vAlign' => 'middle',
+                //     // 'group' => true,  // enable grouping,
+                //     'groupedRow' => true,                    // move grouped column to a single grouped row
+                //     'groupOddCssClass' => 'kv-grouped-row',  // configure odd group cell css class
+                //     'groupEvenCssClass' => 'kv-grouped-row', // configure even group cell css clas
+                //     'value' => function ($model) {
+                //         return $model['programmeCurriculumTimetable']['programmeCurriculumSemesterGroup']['progCurrSemester']
+                //         ['academicSessionSemester']['acad_session_semester_desc'];
+                //     }
+                // ];
+                $yearCol = [
+                    'label' => 'ACADEMIC YEAR',
                     'vAlign' => 'middle',
-                    'group' => true,  // enable grouping,
-                    'groupedRow' => true,                    // move grouped column to a single grouped row
-                    'groupOddCssClass' => 'kv-grouped-row',  // configure odd group cell css class
-                    'groupEvenCssClass' => 'kv-grouped-row', // configure even group cell css clas
-                    'value' => function($model){
+                    'group' => true,
+                    'value' => function ($model) {
                         return $model['programmeCurriculumTimetable']['programmeCurriculumSemesterGroup']['progCurrSemester']
-                        ['academicSessionSemester']['acad_session_semester_desc'];
+                        ['academicSessionSemester']['academicSession']['acad_session_name'];
+                    }
+                ];
+                $levelCol = [
+                    'label' => 'LEVEL OF STUDY',
+                    'vAlign' => 'middle',
+                    'group' => true,
+                    'value' => function ($model) {
+                        return 'Year ' . $model['programmeCurriculumTimetable']['programmeCurriculumSemesterGroup']['programme_level'];
+                    }
+                ];
+                $semCol = [
+                    'label' => 'SEMESTER',
+                    'vAlign' => 'middle',
+                    'group' => true,
+                    'value' => function ($model) {
+                        if ($model['examtype_code'] == 'SUPP') {
+                            return 'Supp Semester';
+                        }
+                        return 'Semester ' . $model['programmeCurriculumTimetable']['programmeCurriculumSemesterGroup']['progCurrSemester']
+                            ['academicSessionSemester']['semester_code'];
                     }
                 ];
                 $codeCol = [
                     'label' => 'CODE',
                     'vAlign' => 'middle',
-                    'value' => function($model){
+                    'value' => function ($model) {
                         return $model['programmeCurriculumTimetable']['programmeCurriculumCourse']['course']['course_code'];
                     }
                 ];
                 $nameCol = [
                     'label' => 'NAME',
                     'vAlign' => 'middle',
-                    'value' => function($model){
+                    'value' => function ($model) {
                         return $model['programmeCurriculumTimetable']['programmeCurriculumCourse']['course']['course_name'];
                     }
                 ];
                 $examTypeCol = [
+                    'attribute' => 'examtype_code',
                     'label' => 'EXAM TYPE',
                     'vAlign' => 'middle',
-                    'value' => function($model) use ($studProgCurriculumId){
-                        $timetable = ProgrammeCurriculumTimetable::find()
-                            ->select(['timetable_id'])
-                            ->where(['mrksheet_id' => $model['mrksheet_id']])
-                            ->asArray()->one();
-
-                        $timetableId = $timetable['timetable_id'];
-
-                        $cr = CourseRegistration::find()->alias('cr')
-                            ->select([
-                                'cr.timetable_id',
-                                'cr.course_registration_type_id',
-                                'cr.student_semester_session_id'
-                            ])
-                            ->where(['cr.timetable_id' => $timetableId])
-                            ->joinWith(['courseRegistrationType ct' => function(ActiveQuery $q){
-                                $q->select([
-                                    'ct.course_reg_type_id',
-                                    'ct.course_reg_type_code'
-                                ]);
-                            }],true, 'INNER JOIN')
-                            ->joinWith(['semesterSessionProgress ssp' => function(ActiveQuery $q){
-                                $q->select([
-                                    'ssp.student_semester_session_id',
-                                    'ssp.academic_progress_id'
-                                ]);
-                            }], true, 'INNER JOIN')
-                            ->joinWith(['semesterSessionProgress.academicProgress ap' => function(ActiveQuery $q){
-                                $q->select([
-                                    'ap.academic_progress_id',
-                                ]);
-                            }], true, 'INNER JOIN')
-                            ->andWhere(['ap.student_prog_curriculum_id' => $studProgCurriculumId])
-                            ->asArray()->one();
-                        if(empty($cr)){
-                            return '--';
-                        }
-                        return $cr['courseRegistrationType']['course_reg_type_code'];
-                    }
+                ];
+                $finalCol = [
+                    'attribute' => 'final_mark',
+                    'label' => 'FINAL MARK',
+                    'vAlign' => 'middle'
                 ];
                 $gradeCol = [
                     'attribute' => 'grade',
@@ -129,16 +131,30 @@ $this->title = $title;
                     'vAlign' => 'middle'
                 ];
 
-                $gridColumns = [
-                    ['class' => 'kartik\grid\SerialColumn'],
-                    $semesterDesc,
-                    $codeCol,
-                    $nameCol,
-                    $examTypeCol,
-                    $gradeCol
-                ];
+                if ($exemptMarks) {
+                    $gridColumns = [
+                        ['class' => 'kartik\grid\SerialColumn'],
+                        $levelCol,
+                        $semCol,
+                        $codeCol,
+                        $nameCol,
+                        $examTypeCol,
+                        $gradeCol
+                    ];
+                } else {
+                    $gridColumns = [
+                        ['class' => 'kartik\grid\SerialColumn'],
+                        $levelCol,
+                        $semCol,
+                        $codeCol,
+                        $nameCol,
+                        $examTypeCol,
+                        $finalCol,
+                        $gradeCol
+                    ];
+                }
 
-                try{
+                try {
                     echo GridView::widget([
                         'id' => 'register-for-courses-grid',
                         'dataProvider' => $dataProvider,
@@ -160,9 +176,9 @@ $this->title = $title;
                         'itemLabelSingle' => 'course',
                         'itemLabelPlural' => 'courses',
                     ]);
-                }catch (Throwable $ex) {
+                } catch (Throwable $ex) {
                     $message = $ex->getMessage();
-                    if(YII_ENV_DEV) {
+                    if (YII_ENV_DEV) {
                         $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
                     }
                     throw new ServerErrorHttpException($message, 500);

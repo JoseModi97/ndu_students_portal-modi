@@ -121,10 +121,10 @@ class AccountController extends BaseController
 
         $profile->passport_no = $post['passportNumber'];
         if ($profile instanceof User) { // Admitted students
-            $profile->national_id = $post['nationalIdNumber'];
+            $profile->national_id = $post['nationalIdNumber'] ?? null;
             $profile->birth_cert_no = $post['birthCertificateNumber'];
         } else { // Registered students
-            $profile->id_no = $post['nationalIdNumber'];
+            $profile->id_no = $post['nationalIdNumber'] ?? null;
         }
 
         $profile->primary_phone_no = $post['primaryPhone'];
