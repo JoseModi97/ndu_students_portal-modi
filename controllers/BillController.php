@@ -46,9 +46,16 @@ final class BillController extends BaseController
      */
     public function actionRaiseInvoice(string $marksheets = null): string
     {
-        $regNumber = StudentProgCurriculum::find()->select('registration_number')
+        $studentProgramme = StudentProgCurriculum::find()->select('registration_number')
             ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
-            ->asArray()->one()['registration_number'];
+            ->asArray()
+            ->one();
+
+        if (empty($studentProgramme['registration_number'])) {
+            throw new NotFoundHttpException('Registration number not found for the logged in student.');
+        }
+
+        $regNumber = $studentProgramme['registration_number'];
 
 //        $billStudent = new BillStudent(new StudentToBill($regNumber)); @todo uncomment remove when active
         $timetableIds = [];
@@ -129,6 +136,7 @@ final class BillController extends BaseController
 
         return $this->render('invoice', [
             'title' => 'smis - invoice',
+            'regNumber' => $regNumber,
             'invoiceFor' => $invoiceFor,
             'payableFees' => $payableFees,
             'timetableIds' => $timetableIds,

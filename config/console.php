@@ -6,6 +6,7 @@
 require __DIR__ . '/constants.php';
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
+$smisDb = require __DIR__ . '/smis_db.php';
 
 $config = [
     'id' => 'basic-console',
@@ -30,6 +31,7 @@ $config = [
             ],
         ],
         'db' => $db,
+        'smisDb' => $smisDb,
     ],
     'params' => $params,
     /*

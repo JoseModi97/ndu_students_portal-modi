@@ -7,6 +7,7 @@ use yii\symfonymailer\Mailer;
 
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
+$smisDb = require __DIR__ . '/smis_db.php';
 
 $config = [
     'id' => 'basic',
@@ -75,6 +76,7 @@ $config = [
             ],
         ],
         'db' => $db,
+        'smisDb' => $smisDb,
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
@@ -152,6 +154,7 @@ $config = [
     'params' => $params,
     'modules' => [
         'gridview' => ['class' => 'kartik\grid\Module'],
+        'ecitizen' => ['class' => 'app\modules\ecitizen\Module'],
     ],
 ];
 
