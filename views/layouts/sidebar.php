@@ -51,6 +51,12 @@ use yii\helpers\Url;
                         <p>Account</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= Url::to(['/ecitizen-payment/index']); ?>" class="nav-link">
+                        <i class="nav-icon fa fa-credit-card" aria-hidden="true"></i>
+                        <p>eCitizen Payment</p>
+                    </a>
+                </li>
 
                 <?php // Only accessible to fully registered students
                 if (Yii::$app->user->identity->admission_status === 'REGISTERED'):
