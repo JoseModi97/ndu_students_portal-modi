@@ -105,30 +105,15 @@ $row = [
     'refund_type' => $refundTypeId,
     'payment_method' => $paymentOption,
     'voucher_no' => $voucherNo,
+    'sync_status' => 0, // Explicitly set sync status to pending
 ];
-
-$rowOfficial = $row;
-unset($rowOfficial['payment_method']);
-
-$transactionPortal = Yii::$app->db->beginTransaction();
-$transactionSmis = Yii::$app->smisDb->beginTransaction();
 
 try {
     Yii::$app->db->createCommand()
         ->insert('smisportal.fss_refund_requests', $row)
         ->execute();
     echo "Portal fss_refund_requests record created. Request ID: $requestId\n";
-
-    Yii::$app->smisDb->createCommand()
-        ->insert('smis.fss_refund_requests', $rowOfficial)
-        ->execute();
-    echo "SMIS fss_refund_requests record created.\n";
-
-    $transactionPortal->commit();
-    $transactionSmis->commit();
-    echo "SUCCESS: Application submitted.\n";
+    echo "SUCCESS: Application submitted to Portal. Run sync command to propagate to SMIS.\n";
 } catch (\Throwable $e) {
-    $transactionPortal->rollBack();
-    $transactionSmis->rollBack();
     echo "ERROR: " . $e->getMessage() . "\n";
 }

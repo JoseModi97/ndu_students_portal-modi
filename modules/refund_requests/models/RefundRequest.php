@@ -27,6 +27,9 @@ use yii\db\ActiveRecord;
  * @property float|null $amount_approved
  * @property int $refund_type
  * @property string $payment_method
+ * @property int $sync_status
+ * @property string|null $sync_error
+ * @property string|null $last_synced_at
  *
  * @property Bank $bank
  * @property BankBranch $branch
@@ -53,8 +56,8 @@ class RefundRequest extends ActiveRecord
             [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type', 'payment_method'], 'required'],
             [['payment_method'], 'in', 'range' => ['bank', 'mpesa']],
             [['payment_method'], 'validatePaymentDetails'],
-            [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type'], 'integer'],
-            [['application_date'], 'safe'],
+            [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type', 'sync_status'], 'integer'],
+            [['application_date', 'last_synced_at'], 'safe'],
             [['amount_requested', 'amount_approved'], 'number'],
             [['mobile_no'], 'string', 'max' => 20],
             [['email', 'passport_id'], 'string', 'max' => 100],
@@ -62,6 +65,7 @@ class RefundRequest extends ActiveRecord
             [['account_no'], 'string', 'max' => 50],
             [['account_name'], 'string', 'max' => 120],
             [['declaration_status'], 'string', 'max' => 3],
+            [['sync_error'], 'string'],
             [['declaration_status'], 'compare', 'compareValue' => '1', 'message' => 'You must confirm the declaration before submitting your application.'],
             [['request_id'], 'unique'],
             [['bank_id'], 'exist', 'skipOnError' => true, 'targetClass' => Bank::class, 'targetAttribute' => ['bank_id' => 'brank_id']],
@@ -69,6 +73,22 @@ class RefundRequest extends ActiveRecord
             [['refund_type'], 'exist', 'skipOnError' => true, 'targetClass' => RefundType::class, 'targetAttribute' => ['refund_type' => 'refund_type_id']],
             [['student_prog_curriculum_id'], 'exist', 'skipOnError' => true, 'targetClass' => StudentProgCurriculum::class, 'targetAttribute' => ['student_prog_curriculum_id' => 'student_prog_curriculum_id']],
         ];
+    }
+
+    /**
+     * @param bool $insert
+     * @return bool
+     */
+    public function beforeSave($insert): bool
+    {
+        if (!parent::beforeSave($insert)) {
+            return false;
+        }
+
+        // Reset sync status whenever the record is changed
+        $this->sync_status = 0;
+
+        return true;
     }
 
     public function validatePaymentDetails($attribute, $params): void
@@ -116,6 +136,9 @@ class RefundRequest extends ActiveRecord
             'amount_approved' => 'Amount Approved',
             'refund_type' => 'Refund Type',
             'payment_method' => 'Payment Option',
+            'sync_status' => 'Sync Status',
+            'sync_error' => 'Sync Error',
+            'last_synced_at' => 'Last Synced At',
         ];
     }
 

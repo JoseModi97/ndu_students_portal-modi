@@ -41,7 +41,6 @@ $remainingLevels = (new \yii\db\Query())
     ->all();
 
 $transactionPortal = Yii::$app->db->beginTransaction();
-$transactionSmis = Yii::$app->smisDb->beginTransaction();
 
 try {
     foreach ($remainingLevels as $level) {
@@ -85,22 +84,14 @@ try {
             'refund_status' => 'APPROVED',
             'approval_status' => 'APPROVED',
             'amount_approved' => new \yii\db\Expression('amount_requested'),
-        ], ['request_id' => $requestId])
-        ->execute();
-
-    Yii::$app->smisDb->createCommand()
-        ->update('smis.fss_refund_requests', [
-            'refund_status' => 'APPROVED',
-            'approval_status' => 'APPROVED',
-            'amount_approved' => new \yii\db\Expression('amount_requested'),
+            'sync_status' => 0, // Reset sync status to trigger sync to SMIS
         ], ['request_id' => $requestId])
         ->execute();
 
     $transactionPortal->commit();
-    $transactionSmis->commit();
-    echo "SUCCESS: Process finalized and request $requestId set to APPROVED.\n";
+    echo "SUCCESS: Process finalized and request $requestId set to APPROVED in Portal.\n";
+    echo "Run sync command to propagate changes to SMIS.\n";
 } catch (\Throwable $e) {
     $transactionPortal->rollBack();
-    $transactionSmis->rollBack();
     echo "ERROR: " . $e->getMessage() . "\n";
 }

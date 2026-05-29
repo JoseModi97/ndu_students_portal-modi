@@ -7,7 +7,6 @@ use app\modules\refund_requests\models\Bank;
 use app\modules\refund_requests\models\BankBranch;
 use app\modules\refund_requests\models\ApprovalLevel;
 use app\modules\refund_requests\models\RefundRequest;
-use app\modules\refund_requests\models\RefundRequestOfficial;
 use app\modules\refund_requests\models\ApprovalProcess;
 use app\modules\refund_requests\models\User;
 use Yii;
@@ -269,35 +268,16 @@ class DefaultController extends BaseController
                 $maxId = RefundRequest::find()->max('request_id');
                 $model->request_id = ($maxId ?: 0) + 1;
 
-                // Use transaction to ensure both DBs are updated
-                $dbTransaction = Yii::$app->db->beginTransaction();
-                $smisTransaction = Yii::$app->smisDb->beginTransaction();
-
-                try {
-                    if ($model->save()) {
-                        // Sync to SMIS Official table
-                        $official = new RefundRequestOfficial();
-                        $official->setAttributes($model->attributes);
-                        
-                        if ($official->save()) {
-                            $dbTransaction->commit();
-                            $smisTransaction->commit();
-                            $this->setFlash('success', 'Refund Request', 'Your application has been submitted and synchronized successfully.');
-                            return $this->redirect(['index']);
-                        } else {
-                            throw new \Exception('Failed to sync to SMIS: ' . implode(', ', \yii\helpers\ArrayHelper::getColumn($official->getErrors(), 0)));
-                        }
-                    } else {
-                        throw new \Exception('Failed to save to Portal: ' . implode(', ', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0)));
-                    }
-                } catch (\Exception $e) {
-                    $dbTransaction->rollBack();
-                    $smisTransaction->rollBack();
-                    $this->setFlash('danger', 'Error', $e->getMessage());
+                if ($model->save()) {
+                    $this->setFlash('success', 'Refund Request', 'Your application has been submitted successfully and will be synchronized soon.');
+                    return $this->redirect(['index']);
+                } else {
+                    $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
+                    $this->setFlash('danger', 'Error', 'Failed to save your application: ' . $errors);
                 }
             } else {
                 $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
-                $this->setFlash('danger', 'Error', 'Failed to save your application: ' . $errors);
+                $this->setFlash('danger', 'Error', 'Failed to load your application data: ' . $errors);
             }
         }
 
