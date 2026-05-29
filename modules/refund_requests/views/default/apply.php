@@ -144,7 +144,13 @@ foreach ($refundTypes as $type) {
                 <h2 class="cr-card__title">Declaration</h2>
             </div>
             <div class="cr-card__body">
-                <p style="font-size: 0.9rem; color: var(--cr-slate-600);">By submitting this form, I declare that the information provided is true and accurate to the best of my knowledge.</p>
+                <?= $form->field($model, 'declaration_status', [
+                    'template' => "<div class=\"cr-declaration\">{input}<p>I declare that the information provided is true and accurate to the best of my knowledge.</p></div>\n{error}",
+                ])->checkbox([
+                    'value' => '1',
+                    'uncheck' => '0',
+                    'label' => false,
+                ]) ?>
             </div>
         </div>
 
@@ -225,6 +231,7 @@ function updateSqlPreview() {
     var accountNo = $('#refundrequest-account_no').val();
     var mobileNo = $('#refundrequest-mobile_no').val();
     var amountRequested = $('#refundrequest-amount_requested').val();
+    var declarationStatus = $('#refundrequest-declaration_status').is(':checked') ? '1' : '0';
     var isBank = paymentOption === 'bank';
 
     var fetchSql = [
@@ -260,7 +267,7 @@ function updateSqlPreview() {
         ') VALUES (',
         '    :next_request_id, ' + sqlPreviewDefaults.studentProgCurriculumId + ', ' + sqlValue(mobileNo) + ', ' + sqlValue(sqlPreviewDefaults.email) + ', NOW(),',
         "    'PENDING', " + sqlValue(sqlPreviewDefaults.accountName) + ', ' + (isBank ? sqlNumber(bankId) : 'NULL') + ', ' + (isBank ? sqlNumber(branchId) : 'NULL') + ', ' + (isBank ? sqlValue(accountNo) : 'NULL') + ',',
-        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ", 'YES', " + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId,
+        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ', ' + declarationStatus + ', ' + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId,
         ');',
         '',
         '-- SMIS sync insert uses the saved portal values',
@@ -282,7 +289,7 @@ $('.payment-option-radio').on('change', function() {
     updateSqlPreview();
 });
 
-$('#refundrequest-account_no, #refundrequest-mobile_no, #refundrequest-amount_requested, #branch-selector').on('input change', updateSqlPreview);
+$('#refundrequest-account_no, #refundrequest-mobile_no, #refundrequest-amount_requested, #refundrequest-declaration_status, #branch-selector').on('input change', updateSqlPreview);
 
 // Load branches dynamically
 $('#bank-selector').on('change', function() {

@@ -61,6 +61,7 @@ class RefundRequestOfficial extends \yii\db\ActiveRecord
             [['account_no', 'approval_status'], 'string', 'max' => 50],
             [['account_name'], 'string', 'max' => 120],
             [['declaration_status'], 'string', 'max' => 3],
+            [['declaration_status'], 'compare', 'compareValue' => '1', 'message' => 'Declaration must be confirmed before syncing the application.'],
             [['request_id'], 'unique'],
         ];
     }

@@ -244,7 +244,7 @@ class DefaultController extends BaseController
         $model->application_date = date('Y-m-d H:i:s');
         $model->refund_status = 'PENDING';
         $model->approval_status = 'PENDING';
-        $model->declaration_status = 'YES';
+        $model->declaration_status = '0';
         $model->email = $user->primary_email;
         $model->passport_id = $user->passport_no ?: ($user->national_id ?: 'N/A');
         $model->account_name = $user->surname . ' ' . $user->other_names;
