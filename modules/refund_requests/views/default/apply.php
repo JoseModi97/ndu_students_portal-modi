@@ -48,7 +48,14 @@ foreach ($refundTypes as $type) {
         <?php $form = ActiveForm::begin([
             'id' => 'refund-requests-form',
             'fieldConfig' => $fieldConfig,
+            'enableAjaxValidation' => false,
+            'enableClientValidation' => true,
         ]); ?>
+
+        <div id="validation-error-summary" class="cr-flash cr-flash--danger" style="display: none; margin-bottom: 2rem;">
+            <p style="font-weight: 800; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Please correct the following errors:</p>
+            <div class="error-list"></div>
+        </div>
 
         <div class="cr-card">
             <div class="cr-card__header">
@@ -192,16 +199,30 @@ $defaultPassportId = \yii\helpers\Json::htmlEncode($model->passport_id);
 $defaultAccountName = \yii\helpers\Json::htmlEncode($model->account_name);
 $js = <<<JS
 function togglePaymentOptionFields(value) {
+    var form = $('#refund-requests-form');
     if (value === 'mpesa') {
         $('#bank-details-fields').hide();
         $('#mpesa-details-fields').show();
+        
+        // Clear bank errors
+        form.yiiActiveForm('updateAttribute', 'refundrequest-bank_id', '');
+        form.yiiActiveForm('updateAttribute', 'refundrequest-branch_id', '');
+        form.yiiActiveForm('updateAttribute', 'refundrequest-account_no', '');
+        
         $('#bank-selector').val(null).trigger('change');
         $('#branch-selector').val(null).trigger('change');
         $('#refundrequest-account_no').val('');
-    } else {
+    } else if (value === 'bank') {
         $('#bank-details-fields').show();
         $('#mpesa-details-fields').hide();
+        
+        // Clear mpesa errors
+        form.yiiActiveForm('updateAttribute', 'refundrequest-mobile_no', '');
+        $('#refundrequest-mobile_no').val('');
     }
+    
+    // Hide summary if it was showing
+    $('#validation-error-summary').hide();
 }
 
 var sqlPreviewDefaults = {
@@ -297,10 +318,13 @@ $('.payment-option-radio').on('change', function() {
 $('#refundrequest-account_no, #refundrequest-mobile_no, #refundrequest-amount_requested, #refundrequest-voucher_no, #refundrequest-declaration_status, #branch-selector').on('input change', updateSqlPreview);
 
 // Load branches dynamically
-$('#bank-selector').on('change', function() {
+$('#bank-selector').on('change', function(e) {
+    e.stopPropagation(); // Prevent auto-submit if a parent listener exists
+    
     var bankId = $(this).val();
     var branchSelector = $('#branch-selector');
     
+    // Clear and reset branch selector
     branchSelector.val(null).trigger('change');
     branchSelector.empty();
     updateSqlPreview();
@@ -321,6 +345,42 @@ $('#bank-selector').on('change', function() {
             });
             updateSqlPreview();
         });
+    }
+});
+
+$('#branch-selector').on('change', function(e) {
+    e.stopPropagation(); // Prevent auto-submit on branch selection
+    updateSqlPreview();
+});
+
+$('#refund-requests-form').on('afterValidate', function (event, messages, errorAttributes) {
+    var summary = $('#validation-error-summary');
+    var list = summary.find('.error-list');
+    
+    if (errorAttributes.length > 0) {
+        var errorHtml = '<ul style=\"margin-bottom: 0; padding-left: 1.5rem;\">';
+        $.each(messages, function(field, errors) {
+            if (errors.length > 0) {
+                var label = $('label[for=\"' + field + '\"]').text().replace('*', '').trim() || field;
+                
+                // Make declaration label more user-friendly and concise
+                if (field === 'refundrequest-declaration_status') {
+                    label = 'Declaration Confirmation';
+                }
+                
+                errorHtml += '<li style=\"font-size: 0.88rem; margin-bottom: 0.25rem;\"><b>' + label + '</b>: ' + errors[0] + '</li>';
+            }
+        });
+        errorHtml += '</ul>';
+
+        list.html(errorHtml);
+        summary.fadeIn();
+        
+        $('html, body').animate({
+            scrollTop: summary.offset().top - 100
+        }, 500);
+    } else {
+        summary.hide();
     }
 });
 JS;

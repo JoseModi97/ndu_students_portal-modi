@@ -53,14 +53,48 @@ class RefundRequest extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type', 'payment_method'], 'required'],
+            [['request_id', 'student_prog_curriculum_id', 'email', 'application_date', 'refund_status', 'passport_id', 'approval_status', 'refund_type'], 'required'],
+            
+            [['amount_requested'], 'required', 'message' => 'Please enter the amount you wish to be refunded.'],
+            [['payment_method'], 'required', 'message' => 'Please select a payment disbursement method (Bank or M-PESA).'],
+            [['declaration_status'], 'required', 'message' => 'You must accept the declaration to proceed.'],
+            
+            // Conditional validation for Bank
+            [['bank_id'], 'required', 'message' => 'Please select your bank from the list.', 'when' => function ($model) {
+                return $model->payment_method === 'bank';
+            }, 'whenClient' => "function (attribute, value) {
+                return $('.payment-option-radio:checked').val() === 'bank';
+            }"],
+            [['branch_id'], 'required', 'message' => 'Please select your bank branch.', 'when' => function ($model) {
+                return $model->payment_method === 'bank';
+            }, 'whenClient' => "function (attribute, value) {
+                return $('.payment-option-radio:checked').val() === 'bank';
+            }"],
+            [['account_no'], 'required', 'message' => 'Please provide your bank account number.', 'when' => function ($model) {
+                return $model->payment_method === 'bank';
+            }, 'whenClient' => "function (attribute, value) {
+                return $('.payment-option-radio:checked').val() === 'bank';
+            }"],
+
+            // Conditional validation for MPESA
+            [['mobile_no'], 'required', 'message' => 'Please provide the M-PESA mobile number.', 'when' => function ($model) {
+                return $model->payment_method === 'mpesa';
+            }, 'whenClient' => "function (attribute, value) {
+                return $('.payment-option-radio:checked').val() === 'mpesa';
+            }"],
+
             [['payment_method'], 'in', 'range' => ['bank', 'mpesa']],
-            [['payment_method'], 'validatePaymentDetails'],
             [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type', 'sync_status'], 'integer'],
             [['application_date', 'last_synced_at'], 'safe'],
-            [['amount_requested', 'amount_approved'], 'number'],
+            [['amount_requested', 'amount_approved'], 'number', 'message' => 'Please enter a valid numeric amount.'],
             [['mobile_no'], 'string', 'max' => 20],
+            [['mobile_no'], 'match', 'pattern' => '/^(07|01)[0-9]{8}$/', 'message' => 'Please enter a valid Kenyan mobile number (e.g., 0712345678).', 'when' => function ($model) {
+                return (string)$model->payment_method === 'mpesa';
+            }, 'whenClient' => "function (attribute, value) {
+                return $('.payment-option-radio:checked').val() === 'mpesa';
+            }"],
             [['email', 'passport_id'], 'string', 'max' => 100],
+            [['email'], 'email', 'message' => 'Please provide a valid email address.'],
             [['refund_status', 'approval_status'], 'string', 'max' => 50],
             [['account_no'], 'string', 'max' => 50],
             [['account_name'], 'string', 'max' => 120],
@@ -73,6 +107,27 @@ class RefundRequest extends ActiveRecord
             [['refund_type'], 'exist', 'skipOnError' => true, 'targetClass' => RefundType::class, 'targetAttribute' => ['refund_type' => 'refund_type_id']],
             [['student_prog_curriculum_id'], 'exist', 'skipOnError' => true, 'targetClass' => StudentProgCurriculum::class, 'targetAttribute' => ['student_prog_curriculum_id' => 'student_prog_curriculum_id']],
         ];
+    }
+
+    /**
+     * @return bool
+     */
+    public function beforeValidate(): bool
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+
+        if ($this->payment_method === 'mpesa') {
+            $this->bank_id = null;
+            $this->branch_id = null;
+            $this->account_no = null;
+        } elseif ($this->payment_method === 'bank') {
+            // Do NOT nullify mobile_no here as it might be needed for contact,
+            // but the conditional 'match' rule will skip it.
+        }
+
+        return true;
     }
 
     /**
@@ -89,27 +144,6 @@ class RefundRequest extends ActiveRecord
         $this->sync_status = 0;
 
         return true;
-    }
-
-    public function validatePaymentDetails($attribute, $params): void
-    {
-        if ($this->payment_method === 'bank') {
-            if (empty($this->bank_id)) {
-                $this->addError('bank_id', 'Please select a bank.');
-            }
-
-            if (empty($this->branch_id)) {
-                $this->addError('branch_id', 'Please select a branch.');
-            }
-
-            if (trim((string)$this->account_no) === '') {
-                $this->addError('account_no', 'Please enter the bank account number.');
-            }
-        }
-
-        if ($this->payment_method === 'mpesa' && trim((string)$this->mobile_no) === '') {
-            $this->addError('mobile_no', 'Please enter the M-PESA mobile number.');
-        }
     }
 
     /**

@@ -257,16 +257,6 @@ class DefaultController extends BaseController
             $post = $this->request->post();
 
             if ($model->load($post)) {
-                if ($model->payment_method === 'mpesa') {
-                    $model->branch_id = null;
-                    $model->account_no = null;
-                    $model->bank_id = null;
-                }
-
-                if (empty($model->mobile_no)) {
-                    $model->mobile_no = $user->primary_phone_no ?: '0000000000';
-                }
-
                 // Generate a request_id if not identity
                 $maxId = RefundRequest::find()->max('request_id');
                 $model->request_id = ($maxId ?: 0) + 1;

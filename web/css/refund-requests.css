@@ -667,69 +667,34 @@
   .cr-step__line { display: none; }
 }
 
-/* ——— Refund Type Cards ———————————————————————————————————————————————————— */
-.cr-type-card {
-  cursor: pointer;
-  position: relative;
-}
-
-.cr-type-card input[type="radio"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.cr-type-card__content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 1.5rem;
-  background: var(--cr-white);
-  border: 2px solid var(--cr-blue-100);
+/* ——— Popover Theme Overrides ————————————————————————————————————————————— */
+.popover {
+  border: 1px solid var(--cr-blue-100);
   border-radius: var(--cr-radius);
-  transition: all 0.2s ease;
-  height: 100%;
+  box-shadow: var(--cr-shadow);
+  font-family: var(--cr-font);
 }
 
-.cr-type-card:hover .cr-type-card__content {
-  border-color: var(--cr-blue-400);
-  background: var(--cr-blue-50);
+.popover-header {
+  background-color: var(--cr-blue-50) !important;
+  border-bottom: 1px solid var(--cr-blue-100) !important;
+  color: var(--cr-blue-800) !important;
+  font-weight: 800 !important;
+  font-size: 0.85rem !important;
+  padding: 0.6rem 1rem !important;
+  border-top-left-radius: var(--cr-radius) !important;
+  border-top-right-radius: var(--cr-radius) !important;
 }
 
-.cr-type-card input[type="radio"]:checked + .cr-type-card__content {
-  border-color: var(--cr-blue-600);
-  background: var(--cr-blue-50);
-  box-shadow: 0 0 0 1px var(--cr-blue-600);
+.popover-body {
+  color: var(--cr-blue-800) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.5 !important;
+  padding: 0.75rem 1rem !important;
 }
 
-.cr-type-card__icon {
-  width: 48px;
-  height: 48px;
-  background: var(--cr-blue-100);
-  color: var(--cr-blue-600);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
+.bs-popover-auto[x-placement^=top] .arrow::after, .bs-popover-top .arrow::after { border-top-color: var(--cr-white); }
+.bs-popover-auto[x-placement^=bottom] .arrow::after, .bs-popover-bottom .arrow::after { border-bottom-color: var(--cr-blue-50); }
+.bs-popover-auto[x-placement^=left] .arrow::after, .bs-popover-left .arrow::after { border-left-color: var(--cr-white); }
+.bs-popover-auto[x-placement^=right] .arrow::after, .bs-popover-right .arrow::after { border-right-color: var(--cr-white); }
 
-.cr-type-card__icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.cr-type-card input[type="radio"]:checked + .cr-type-card__content .cr-type-card__icon {
-  background: var(--cr-blue-600);
-  color: var(--cr-white);
-}
-
-.cr-type-card__label {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--cr-blue-800);
-  text-align: center;
-}
