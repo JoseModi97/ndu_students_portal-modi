@@ -56,26 +56,7 @@ $fieldConfig = [
                 <h2 class="cr-card__title">Refund Mode & Amount</h2>
             </div>
             <div class="cr-card__body">
-                <div class="cr-notice">
-                    <p class="cr-notice__title">Selected Refund Type</p>
-                    <div class="cr-field">
-                        <?php 
-                        if (!$model->refund_type) $model->refund_type = 1; 
-                        
-                        $selectedType = null;
-                        foreach ($refundTypes as $type) {
-                            if ($type->refund_type_id == $model->refund_type) {
-                                $selectedType = $type;
-                                break;
-                            }
-                        }
-                        ?>
-                        <div class="cr-badge cr-badge--pending" style="font-size: 1rem; padding: 0.5rem 1rem;">
-                            <?= Html::encode($selectedType ? $selectedType->displayName : 'Unknown') ?>
-                        </div>
-                        <?= $form->field($model, 'refund_type')->hiddenInput(['id' => 'refund-type-input'])->label(false) ?>
-                    </div>
-                </div>
+                <?= $form->field($model, 'refund_type')->hiddenInput(['id' => 'refund-type-input'])->label(false) ?>
 
                 <div class="cr-form-grid">
                     <div class="cr-field">

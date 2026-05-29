@@ -32,8 +32,10 @@ $this->registerJs("
     $('.dash-refund-type').on('change', function() {
         var typeId = $(this).val();
         var baseUrl = '" . Url::to(['apply']) . "';
-        $('#proceed-to-apply').attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId);
-    }).filter(':checked').trigger('change');
+        var applyBtn = $('#proceed-to-apply');
+        applyBtn.attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId);
+        applyBtn.removeClass('disabled').css({'opacity': '1', 'pointer-events': 'auto'});
+    });
 ");
 ?>
 
@@ -255,24 +257,35 @@ $this->registerJs("
                             </div>
 
                             <div style="margin-top: 2rem; border-top: 1px solid var(--cr-blue-50); padding-top: 1.5rem;">
-                                <p style="font-size: 0.85rem; font-weight: 700; color: var(--cr-blue-600); text-transform: uppercase; margin-bottom: 1rem; text-align: center;">Available Refund Types</p>
-                                <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;">
+                                <p style="font-size: 0.85rem; font-weight: 700; color: var(--cr-blue-600); text-transform: uppercase; margin-bottom: 1.5rem; text-align: center;">Select Refund Type to Proceed</p>
+
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2.5rem;">
                                     <?php foreach ($refundTypes as $type): 
                                         $id = 'dash-type-' . strtolower($type->refund_type_name);
                                     ?>
-                                        <div class="form-check">
-                                            <input class="form-check-input dash-refund-type" type="radio" name="dash-refund-type" id="<?= $id ?>"
-                                                value="<?= $type->refund_type_id ?>" 
-                                                <?= ($type->refund_type_name === 'STANDARD') ? 'checked' : '' ?>>
-                                            <label class="form-check-label" for="<?= $id ?>" style="font-size: 0.9rem; color: var(--cr-slate-700);">
-                                                <?= Html::encode($type->displayName) ?>
-                                            </label>
-                                        </div>
+                                        <label class="cr-type-card" for="<?= $id ?>">
+                                            <input class="dash-refund-type" type="radio" name="dash-refund-type" id="<?= $id ?>"
+                                                value="<?= $type->refund_type_id ?>">
+                                            <div class="cr-type-card__content">
+                                                <div class="cr-type-card__icon">
+                                                    <?php if ($type->refund_type_name === 'CHSS'): ?>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                                    <?php else: ?>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="cr-type-card__label"><?= Html::encode($type->displayName) ?></div>
+                                            </div>
+                                        </label>
                                     <?php endforeach; ?>
                                 </div>
 
                                 <div style="text-align: center;">
-                                    <?= Html::a('Proceed to Application', ['apply'], ['id' => 'proceed-to-apply', 'class' => 'cr-btn cr-btn--primary']) ?>
+                                    <?= Html::a('Proceed to Application', '#', [
+                                        'id' => 'proceed-to-apply',
+                                        'class' => 'cr-btn cr-btn--primary disabled',
+                                        'style' => 'opacity: 0.5; pointer-events: none;'
+                                    ]) ?>
                                 </div>
                             </div>
                         <?php else: ?>

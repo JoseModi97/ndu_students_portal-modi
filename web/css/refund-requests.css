@@ -558,3 +558,70 @@
   .cr-step { flex-direction: row; gap: 1rem; text-align: left; }
   .cr-step__line { display: none; }
 }
+
+/* ——— Refund Type Cards ———————————————————————————————————————————————————— */
+.cr-type-card {
+  cursor: pointer;
+  position: relative;
+}
+
+.cr-type-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.cr-type-card__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: var(--cr-white);
+  border: 2px solid var(--cr-blue-100);
+  border-radius: var(--cr-radius);
+  transition: all 0.2s ease;
+  height: 100%;
+}
+
+.cr-type-card:hover .cr-type-card__content {
+  border-color: var(--cr-blue-400);
+  background: var(--cr-blue-50);
+}
+
+.cr-type-card input[type="radio"]:checked + .cr-type-card__content {
+  border-color: var(--cr-blue-600);
+  background: var(--cr-blue-50);
+  box-shadow: 0 0 0 1px var(--cr-blue-600);
+}
+
+.cr-type-card__icon {
+  width: 48px;
+  height: 48px;
+  background: var(--cr-blue-100);
+  color: var(--cr-blue-600);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.cr-type-card__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.cr-type-card input[type="radio"]:checked + .cr-type-card__content .cr-type-card__icon {
+  background: var(--cr-blue-600);
+  color: var(--cr-white);
+}
+
+.cr-type-card__label {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--cr-blue-800);
+  text-align: center;
+}
