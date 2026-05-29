@@ -232,13 +232,10 @@ class DefaultController extends BaseController
 
         if ($type = $this->request->get('type')) {
             $model->refund_type = $type;
-        } else {
-            // Default to STANDARD if no type is specified
-            $standardType = \app\modules\refund_requests\models\RefundType::findOne(['refund_type_name' => 'STANDARD']);
-            if ($standardType) {
-                $model->refund_type = $standardType->refund_type_id;
-            }
         }
+
+        // Default disbursement method
+        $model->disbursement_method = 'bank';
 
         $model->student_prog_curriculum_id = $check['student_prog_curriculum_id'];
         $model->application_date = date('Y-m-d H:i:s');
@@ -254,6 +251,14 @@ class DefaultController extends BaseController
             $post = $this->request->post();
 
             if ($model->load($post)) {
+                if ($model->disbursement_method === 'mpesa') {
+                    $model->bank_id = null;
+                    $model->branch_id = null;
+                    $model->account_no = null;
+                } else {
+                    $model->mobile_no = $user->primary_phone_no ?: '0000000000';
+                }
+
                 if (empty($model->mobile_no)) {
                     $model->mobile_no = $user->primary_phone_no ?: '0000000000';
                 }

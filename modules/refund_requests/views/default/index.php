@@ -142,7 +142,7 @@ $this->registerJs("
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">Payment Mode</span>
                         <span class="cr-status-row__value">
-                            <?php if ($request->refund_type == 1): ?>
+                            <?php if (!empty($request->bank_id)): ?>
                                 <span class="badge bg-secondary mb-1">Bank Transfer</span><br>
                                 <span style="font-size: 0.85rem; color: var(--cr-slate-400);">
                                     <?= Html::encode($request->bank->bank_name ?? 'Unknown Bank') ?> 

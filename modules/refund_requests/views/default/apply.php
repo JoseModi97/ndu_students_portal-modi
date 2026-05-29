@@ -16,14 +16,6 @@ $this->title = 'Apply for Refund Request';
 $this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 $this->registerCssFile('@web/css/refund-requests.css');
 
-$chssTypeId = null;
-foreach ($refundTypes as $type) {
-    if ($type->refund_type_name === 'CHSS') {
-        $chssTypeId = $type->refund_type_id;
-        break;
-    }
-}
-
 $fieldConfig = [
     'options' => ['class' => 'cr-field'],
     'template' => "{label}\n{input}\n{error}",
@@ -56,18 +48,20 @@ $fieldConfig = [
                 <h2 class="cr-card__title">Refund Mode & Amount</h2>
             </div>
             <div class="cr-card__body">
-                <?= $form->field($model, 'refund_type', [
+                <?= $form->field($model, 'refund_type')->hiddenInput(['id' => 'refund-type-input'])->label(false) ?>
+
+                <?= $form->field($model, 'disbursement_method', [
                     'template' => "{label}\n<div class='cr-radio-list'>{input}</div>\n{error}",
                     'labelOptions' => ['class' => 'cr-label--bold']
                 ])->radioList(
-                    ArrayHelper::map($refundTypes, 'refund_type_id', 'displayName'),
+                    ['bank' => 'Bank Account', 'mpesa' => 'M-PESA'],
                     [
                         'item' => function($index, $label, $name, $checked, $value) {
-                            $id = 'refund-type-' . $value;
+                            $id = 'disbursement-method-' . $value;
                             $checkStr = $checked ? 'checked' : '';
                             return "
                                 <div class='cr-radio-item'>
-                                    <input type='radio' name='$name' value='$value' id='$id' $checkStr class='refund-type-radio'>
+                                    <input type='radio' name='$name' value='$value' id='$id' $checkStr class='disbursement-method-radio'>
                                     <label for='$id'>$label</label>
                                 </div>";
                         }
@@ -76,10 +70,25 @@ $fieldConfig = [
 
                 <div class="cr-form-grid">
                     <div class="cr-field">
+                        <label>Refund Category</label>
+                        <?php
+                            $typeName = 'Standard';
+                            foreach($refundTypes as $rt) {
+                                if($rt->refund_type_id == $model->refund_type) {
+                                    $typeName = $rt->displayName;
+                                    break;
+                                }
+                            }
+                        ?>
+                        <input type="text" class="form-control" value="<?= Html::encode($typeName) ?>" readonly>
+                    </div>
+                    <div class="cr-field">
                         <label>Registration Number</label>
                         <input type="text" class="form-control" value="<?= Html::encode($regNumber) ?>" readonly>
                     </div>
-                    <?= $form->field($model, 'amount_requested')->textInput(['type' => 'number', 'step' => '0.01', 'placeholder' => 'Enter amount (e.g. 5000)']) ?>
+                    <div class="cr-form-grid--full">
+                        <?= $form->field($model, 'amount_requested')->textInput(['type' => 'number', 'step' => '0.01', 'placeholder' => 'Enter amount (e.g. 5000)']) ?>
+                    </div>
                 </div>
             </div>
         </div>
@@ -172,9 +181,8 @@ $fieldConfig = [
 $branchUrl = Url::to(['branches']);
 $js = <<<JS
 // Toggle fields based on mode
-var chssTypeId = '$chssTypeId';
 function toggleRefundFields(value) {
-    if (value == chssTypeId) { // CHSS
+    if (value == 'mpesa') {
         $('#standard-fields').hide();
         $('#chss-fields').show();
     } else {
@@ -184,10 +192,10 @@ function toggleRefundFields(value) {
 }
 
 // Initial toggle
-toggleRefundFields($('.refund-type-radio:checked').val());
+toggleRefundFields($('.disbursement-method-radio:checked').val());
 
 // Handle change
-$('.refund-type-radio').on('change', function() {
+$('.disbursement-method-radio').on('change', function() {
     toggleRefundFields($(this).val());
 });
 

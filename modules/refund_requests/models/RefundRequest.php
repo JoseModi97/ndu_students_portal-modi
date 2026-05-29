@@ -36,6 +36,11 @@ use yii\db\ActiveRecord;
 class RefundRequest extends ActiveRecord
 {
     /**
+     * @var string
+     */
+    public $disbursement_method;
+
+    /**
      * {@inheritdoc}
      */
     public static function tableName(): string
@@ -59,6 +64,7 @@ class RefundRequest extends ActiveRecord
             [['account_no'], 'string', 'max' => 50],
             [['account_name'], 'string', 'max' => 120],
             [['declaration_status'], 'string', 'max' => 3],
+            [['disbursement_method'], 'safe'],
             [['request_id'], 'unique'],
             [['bank_id'], 'exist', 'skipOnError' => true, 'targetClass' => Bank::class, 'targetAttribute' => ['bank_id' => 'brank_id']],
             [['branch_id'], 'exist', 'skipOnError' => true, 'targetClass' => BankBranch::class, 'targetAttribute' => ['branch_id' => 'branch_id']],
