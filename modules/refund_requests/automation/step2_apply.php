@@ -105,6 +105,9 @@ $row = [
     'payment_method' => $paymentOption,
 ];
 
+$rowOfficial = $row;
+unset($rowOfficial['payment_method']);
+
 $transactionPortal = Yii::$app->db->beginTransaction();
 $transactionSmis = Yii::$app->smisDb->beginTransaction();
 
@@ -115,7 +118,7 @@ try {
     echo "Portal fss_refund_requests record created. Request ID: $requestId\n";
 
     Yii::$app->smisDb->createCommand()
-        ->insert('smis.fss_refund_requests', $row)
+        ->insert('smis.fss_refund_requests', $rowOfficial)
         ->execute();
     echo "SMIS fss_refund_requests record created.\n";
 
