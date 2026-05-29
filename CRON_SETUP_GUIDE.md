@@ -31,6 +31,13 @@ The synchronization logic is located in:
 
 The synchronization is designed to run every 5 minutes.
 
+### The Actual Crontab Entry
+Copy and paste this exact line into your crontab (`crontab -e`):
+
+```cron
+*/5 * * * * php /var/www/html/smisportalndudev/yii refund-sync/sync >> /var/www/html/smisportalndudev/runtime/logs/refund_sync.log 2>&1
+```
+
 ### Environment Details
 - **Project Root**: `/var/www/html/smisportalndudev/`
 - **Yii Executable**: `/var/www/html/smisportalndudev/yii`
@@ -46,6 +53,21 @@ The synchronization is designed to run every 5 minutes.
     */5 * * * * php /var/www/html/smisportalndudev/yii refund-sync/sync >> /var/www/html/smisportalndudev/runtime/logs/refund_sync.log 2>&1
     ```
 4.  Save and exit the editor.
+
+### Understanding the Cron Expression
+The part `*/5 * * * *` tells the server when to run the task:
+- `*/5`: Every 5 minutes.
+- `*`: Every hour of the day.
+- `*`: Every day of the month.
+- `*`: Every month of the year.
+- `*`: Every day of the week.
+
+### Verifying the Installation
+To confirm your crontab is active and saved correctly, run:
+```bash
+crontab -l
+```
+This will list all active cron jobs for your user. If you see the command you added, the system is configured correctly.
 
 ---
 
