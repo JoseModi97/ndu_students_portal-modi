@@ -67,60 +67,6 @@ $this->registerJs("
                 </div>
             </div>
 
-            <!-- Workflow Tracker Integrated -->
-            <div class="cr-card" style="margin-bottom: 2rem;">
-                <div class="cr-card__header">
-                    <div class="cr-card__header-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-                        </svg>
-                    </div>
-                    <h2 class="cr-card__title">Live Workflow Tracking</h2>
-                </div>
-                <div class="cr-card__body">
-                    <?php
-                    $progressPercent = ($totalLevels > 0) ? (count($approvals) / $totalLevels) * 100 : 0;
-                    $completedLevels = [];
-                    foreach ($approvals as $app) { 
-                        if ($app->approver) {
-                            $completedLevels[$app->approver->approval_level_id] = strtoupper($app->approval_status); 
-                        }
-                    }
-                    ?>
-                    <div style="margin-bottom: 2rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--cr-blue-600); text-transform: uppercase;">Approval Progress</span>
-                            <span style="font-size: 0.85rem; font-weight: 800; color: var(--cr-blue-800); text-transform: uppercase;"><?= round($progressPercent) ?>%</span>
-                        </div>
-                        <div style="height: 8px; background: var(--cr-blue-50); border-radius: 999px; overflow: hidden;">
-                            <div style="height: 100%; width: <?= $progressPercent ?>%; background: linear-gradient(90deg, var(--cr-blue-400), var(--cr-teal-400)); transition: width 1s ease-in-out;"></div>
-                        </div>
-                    </div>
-
-                    <div class="cr-steps">
-                        <?php foreach ($allLevels as $index => $level): 
-                            $isCompleted = isset($completedLevels[$level->approval_level_id]);
-                            $isCurrent = !$isCompleted && (empty($approvals) ? ($index === 0) : (count($approvals) === $index));
-                            $isRejected = ($completedLevels[$level->approval_level_id] ?? '') === 'REJECTED';
-                            $stepClass = $isCompleted ? 'cr-step--completed' : ($isCurrent ? 'cr-step--active' : '');
-                            if ($isRejected) $stepClass = 'cr-step--rejected';
-                        ?>
-                            <div class="cr-step <?= $stepClass ?>">
-                                <div class="cr-step__icon">
-                                    <?php if ($isRejected): ?><i class="fas fa-times"></i>
-                                    <?php elseif ($isCompleted): ?><i class="fas fa-check"></i>
-                                    <?php else: ?><?= $index + 1 ?><?php endif; ?>
-                                </div>
-                                <div class="cr-step__label"><?= Html::encode($level->description) ?></div>
-                                <?php if ($index < $totalLevels - 1): ?>
-                                    <div class="cr-step__line"></div>
-                                <?php endif; ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-
             <div class="cr-card">
                 <div class="cr-card__header">
                     <div class="cr-card__header-icon">
@@ -134,6 +80,16 @@ $this->registerJs("
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">Reference No</span>
                         <span class="cr-status-row__value">#REF-<?= str_pad($request->request_id, 5, '0', STR_PAD_LEFT) ?></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Declaration Status</span>
+                        <span class="cr-status-row__value">
+                            <?php if ($request->declaration_status == '1'): ?>
+                                <span class="cr-badge cr-badge--approved">ACCEPTED</span>
+                            <?php else: ?>
+                                <span class="cr-badge cr-badge--rejected">NOT ACCEPTED</span>
+                            <?php endif; ?>
+                        </span>
                     </div>
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">Requested Amount</span>

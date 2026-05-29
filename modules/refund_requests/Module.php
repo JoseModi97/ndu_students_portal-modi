@@ -28,4 +28,26 @@ class Module extends BaseModule
 
         // custom initialization code goes here
     }
+
+    /**
+     * @return \yii\db\Connection
+     * @throws \yii\base\InvalidConfigException
+     */
+    public function getSmisDb()
+    {
+        $envFile = __DIR__ . '/.env';
+        
+        if (!file_exists($envFile)) {
+            throw new \yii\base\InvalidConfigException("Critical: SMIS configuration file missing in module.");
+        }
+
+        $env = parse_ini_file($envFile);
+        
+        return new \yii\db\Connection([
+            'dsn' => "pgsql:host={$env['SMIS_DB_SERVER']};port={$env['SMIS_DB_PORT']};dbname={$env['SMIS_DB_NAME']}",
+            'username' => $env['SMIS_DB_USER'],
+            'password' => $env['SMIS_DB_PASS'],
+            'charset' => 'utf8',
+        ]);
+    }
 }

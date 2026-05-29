@@ -30,10 +30,20 @@ class RefundRequestOfficial extends \yii\db\ActiveRecord
 {
     /**
      * @return Connection the database connection used by this AR class.
+     * @throws \Exception
      */
     public static function getDb(): Connection
     {
-        return Yii::$app->get('smisDb');
+        $module = \app\modules\refund_requests\Module::getInstance();
+        if (!$module) {
+            $module = Yii::$app->getModule('refund-requests');
+        }
+
+        if ($module) {
+            return $module->getSmisDb();
+        }
+
+        throw new \Exception("Could not initialize SMIS database connection.");
     }
 
     /**

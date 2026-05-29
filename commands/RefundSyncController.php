@@ -36,12 +36,15 @@ class RefundSyncController extends Controller
         foreach ($pendingRequests as $request) {
             $this->stdout("Syncing Request ID: {$request->request_id}... ");
 
-            $transaction = Yii::$app->smisDb->beginTransaction();
+            $module = Yii::$app->getModule('refund-requests');
+            $smisDb = $module ? $module->getSmisDb() : Yii::$app->smisDb;
+
+            $transaction = $smisDb->beginTransaction();
             try {
                 $exists = (new \yii\db\Query())
                     ->from('smis.fss_refund_requests')
                     ->where(['request_id' => $request->request_id])
-                    ->exists(Yii::$app->smisDb);
+                    ->exists($smisDb);
 
                 $attributes = $request->getAttributes();
                 // Remove sync columns before sending to SMIS
@@ -50,11 +53,11 @@ class RefundSyncController extends Controller
                 unset($attributes['payment_method']);
 
                 if ($exists) {
-                    Yii::$app->smisDb->createCommand()
+                    $smisDb->createCommand()
                         ->update('smis.fss_refund_requests', $attributes, ['request_id' => $request->request_id])
                         ->execute();
                 } else {
-                    Yii::$app->smisDb->createCommand()
+                    $smisDb->createCommand()
                         ->insert('smis.fss_refund_requests', $attributes)
                         ->execute();
                 }
