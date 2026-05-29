@@ -57,6 +57,12 @@ use yii\helpers\Url;
                         <p>eCitizen Payment</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= Url::to(['/refund-requests/default/index']); ?>" class="nav-link">
+                        <i class="nav-icon fa fa-money-bill-wave" aria-hidden="true"></i>
+                        <p>Refund Request</p>
+                    </a>
+                </li>
 
                 <?php // Only accessible to fully registered students
                 if (Yii::$app->user->identity->admission_status === 'REGISTERED'):

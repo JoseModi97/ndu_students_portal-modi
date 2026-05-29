@@ -39,7 +39,7 @@ $config = [
         ],
         'ldapAuth' => [
             'class' => 'app\components\LdapAuth',
-            'host' => 'dc1.ad.uonbi.ac.ke',
+            'host' => '41.89.93.194',
             'port' => 389,
             'protocol' => 'ldap://',
             'baseDn' => 'DC=AD,DC=UONBI,DC=AC,DC=KE',
@@ -154,9 +154,14 @@ $config = [
     'params' => $params,
     'modules' => [
         'gridview' => ['class' => 'kartik\grid\Module'],
-	'refund-requests' => ['class' => 'app\modules\refund_requests\Module'],
+        'ecitizen' => ['class' => 'app\modules\ecitizen\Module'],
+        'caution_refund' => [
+            'class' => 'app\modules\caution_refund\Module',
+            'overrideFeeBalance' => true,
+        ],
     ],
 ];
+
 
 if (YII_ENV_DEV) {
     // configuration adjustments for 'dev' environment
@@ -176,4 +181,3 @@ if (YII_ENV_DEV) {
 }
 
 return $config;
-

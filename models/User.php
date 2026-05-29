@@ -156,6 +156,9 @@ class User extends ActiveRecord implements IdentityInterface
         return $this->adm_refno;
     }
 
+    /**
+     * @return string|null
+     */
     public function getRegistration_number(): ?string
     {
         $studentProgramme = StudentProgCurriculum::find()

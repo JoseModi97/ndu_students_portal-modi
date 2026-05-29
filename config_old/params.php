@@ -3,6 +3,9 @@
  * @author Rufusy Idachi <idachirufus@gmail.com>
  */
 
+$ecitizenCredentialsFile = 'C:/Users/odhis/Desktop/ecitizen/config/credentials.php';
+$ecitizenCredentials = is_file($ecitizenCredentialsFile) ? require $ecitizenCredentialsFile : [];
+
 return [
     'sitename' => 'smis',
     'sitenameLong' => 'smis',
@@ -23,9 +26,9 @@ return [
     ],
     'changePasswordUrl' => 'http://adpassreset.ndu.ac.ke/',
     'ecitizen' => [
-        'apiClientID' => getenv('ECITIZEN_API_CLIENT_ID'),
-        'apiKey' => getenv('ECITIZEN_API_KEY'),
-        'secret' => getenv('ECITIZEN_SECRET'),
+        'apiClientID' => getenv('ECITIZEN_API_CLIENT_ID') ?: ($ecitizenCredentials['apiClientID'] ?? null),
+        'apiKey' => getenv('ECITIZEN_API_KEY') ?: ($ecitizenCredentials['apiKey'] ?? null),
+        'secret' => getenv('ECITIZEN_SECRET') ?: ($ecitizenCredentials['secret'] ?? null),
         'serviceID' => getenv('ECITIZEN_SERVICE_ID') ?: '2798167',
         'url' => getenv('ECITIZEN_PAYMENT_URL') ?: 'https://payments.ecitizen.go.ke/PaymentAPI/iframev2.1.php',
         'statusUrl' => getenv('ECITIZEN_STATUS_URL') ?: null,

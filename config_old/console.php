@@ -34,12 +34,13 @@ $config = [
         'smisDb' => $smisDb,
     ],
     'params' => $params,
+    /*
     'controllerMap' => [
-        'migrate' => [
-            'class' => 'yii\console\controllers\MigrateController',
-            'migrationTable' => 'smisportal.migration',
+        'fixture' => [ // Fixture generation command line.
+            'class' => 'yii\faker\FixtureController',
         ],
     ],
+    */
 ];
 
 if (YII_ENV_DEV) {
