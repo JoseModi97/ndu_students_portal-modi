@@ -144,13 +144,17 @@ foreach ($refundTypes as $type) {
                 <h2 class="cr-card__title">Declaration</h2>
             </div>
             <div class="cr-card__body">
-                <?= $form->field($model, 'declaration_status', [
-                    'template' => "<div class=\"cr-declaration\">{input}<p>I declare that the information provided is true and accurate to the best of my knowledge.</p></div>\n{error}",
-                ])->checkbox([
-                    'value' => '1',
-                    'uncheck' => '0',
-                    'label' => false,
-                ]) ?>
+                <div class="cr-declaration">
+                    <?= $form->field($model, 'declaration_status', [
+                        'template' => "{input}{label}\n{error}",
+                        'options' => ['class' => ''],
+                    ])->checkbox([
+                        'value' => '1',
+                        'uncheck' => '0',
+                        'label' => 'I hereby declare that the information provided in this application is true, accurate, and complete to the best of my knowledge. I understand that any false or misleading information provided may lead to the rejection of this application, forfeiture of the refund, or disciplinary action by the University according to the student code of conduct.',
+                        'labelOptions' => ['style' => 'font-size: 0.87rem; line-height: 1.6; color: var(--cr-slate-700); cursor: pointer; margin: 0;'],
+                    ]) ?>
+                </div>
             </div>
         </div>
 
