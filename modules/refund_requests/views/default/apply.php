@@ -49,32 +49,23 @@ $fieldConfig = [
             </div>
             <div class="cr-card__body">
                 <div class="cr-notice">
-                    <p class="cr-notice__title">Refund Type Selection</p>
+                    <p class="cr-notice__title">Selected Refund Type</p>
                     <div class="cr-field">
                         <?php 
-                        // Auto-select STANDARD (ID 1) as Caution Refund if nothing selected
                         if (!$model->refund_type) $model->refund_type = 1; 
                         
-                        echo $form->field($model, 'refund_type', ['template' => '{input}'])->radioList(
-                            ArrayHelper::map($refundTypes, 'refund_type_id', 'refund_type_name'),
-                            [
-                                'item' => function($index, $label, $name, $checked, $value) {
-                                    $id = 'type-' . strtolower($value);
-                                    $checkedAttr = $checked ? 'checked' : '';
-                                    
-                                    // Only enable 'STANDARD' (assumed as Caution Refund), disable others
-                                    $disabled = ($label !== 'STANDARD') ? 'disabled' : '';
-                                    $labelDisplay = ($label === 'STANDARD') ? 'Caution Refund' : $label;
-                                    
-                                    return "
-                                        <div class=\"form-check form-check-inline\" style=\"margin-right: 2rem;\">
-                                            <input type=\"radio\" class=\"form-check-input\" name=\"$name\" id=\"$id\" value=\"$value\" $checkedAttr $disabled>
-                                            <label class=\"form-check-label\" for=\"$id\">$labelDisplay</label>
-                                        </div>
-                                    ";
-                                },
-                            ]
-                        ) ?>
+                        $selectedType = null;
+                        foreach ($refundTypes as $type) {
+                            if ($type->refund_type_id == $model->refund_type) {
+                                $selectedType = $type;
+                                break;
+                            }
+                        }
+                        ?>
+                        <div class="cr-badge cr-badge--pending" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                            <?= Html::encode($selectedType ? $selectedType->displayName : 'Unknown') ?>
+                        </div>
+                        <?= $form->field($model, 'refund_type')->hiddenInput(['id' => 'refund-type-input'])->label(false) ?>
                     </div>
                 </div>
 
@@ -177,15 +168,17 @@ $branchUrl = Url::to(['branches']);
 $js = <<<JS
 // Toggle fields based on mode
 // Note: We use the value 2 for CHSS as per our migration data
-$('input[name="RefundRequest[refund_type]"]').on('change', function() {
-    if ($(this).val() == '2') { // CHSS
+function toggleRefundFields(value) {
+    if (value == '2') { // CHSS
         $('#standard-fields').hide();
         $('#chss-fields').show();
     } else {
         $('#standard-fields').show();
         $('#chss-fields').hide();
     }
-}).filter(':checked').trigger('change');
+}
+
+toggleRefundFields($('#refund-type-input').val());
 
 // Load branches dynamically
 $('#bank-selector').on('change', function() {

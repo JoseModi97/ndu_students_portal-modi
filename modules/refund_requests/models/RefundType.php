@@ -18,6 +18,14 @@ use yii\db\ActiveRecord;
 class RefundType extends ActiveRecord
 {
     /**
+     * @return string
+     */
+    public function getDisplayName(): string
+    {
+        return $this->refund_type_name === 'STANDARD' ? 'Caution Refund' : $this->refund_type_name;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public static function tableName(): string

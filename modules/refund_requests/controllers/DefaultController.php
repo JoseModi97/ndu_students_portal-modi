@@ -229,6 +229,11 @@ class DefaultController extends BaseController
         }
 
         $model = new RefundRequest();
+
+        if ($type = $this->request->get('type')) {
+            $model->refund_type = $type;
+        }
+
         $model->student_prog_curriculum_id = $check['student_prog_curriculum_id'];
         $model->application_date = date('Y-m-d H:i:s');
         $model->refund_status = 'PENDING';
@@ -241,11 +246,6 @@ class DefaultController extends BaseController
 
         if ($this->request->isPost) {
             $post = $this->request->post();
-            
-            // Map the refund type from form to ID
-            // Assuming 1 = STANDARD, 2 = CHSS
-            $formRefundType = $post['RefundRequest']['refund_type'] ?? 'STANDARD';
-            $post['RefundRequest']['refund_type'] = ($formRefundType === 'CHSS') ? 2 : 1;
 
             if ($model->load($post)) {
                 if (empty($model->mobile_no)) {

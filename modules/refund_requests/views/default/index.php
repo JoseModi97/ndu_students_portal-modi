@@ -28,6 +28,12 @@ $this->registerJs("
     var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
       return new bootstrap.Popover(popoverTriggerEl)
     })
+
+    $('.dash-refund-type').on('change', function() {
+        var typeId = $(this).val();
+        var baseUrl = '" . Url::to(['apply']) . "';
+        $('#proceed-to-apply').attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId);
+    }).filter(':checked').trigger('change');
 ");
 ?>
 
@@ -252,22 +258,21 @@ $this->registerJs("
                                 <p style="font-size: 0.85rem; font-weight: 700; color: var(--cr-blue-600); text-transform: uppercase; margin-bottom: 1rem; text-align: center;">Available Refund Types</p>
                                 <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;">
                                     <?php foreach ($refundTypes as $type): 
-                                        $isCaution = ($type->refund_type_name === 'STANDARD');
                                         $id = 'dash-type-' . strtolower($type->refund_type_name);
                                     ?>
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="dash-refund-type" id="<?= $id ?>" 
+                                            <input class="form-check-input dash-refund-type" type="radio" name="dash-refund-type" id="<?= $id ?>"
                                                 value="<?= $type->refund_type_id ?>" 
-                                                <?= $isCaution ? 'checked' : 'disabled' ?>>
-                                            <label class="form-check-label" for="<?= $id ?>" style="font-size: 0.9rem; color: <?= $isCaution ? 'var(--cr-slate-700)' : 'var(--cr-slate-400)' ?>;">
-                                                <?= $isCaution ? 'Caution Refund' : Html::encode($type->refund_type_name) ?>
+                                                <?= ($type->refund_type_name === 'STANDARD') ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="<?= $id ?>" style="font-size: 0.9rem; color: var(--cr-slate-700);">
+                                                <?= Html::encode($type->displayName) ?>
                                             </label>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
 
                                 <div style="text-align: center;">
-                                    <?= Html::a('Proceed to Application', ['apply'], ['class' => 'cr-btn cr-btn--primary']) ?>
+                                    <?= Html::a('Proceed to Application', ['apply'], ['id' => 'proceed-to-apply', 'class' => 'cr-btn cr-btn--primary']) ?>
                                 </div>
                             </div>
                         <?php else: ?>
