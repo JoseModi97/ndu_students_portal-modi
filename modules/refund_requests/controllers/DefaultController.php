@@ -232,6 +232,12 @@ class DefaultController extends BaseController
 
         if ($type = $this->request->get('type')) {
             $model->refund_type = $type;
+        } else {
+            // Default to STANDARD if no type is specified
+            $standardType = \app\modules\refund_requests\models\RefundType::findOne(['refund_type_name' => 'STANDARD']);
+            if ($standardType) {
+                $model->refund_type = $standardType->refund_type_id;
+            }
         }
 
         $model->student_prog_curriculum_id = $check['student_prog_curriculum_id'];

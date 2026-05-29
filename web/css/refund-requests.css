@@ -407,6 +407,41 @@
   margin-top: 3px;
 }
 
+.cr-label--bold {
+  font-weight: 800 !important;
+  color: var(--cr-blue-800) !important;
+  margin-bottom: 0.5rem;
+}
+
+.cr-radio-list {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem 0;
+}
+
+.cr-radio-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cr-radio-item input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cr-blue-600);
+  cursor: pointer;
+}
+
+.cr-radio-item label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--cr-slate-700);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 /* ——— Timeline —————————————————————————————————————————————————————————————— */
 .cr-timeline {
   position: relative;
