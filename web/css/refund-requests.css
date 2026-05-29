@@ -80,6 +80,31 @@
   margin: 0;
 }
 
+.cr-header__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+  padding: 0.45rem 0.9rem;
+  color: var(--cr-blue-800);
+  background: var(--cr-white);
+  border: 1px solid var(--cr-blue-100);
+  border-radius: var(--cr-radius-sm);
+  box-shadow: var(--cr-shadow);
+}
+
+.cr-header__meta span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cr-header__meta strong {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 /* ——— Card ————————————————————————————————————————————————————————————————————— */        
 .cr-card {
   background: var(--cr-white);
@@ -361,6 +386,54 @@
   background: var(--cr-red-bg);
   border: 1px solid #fca5a5;
   color: var(--cr-red);
+}
+
+.cr-sql-preview {
+  margin: 0 0 1.25rem;
+  border: 1px dashed var(--cr-blue-200);
+  border-radius: var(--cr-radius-sm);
+  background: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+}
+
+.cr-sql-preview summary {
+  cursor: pointer;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cr-blue-800);
+  background: var(--cr-blue-50);
+}
+
+.cr-sql-preview__body {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.9rem;
+}
+
+.cr-sql-preview__section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--cr-slate-700);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cr-sql-preview pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #16324a;
+  background: var(--cr-slate-50);
+  border: 1px solid var(--cr-slate-200);
+  border-radius: var(--cr-radius-sm);
+  white-space: pre-wrap;
 }
 
 /* ——— Not-eligible info box ———————————————————————————————————————————————————— */

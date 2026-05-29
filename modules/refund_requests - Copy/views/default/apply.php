@@ -148,20 +148,6 @@ foreach ($refundTypes as $type) {
             </div>
         </div>
 
-        <details class="cr-sql-preview">
-            <summary>SQL Preview</summary>
-            <div class="cr-sql-preview__body">
-                <div class="cr-sql-preview__section">
-                    <h3>Fetch Data</h3>
-                    <pre id="sql-fetch-preview"></pre>
-                </div>
-                <div class="cr-sql-preview__section">
-                    <h3>On Submit</h3>
-                    <pre id="sql-submit-preview"></pre>
-                </div>
-            </div>
-        </details>
-
         <div style="display:flex; gap:1rem; align-items:center; justify-content:center; margin-top:1.5rem; margin-bottom:3rem;">
             <?= Html::a('← Cancel', ['index'], [
                 'style' => 'display:inline-flex; align-items:center; padding:.65rem 1.5rem; font-family:var(--cr-font); font-size:.88rem; font-weight:700; border-radius:999px; border:1.5px solid var(--cr-blue-200); color:var(--cr-blue-600); background:transparent; text-decoration:none;'
@@ -175,11 +161,6 @@ foreach ($refundTypes as $type) {
 
 <?php
 $branchUrl = Url::to(['branches']);
-$studentProgCurriculumId = (int)$model->student_prog_curriculum_id;
-$refundTypeId = (int)$model->refund_type;
-$defaultEmail = \yii\helpers\Json::htmlEncode($model->email);
-$defaultPassportId = \yii\helpers\Json::htmlEncode($model->passport_id);
-$defaultAccountName = \yii\helpers\Json::htmlEncode($model->account_name);
 $js = <<<JS
 function togglePaymentOptionFields(value) {
     if (value === 'mpesa') {
@@ -194,95 +175,11 @@ function togglePaymentOptionFields(value) {
     }
 }
 
-var sqlPreviewDefaults = {
-    studentProgCurriculumId: $studentProgCurriculumId,
-    refundTypeId: $refundTypeId,
-    email: $defaultEmail,
-    passportId: $defaultPassportId,
-    accountName: $defaultAccountName
-};
-
-function sqlValue(value) {
-    if (value === null || value === undefined || value === '') {
-        return 'NULL';
-    }
-
-    return "'" + String(value).replace(/'/g, "''") + "'";
-}
-
-function sqlNumber(value) {
-    if (value === null || value === undefined || value === '') {
-        return 'NULL';
-    }
-
-    return value;
-}
-
-function updateSqlPreview() {
-    var paymentOption = $('.payment-option-radio:checked').val() || 'bank';
-    var bankId = $('#bank-selector').val();
-    var branchId = $('#branch-selector').val();
-    var accountNo = $('#refundrequest-account_no').val();
-    var mobileNo = $('#refundrequest-mobile_no').val();
-    var amountRequested = $('#refundrequest-amount_requested').val();
-    var isBank = paymentOption === 'bank';
-
-    var fetchSql = [
-        '-- Refund type selected on the previous page',
-        'SELECT *',
-        'FROM smisportal.fss_refund_types',
-        'WHERE refund_type_status = TRUE',
-        '  AND refund_type_id = ' + sqlPreviewDefaults.refundTypeId + ';',
-        '',
-        '-- Banks shown for Bank Account Details',
-        'SELECT *',
-        'FROM smisportal.fss_banks',
-        'ORDER BY bank_name;'
-    ];
-
-    if (isBank) {
-        fetchSql.push(
-            '',
-            '-- Branches fetched after selecting a bank',
-            'SELECT bb.*',
-            'FROM smisportal.fss_bank_branches bb',
-            'INNER JOIN smisportal.fss_banks b ON b.bank_code = bb.bank_code',
-            'WHERE b.brank_id = ' + sqlNumber(bankId) + ';'
-        );
-    }
-
-    var submitSql = [
-        '-- Portal insert',
-        'INSERT INTO smisportal.fss_refund_requests (',
-        '    request_id, student_prog_curriculum_id, mobile_no, email, application_date,',
-        '    refund_status, account_name, bank_id, branch_id, account_no,',
-        '    passport_id, declaration_status, amount_requested, approval_status, refund_type',
-        ') VALUES (',
-        '    :next_request_id, ' + sqlPreviewDefaults.studentProgCurriculumId + ', ' + sqlValue(mobileNo) + ', ' + sqlValue(sqlPreviewDefaults.email) + ', NOW(),',
-        "    'PENDING', " + sqlValue(sqlPreviewDefaults.accountName) + ', ' + (isBank ? sqlNumber(bankId) : 'NULL') + ', ' + (isBank ? sqlNumber(branchId) : 'NULL') + ', ' + (isBank ? sqlValue(accountNo) : 'NULL') + ',',
-        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ", 'YES', " + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId,
-        ');',
-        '',
-        '-- SMIS sync insert uses the saved portal values',
-        'INSERT INTO smis.fss_refund_requests (...)',
-        'SELECT ...',
-        'FROM smisportal.fss_refund_requests',
-        'WHERE request_id = :next_request_id;'
-    ];
-
-    $('#sql-fetch-preview').text(fetchSql.join('\\n'));
-    $('#sql-submit-preview').text(submitSql.join('\\n'));
-}
-
 togglePaymentOptionFields($('.payment-option-radio:checked').val());
-updateSqlPreview();
 
 $('.payment-option-radio').on('change', function() {
     togglePaymentOptionFields($(this).val());
-    updateSqlPreview();
 });
-
-$('#refundrequest-account_no, #refundrequest-mobile_no, #refundrequest-amount_requested, #branch-selector').on('input change', updateSqlPreview);
 
 // Load branches dynamically
 $('#bank-selector').on('change', function() {
@@ -291,7 +188,6 @@ $('#bank-selector').on('change', function() {
     
     branchSelector.val(null).trigger('change');
     branchSelector.empty();
-    updateSqlPreview();
     
     if (bankId) {
         $.get('$branchUrl', {bankId: bankId}, function(data) {
@@ -307,7 +203,6 @@ $('#bank-selector').on('change', function() {
                 theme: 'krajee-bs5',
                 width: '100%'
             });
-            updateSqlPreview();
         });
     }
 });
