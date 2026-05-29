@@ -4,7 +4,7 @@ require __DIR__ . '/../../../vendor/yiisoft/yii2/Yii.php';
 $config = require __DIR__ . '/../../../config/console.php';
 new yii\console\Application($config);
 
-$schema = Yii::$app->db->getTableSchema('smisportal.sm_student_status');
+$schema = Yii::$app->db->getTableSchema('smisportal.fss_refund_requests');
 if ($schema) {
     print_r($schema->columnNames);
 } else {

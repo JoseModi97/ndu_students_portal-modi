@@ -26,26 +26,61 @@ try {
         )->execute();
     echo "Clearance status set to CLEARED.\n";
 
-    // 2. Update academic status to GRADUATED
-    $statusUpdate = Yii::$app->db->createCommand()
-        ->update('smisportal.sm_student_programme_curriculum', 
-            ['status_id' => 3], // GRADUATED
-            ['registration_number' => $regNo]
-        )->execute();
-    echo "Academic status set to GRADUATED.\n";
+    // 2. Update academic status to GRADUATED in both portal and SMIS.
+    $portalGraduatedStatusId = (new \yii\db\Query())
+        ->select('status_id')
+        ->from('smisportal.sm_student_status')
+        ->where(['status' => 'GRADUATED'])
+        ->scalar();
+
+    $smisGraduatedStatusId = (new \yii\db\Query())
+        ->select('status_id')
+        ->from('smis.sm_student_status')
+        ->where(['status' => 'GRADUATED'])
+        ->scalar(Yii::$app->smisDb);
+
+    if ($portalGraduatedStatusId) {
+        Yii::$app->db->createCommand()
+            ->update('smisportal.sm_student_programme_curriculum',
+                ['status_id' => $portalGraduatedStatusId],
+                ['registration_number' => $regNo]
+            )->execute();
+    }
+
+    if ($smisGraduatedStatusId) {
+        Yii::$app->smisDb->createCommand()
+            ->update('smis.sm_student_programme_curriculum',
+                ['status_id' => $smisGraduatedStatusId],
+                ['registration_number' => $regNo]
+            )->execute();
+    }
+
+    echo "Academic status set to GRADUATED where status records exist.\n";
 
     // 3. Ensure fee balance is zero
     // Actually, calculateFeeBalance checks fss_fee_transactions.
     // We'll just print the current balance status.
     echo "Checking fee balance...\n";
     
-    $transactionPortal = Yii::$app->db->beginTransaction();
-    // For automation, we might want to insert a dummy CR transaction to balance the account if DR > CR.
-    // But usually, we just assume the student is "prepared" for this.
-    
-    $transactionPortal->commit();
+    $transactions = (new \yii\db\Query())
+        ->select(['trans_amount', 'trans_type'])
+        ->from('smis.fss_fee_transactions')
+        ->where(['LIKE', 'progress_code', $regNo . '%', false])
+        ->all(Yii::$app->smisDb);
+
+    $credits = 0;
+    $debits = 0;
+    foreach ($transactions as $transaction) {
+        if ($transaction['trans_type'] === 'CR') {
+            $credits += $transaction['trans_amount'];
+        }
+        if ($transaction['trans_type'] === 'DR') {
+            $debits += $transaction['trans_amount'];
+        }
+    }
+
+    echo "Current SMIS fee balance: " . Yii::$app->formatter->asCurrency($debits - $credits) . "\n";
     echo "SUCCESS: Eligibility check/prep completed.\n";
 } catch (\Exception $e) {
-    if (isset($transactionPortal)) $transactionPortal->rollBack();
     echo "ERROR: " . $e->getMessage() . "\n";
 }

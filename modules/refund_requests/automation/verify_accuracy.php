@@ -9,9 +9,9 @@ echo "--- Real Data Check for $regNo ---\n";
 
 // 1. Fee Balance
 $transactions = (new \yii\db\Query())
-    ->from('smisportal.fss_fee_transactions')
+    ->from('smis.fss_fee_transactions')
     ->where(['LIKE', 'progress_code', $regNo . '%', false])
-    ->all();
+    ->all(Yii::$app->smisDb);
 
 $credits = 0;
 $debits = 0;
@@ -27,10 +27,10 @@ echo "Current Balance: " . Yii::$app->formatter->asCurrency($balance) . "\n";
 // 2. Academic Status
 $status = (new \yii\db\Query())
     ->select(['s.status', 'spc.status_id'])
-    ->from('smisportal.sm_student_programme_curriculum spc')
-    ->leftJoin('smisportal.sm_student_status s', 'spc.status_id = s.status_id')
+    ->from('smis.sm_student_programme_curriculum spc')
+    ->leftJoin('smis.sm_student_status s', 'spc.status_id = s.status_id')
     ->where(['spc.registration_number' => $regNo])
-    ->one();
+    ->one(Yii::$app->smisDb);
 
 echo "Academic Status from DB: " . ($status['status'] ?? 'NOT FOUND') . "\n";
 echo "Clearance Status: " . (new \yii\db\Query())

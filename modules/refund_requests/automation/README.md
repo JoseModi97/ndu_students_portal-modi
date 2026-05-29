@@ -1,52 +1,95 @@
-# Caution Refund Process Automation
+# Refund Request Process Automation
 
-This folder contains a suite of PHP scripts designed to automate the lifecycle of a Caution Refund application for testing and demonstration purposes. These scripts directly manipulate the database to simulate various stages of the process.
+This folder contains PHP CLI scripts for testing the current `refund_requests` module lifecycle. The scripts now target the active FSS refund tables used by the module:
+
+- Portal request table: `smisportal.fss_refund_requests`
+- SMIS sync table: `smis.fss_refund_requests`
+- Portal approval table: `smisportal.fss_refund_approval_process`
 
 ## Target Student
-All scripts are currently configured to target the test student:
-- **Registration Number**: `NR605/0001/2022`
+
+All scripts target:
+
+- Registration Number: `NR605/0001/2022`
 
 ## Automation Scripts
 
 ### 1. `step0_cleanup.php`
-- **Purpose**: Provides a clean slate for testing.
-- **Action**: Deletes all existing caution refund records for the student from both the Portal (`smisportal.sm_caution_refund`) and the SMIS (`smis.sm_caution_refund_official`) databases.
-- **Usage**: `php modules\caution_refund\automation\step0_cleanup.php`
+
+Deletes existing FSS refund requests and approval-process rows for the target student from both Portal and SMIS request tables.
+
+Usage:
+
+```powershell
+php modules\refund_requests\automation\step0_cleanup.php
+```
 
 ### 2. `step1_eligibility.php`
-- **Purpose**: Prepares the student to meet the basic eligibility criteria.
-- **Action**: Updates the student's status to `CLEARED` in the `smisportal.sm_admitted_student` table.
-- **Note**: This script ensures the clearance check passes; however, if the student has a fee balance in `fss_fee_transactions`, they may still be ineligible.
-- **Usage**: `php modules\caution_refund\automation\step1_eligibility.php`
+
+Prepares the student for the module eligibility checks by setting clearance to `CLEARED` and academic status to `GRADUATED` where those status records exist. It also prints the SMIS fee balance used by the live controller.
+
+Usage:
+
+```powershell
+php modules\refund_requests\automation\step1_eligibility.php
+```
 
 ### 3. `step2_apply.php`
-- **Purpose**: Simulates the submission of the Caution Refund form.
-- **Action**: Creates a `PENDING` request in the student portal and a corresponding official record in the SMIS database.
-- **Usage**: `php modules\caution_refund\automation\step2_apply.php`
+
+Creates a valid pending refund request in both `smisportal.fss_refund_requests` and `smis.fss_refund_requests`.
+
+Default usage creates a Bank payment request with mandatory bank, branch, account number, and `declaration_status = 1`:
+
+```powershell
+php modules\refund_requests\automation\step2_apply.php
+```
+
+To create an M-PESA payment request instead:
+
+```powershell
+php modules\refund_requests\automation\step2_apply.php mpesa
+```
 
 ### 4. `step3_approve_level1.php`
-- **Purpose**: Simulates the first administrative approval.
-- **Action**: Records an `APPROVED` status for the first workflow level (typically the Dean of Students) in the `smis.sm_approval_process` table.
-- **Usage**: `php modules\caution_refund\automation\step3_approve_level1.php`
+
+Records an `APPROVED` row for level 1 in `smisportal.fss_refund_approval_process`. If no active approver exists for level 1, the script creates an automation approver.
+
+Usage:
+
+```powershell
+php modules\refund_requests\automation\step3_approve_level1.php
+```
 
 ### 5. `step4_finalize.php`
-- **Purpose**: Completes the entire approval lifecycle.
-- **Action**: Iteratively approves all remaining levels in the workflow and sets the final status of the refund request to `APPROVED` in both databases.
-- **Usage**: `php modules\caution_refund\automation\step4_finalize.php`
+
+Approves all remaining configured approval levels, then marks the refund request as `APPROVED` in both Portal and SMIS request tables.
+
+Usage:
+
+```powershell
+php modules\refund_requests\automation\step4_finalize.php
+```
 
 ## Utility Scripts
 
-### `sync_student_status_cli.php`
-- **Purpose**: An interactive CLI tool to manage and synchronize student academic statuses (e.g., ACTIVE, GRADUATED) across both databases.
-- **Action**: Queries current status from SMIS and Portal, lists available statuses with an explicit **Exit** option, and performs a transactional update on both systems to ensure consistency.
-- **Usage**: `php modules\caution_refund\automation\sync_student_status_cli.php`
+### `debug_record.php`
+
+Prints the latest FSS refund request for the target student, including refund type and bank/branch labels when available.
+
+### `verify_accuracy.php`
+
+Prints the SMIS fee balance, SMIS academic status, and portal clearance status used by the eligibility flow.
 
 ### `check_status.php`
-- **Purpose**: A quick diagnostic tool to verify the current clearance status of the test student.
-- **Usage**: `php modules\caution_refund\automation\check_status.php`
 
----
+Prints a quick clearance-status summary for the target student.
+
+### `sync_student_status_cli.php`
+
+Interactive CLI tool to synchronize student academic statuses across SMIS and Portal.
 
 ## Tracking the Changes
-You can observe the effects of these scripts in real-time by visiting the **Full Process Tracker** in the application:
-`URL: /index.php?r=caution_refund/default/track`
+
+Open the refund request module tracker in the application:
+
+`/index.php?r=refund-requests/default/track`
