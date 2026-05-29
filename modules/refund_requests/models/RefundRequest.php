@@ -50,7 +50,8 @@ class RefundRequest extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type', 'payment_method'], 'required'],
+            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type'], 'required'],
+            [['payment_method'], 'required', 'message' => 'Please select a payment option.'],
             [['payment_method'], 'in', 'range' => ['bank', 'mpesa']],
             [['payment_method'], 'validatePaymentDetails'],
             [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type'], 'integer'],
