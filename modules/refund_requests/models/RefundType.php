@@ -22,7 +22,13 @@ class RefundType extends ActiveRecord
      */
     public function getDisplayName(): string
     {
-        return $this->refund_type_name === 'STANDARD' ? 'Caution Refund' : $this->refund_type_name;
+        if ($this->refund_type_name === 'STANDARD') {
+            return 'Standard (Bank Transfer)';
+        }
+        if ($this->refund_type_name === 'CHSS') {
+            return 'CHSS (M-PESA)';
+        }
+        return $this->refund_type_name;
     }
 
     /**

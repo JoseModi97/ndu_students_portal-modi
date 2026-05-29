@@ -16,6 +16,14 @@ $this->title = 'Apply for Refund Request';
 $this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 $this->registerCssFile('@web/css/refund-requests.css');
 
+$chssTypeId = null;
+foreach ($refundTypes as $type) {
+    if ($type->refund_type_name === 'CHSS') {
+        $chssTypeId = $type->refund_type_id;
+        break;
+    }
+}
+
 $fieldConfig = [
     'options' => ['class' => 'cr-field'],
     'template' => "{label}\n{input}\n{error}",
@@ -167,9 +175,9 @@ $fieldConfig = [
 $branchUrl = Url::to(['branches']);
 $js = <<<JS
 // Toggle fields based on mode
-// Note: We use the value 2 for CHSS as per our migration data
+var chssTypeId = '$chssTypeId';
 function toggleRefundFields(value) {
-    if (value == '2') { // CHSS
+    if (value == chssTypeId) { // CHSS
         $('#standard-fields').hide();
         $('#chss-fields').show();
     } else {
