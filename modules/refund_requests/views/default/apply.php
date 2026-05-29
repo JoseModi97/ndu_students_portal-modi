@@ -23,7 +23,6 @@ $fieldConfig = [
     'errorOptions' => ['class' => 'cr-error'],
 ];
 
-$paymentOption = Yii::$app->request->post('payment_option', 'bank');
 $selectedRefundTypeLabel = 'N/A';
 foreach ($refundTypes as $type) {
     if ((string)$type->refund_type_id === (string)$model->refund_type) {
@@ -83,35 +82,35 @@ foreach ($refundTypes as $type) {
                 <h2 class="cr-card__title">Disbursement Details</h2>
             </div>
             <div class="cr-card__body">
-                <div class="cr-field">
-                    <label class="cr-label--bold">Select Payment Option</label>
-                    <div class="cr-radio-list">
-                        <div class="cr-radio-item">
-                            <input type="radio" name="payment_option" value="bank" id="payment-option-bank" class="payment-option-radio" <?= $paymentOption === 'bank' ? 'checked' : '' ?>>
-                            <label for="payment-option-bank">Bank Account Details</label>
-                        </div>
-                        <div class="cr-radio-item">
-                            <input type="radio" name="payment_option" value="mpesa" id="payment-option-mpesa" class="payment-option-radio" <?= $paymentOption === 'mpesa' ? 'checked' : '' ?>>
-                            <label for="payment-option-mpesa">M-PESA</label>
-                        </div>
-                    </div>
-                </div>
+                <?= $form->field($model, 'payment_option', [
+                    'template' => "{label}\n<div class='cr-radio-list'>{input}</div>\n{error}",
+                    'labelOptions' => ['class' => 'cr-label--bold'],
+                ])->radioList(
+                    ['bank' => 'Bank Account Details', 'mpesa' => 'M-PESA'],
+                    [
+                        'item' => function($index, $label, $name, $checked, $value) {
+                            $id = 'payment-option-' . $value;
+                            $checkedAttr = $checked ? 'checked' : '';
+                            return "
+                                <div class='cr-radio-item'>
+                                    <input type='radio' name='$name' value='$value' id='$id' class='payment-option-radio' $checkedAttr>
+                                    <label for='$id'>$label</label>
+                                </div>";
+                        },
+                    ]
+                )->label('Select Payment Option') ?>
 
                 <div id="bank-details-fields" class="cr-form-grid">
-                    <div class="cr-field">
-                        <label>Bank <span class="required-star">*</span></label>
-                        <?= Select2::widget([
-                            'name' => 'bank_id',
-                            'data' => ArrayHelper::map($banks, 'brank_id', 'bank_name'),
-                            'options' => [
-                                'placeholder' => 'Select Bank',
-                                'id' => 'bank-selector'
-                            ],
-                            'pluginOptions' => [
-                                'allowClear' => true
-                            ],
-                        ]) ?>
-                    </div>
+                    <?= $form->field($model, 'bank_id')->widget(Select2::class, [
+                        'data' => ArrayHelper::map($banks, 'brank_id', 'bank_name'),
+                        'options' => [
+                            'placeholder' => 'Select Bank',
+                            'id' => 'bank-selector'
+                        ],
+                        'pluginOptions' => [
+                            'allowClear' => true
+                        ],
+                    ]) ?>
                     <?= $form->field($model, 'branch_id')->widget(Select2::class, [
                         'data' => [],
                         'options' => [

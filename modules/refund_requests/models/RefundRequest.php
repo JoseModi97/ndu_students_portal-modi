@@ -35,6 +35,8 @@ use yii\db\ActiveRecord;
  */
 class RefundRequest extends ActiveRecord
 {
+    public $payment_option = 'bank';
+
     /**
      * {@inheritdoc}
      */
@@ -50,6 +52,9 @@ class RefundRequest extends ActiveRecord
     {
         return [
             [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type'], 'required'],
+            [['payment_option'], 'required', 'message' => 'Please select a payment option.'],
+            [['payment_option'], 'in', 'range' => ['bank', 'mpesa']],
+            [['payment_option'], 'validatePaymentDetails'],
             [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type'], 'integer'],
             [['application_date'], 'safe'],
             [['amount_requested', 'amount_approved'], 'number'],
@@ -66,6 +71,27 @@ class RefundRequest extends ActiveRecord
             [['refund_type'], 'exist', 'skipOnError' => true, 'targetClass' => RefundType::class, 'targetAttribute' => ['refund_type' => 'refund_type_id']],
             [['student_prog_curriculum_id'], 'exist', 'skipOnError' => true, 'targetClass' => StudentProgCurriculum::class, 'targetAttribute' => ['student_prog_curriculum_id' => 'student_prog_curriculum_id']],
         ];
+    }
+
+    public function validatePaymentDetails($attribute, $params): void
+    {
+        if ($this->payment_option === 'bank') {
+            if (empty($this->bank_id)) {
+                $this->addError('bank_id', 'Please select a bank.');
+            }
+
+            if (empty($this->branch_id)) {
+                $this->addError('branch_id', 'Please select a branch.');
+            }
+
+            if (trim((string)$this->account_no) === '') {
+                $this->addError('account_no', 'Please enter the bank account number.');
+            }
+        }
+
+        if ($this->payment_option === 'mpesa' && trim((string)$this->mobile_no) === '') {
+            $this->addError('mobile_no', 'Please enter the M-PESA mobile number.');
+        }
     }
 
     /**
@@ -91,6 +117,7 @@ class RefundRequest extends ActiveRecord
             'voucher_no' => 'Voucher No',
             'amount_approved' => 'Amount Approved',
             'refund_type' => 'Refund Type',
+            'payment_option' => 'Payment Option',
         ];
     }
 

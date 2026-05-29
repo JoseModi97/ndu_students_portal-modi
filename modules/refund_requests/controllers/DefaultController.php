@@ -249,17 +249,16 @@ class DefaultController extends BaseController
         $model->passport_id = $user->passport_no ?: ($user->national_id ?: 'N/A');
         $model->account_name = $user->surname . ' ' . $user->other_names;
         $model->mobile_no = $user->primary_phone_no ?: '0000000000';
+        $model->payment_option = 'bank';
 
         if ($this->request->isPost) {
             $post = $this->request->post();
 
             if ($model->load($post)) {
-                $paymentOption = $post['payment_option'] ?? 'bank';
-                $model->bank_id = $paymentOption === 'bank' ? ($post['bank_id'] ?? null) : null;
-
-                if ($paymentOption === 'mpesa') {
+                if ($model->payment_option === 'mpesa') {
                     $model->branch_id = null;
                     $model->account_no = null;
+                    $model->bank_id = null;
                 }
 
                 if (empty($model->mobile_no)) {
