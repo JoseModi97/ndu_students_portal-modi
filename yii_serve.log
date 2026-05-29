@@ -1,0 +1,7 @@
+Server started on http://localhost:8080/
+Document root is "/app/web"
+Quit the server with CTRL-C or COMMAND-C.
+[Fri May 29 07:09:11 2026] PHP 8.3.6 Development Server (http://localhost:8080) started
+[Fri May 29 07:09:12 2026] [::1]:58176 Accepted
+[Fri May 29 07:09:13 2026] [::1]:58176 [302]: HEAD /
+[Fri May 29 07:09:13 2026] [::1]:58176 Closing

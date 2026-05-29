@@ -249,6 +249,7 @@ class DefaultController extends BaseController
         $model->passport_id = $user->passport_no ?: ($user->national_id ?: 'N/A');
         $model->account_name = $user->surname . ' ' . $user->other_names;
         $model->mobile_no = $user->primary_phone_no ?: '0000000000';
+        $model->payment_method = 'BANK'; // Default
 
         if ($this->request->isPost) {
             $post = $this->request->post();

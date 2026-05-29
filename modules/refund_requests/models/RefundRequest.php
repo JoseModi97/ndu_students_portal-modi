@@ -26,6 +26,7 @@ use yii\db\ActiveRecord;
  * @property int|null $voucher_no
  * @property float|null $amount_approved
  * @property int $refund_type
+ * @property string $payment_method
  *
  * @property Bank $bank
  * @property BankBranch $branch
@@ -49,13 +50,13 @@ class RefundRequest extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type'], 'required'],
+            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type', 'payment_method'], 'required'],
             [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type'], 'integer'],
             [['application_date'], 'safe'],
             [['amount_requested', 'amount_approved'], 'number'],
             [['mobile_no'], 'string', 'max' => 20],
             [['email', 'passport_id'], 'string', 'max' => 100],
-            [['refund_status', 'approval_status'], 'string', 'max' => 50],
+            [['refund_status', 'approval_status', 'payment_method'], 'string', 'max' => 50],
             [['account_no'], 'string', 'max' => 50],
             [['account_name'], 'string', 'max' => 120],
             [['declaration_status'], 'string', 'max' => 3],
@@ -90,6 +91,7 @@ class RefundRequest extends ActiveRecord
             'voucher_no' => 'Voucher No',
             'amount_approved' => 'Amount Approved',
             'refund_type' => 'Refund Type',
+            'payment_method' => 'Payment Method',
         ];
     }
 

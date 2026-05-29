@@ -25,6 +25,7 @@ use yii\db\Connection;
  * @property int|null $voucher_no
  * @property float|null $amount_approved
  * @property int $refund_type
+ * @property string $payment_method
  */
 class RefundRequestOfficial extends \yii\db\ActiveRecord
 {
@@ -51,14 +52,14 @@ class RefundRequestOfficial extends \yii\db\ActiveRecord
     {
         return [
             [['account_no', 'account_name', 'bank_id', 'branch_id', 'voucher_no', 'amount_approved'], 'default', 'value' => null],
-            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type'], 'required'],
+            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type', 'payment_method'], 'required'],
             [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type'], 'integer'],
             [['application_date'], 'safe'],
             [['amount_requested', 'amount_approved'], 'number'],
             [['mobile_no'], 'string', 'max' => 20],
             [['email'], 'string', 'max' => 100],
             [['refund_status', 'passport_id'], 'string', 'max' => 30],
-            [['account_no', 'approval_status'], 'string', 'max' => 50],
+            [['account_no', 'approval_status', 'payment_method'], 'string', 'max' => 50],
             [['account_name'], 'string', 'max' => 120],
             [['declaration_status'], 'string', 'max' => 3],
             [['request_id'], 'unique'],
@@ -88,6 +89,7 @@ class RefundRequestOfficial extends \yii\db\ActiveRecord
             'voucher_no' => 'Voucher No',
             'amount_approved' => 'Amount Approved',
             'refund_type' => 'Refund Type',
+            'payment_method' => 'Payment Method',
         ];
     }
 }

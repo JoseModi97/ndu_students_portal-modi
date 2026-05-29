@@ -56,18 +56,26 @@ $fieldConfig = [
                 <h2 class="cr-card__title">Refund Mode & Amount</h2>
             </div>
             <div class="cr-card__body">
-                <?= $form->field($model, 'refund_type', [
+                <div class="cr-form-grid" style="margin-bottom: 2rem;">
+                    <div class="cr-field">
+                        <label class="cr-label--bold">Refund Type</label>
+                        <input type="text" class="form-control" value="<?= Html::encode($model->refundType ? $model->refundType->getDisplayName() : 'N/A') ?>" readonly>
+                        <?= Html::activeHiddenInput($model, 'refund_type') ?>
+                    </div>
+                </div>
+
+                <?= $form->field($model, 'payment_method', [
                     'template' => "{label}\n<div class='cr-radio-list'>{input}</div>\n{error}",
                     'labelOptions' => ['class' => 'cr-label--bold']
                 ])->radioList(
-                    ArrayHelper::map($refundTypes, 'refund_type_id', 'displayName'),
+                    ['BANK' => 'Standard (Bank Transfer)', 'MPESA' => 'CHSS (M-PESA)'],
                     [
                         'item' => function($index, $label, $name, $checked, $value) {
-                            $id = 'refund-type-' . $value;
+                            $id = 'payment-method-' . $value;
                             $checkStr = $checked ? 'checked' : '';
                             return "
                                 <div class='cr-radio-item'>
-                                    <input type='radio' name='$name' value='$value' id='$id' $checkStr class='refund-type-radio'>
+                                    <input type='radio' name='$name' value='$value' id='$id' $checkStr class='payment-method-radio'>
                                     <label for='$id'>$label</label>
                                 </div>";
                         }
@@ -172,9 +180,8 @@ $fieldConfig = [
 $branchUrl = Url::to(['branches']);
 $js = <<<JS
 // Toggle fields based on mode
-var chssTypeId = '$chssTypeId';
 function toggleRefundFields(value) {
-    if (value == chssTypeId) { // CHSS
+    if (value == 'MPESA') { // CHSS
         $('#standard-fields').hide();
         $('#chss-fields').show();
     } else {
@@ -184,10 +191,10 @@ function toggleRefundFields(value) {
 }
 
 // Initial toggle
-toggleRefundFields($('.refund-type-radio:checked').val());
+toggleRefundFields($('.payment-method-radio:checked').val());
 
 // Handle change
-$('.refund-type-radio').on('change', function() {
+$('.payment-method-radio').on('change', function() {
     toggleRefundFields($(this).val());
 });
 
