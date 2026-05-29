@@ -142,15 +142,17 @@ $this->registerJs("
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">Payment Mode</span>
                         <span class="cr-status-row__value">
-                            <?php if ($request->refund_type == 1): ?>
+                            <?php if ($request->payment_method === 'bank'): ?>
                                 <span class="badge bg-secondary mb-1">Bank Transfer</span><br>
                                 <span style="font-size: 0.85rem; color: var(--cr-slate-400);">
                                     <?= Html::encode($request->bank->bank_name ?? 'Unknown Bank') ?> 
                                     (Acc: <?= Html::encode($request->account_no) ?>)
                                 </span>
-                            <?php else: ?>
+                            <?php elseif ($request->payment_method === 'mpesa'): ?>
                                 <span class="badge bg-success mb-1">M-PESA</span><br>
                                 <span style="font-size: 0.85rem; color: var(--cr-slate-400);">Mobile: <?= Html::encode($request->mobile_no) ?></span>
+                            <?php else: ?>
+                                <span class="badge bg-warning mb-1">Not Specified</span>
                             <?php endif; ?>
                         </span>
                     </div>

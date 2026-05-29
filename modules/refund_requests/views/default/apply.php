@@ -82,7 +82,7 @@ foreach ($refundTypes as $type) {
                 <h2 class="cr-card__title">Disbursement Details</h2>
             </div>
             <div class="cr-card__body">
-                <?= $form->field($model, 'payment_option', [
+                <?= $form->field($model, 'payment_method', [
                     'template' => "{label}\n<div class='cr-radio-list'>{input}</div>\n{error}",
                     'labelOptions' => ['class' => 'cr-label--bold'],
                 ])->radioList(
@@ -262,11 +262,11 @@ function updateSqlPreview() {
         'INSERT INTO smisportal.fss_refund_requests (',
         '    request_id, student_prog_curriculum_id, mobile_no, email, application_date,',
         '    refund_status, account_name, bank_id, branch_id, account_no,',
-        '    passport_id, declaration_status, amount_requested, approval_status, refund_type',
+        '    passport_id, declaration_status, amount_requested, approval_status, refund_type, payment_method',
         ') VALUES (',
         '    :next_request_id, ' + sqlPreviewDefaults.studentProgCurriculumId + ', ' + sqlValue(mobileNo) + ', ' + sqlValue(sqlPreviewDefaults.email) + ', NOW(),',
         "    'PENDING', " + sqlValue(sqlPreviewDefaults.accountName) + ', ' + (isBank ? sqlNumber(bankId) : 'NULL') + ', ' + (isBank ? sqlNumber(branchId) : 'NULL') + ', ' + (isBank ? sqlValue(accountNo) : 'NULL') + ',',
-        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ', ' + declarationStatus + ', ' + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId,
+        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ', ' + declarationStatus + ', ' + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId + ', ' + sqlValue(paymentOption),
         ');',
         '',
         '-- SMIS sync insert uses the saved portal values',

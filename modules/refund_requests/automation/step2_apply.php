@@ -102,6 +102,7 @@ $row = [
     'amount_requested' => $amount,
     'approval_status' => 'PENDING',
     'refund_type' => $refundTypeId,
+    'payment_method' => $paymentOption,
 ];
 
 $transactionPortal = Yii::$app->db->beginTransaction();
