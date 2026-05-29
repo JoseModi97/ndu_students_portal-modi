@@ -82,12 +82,24 @@ $this->registerJs("
                         <span class="cr-status-row__value">#REF-<?= str_pad($request->request_id, 5, '0', STR_PAD_LEFT) ?></span>
                     </div>
                     <div class="cr-status-row">
-                        <span class="cr-status-row__label">Declaration Status</span>
+                        <span class="cr-status-row__label">Portal Declaration</span>
                         <span class="cr-status-row__value">
                             <?php if ($request->declaration_status == '1'): ?>
                                 <span class="cr-badge cr-badge--approved">ACCEPTED</span>
                             <?php else: ?>
                                 <span class="cr-badge cr-badge--rejected">NOT ACCEPTED</span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">SMIS Declaration</span>
+                        <span class="cr-status-row__value">
+                            <?php if ($smisRequest && $smisRequest->declaration_status == '1'): ?>
+                                <span class="cr-badge cr-badge--approved">ACCEPTED</span>
+                            <?php elseif ($smisRequest): ?>
+                                <span class="cr-badge cr-badge--rejected">NOT ACCEPTED</span>
+                            <?php else: ?>
+                                <span class="cr-badge cr-badge--pending">NOT SYNCED</span>
                             <?php endif; ?>
                         </span>
                     </div>

@@ -177,7 +177,19 @@ $progressPercent = ($currentStageIndex / $totalStages) * 100;
                         
                         <div style="border-top: 1px solid var(--cr-blue-50); padding-top: 1rem;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">Status</span>
+                                <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">Portal Declaration</span>
+                                <span class="cr-badge <?= ($request && $request->declaration_status == '1') ? 'cr-badge--approved' : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
+                                    <?= ($request && $request->declaration_status == '1') ? 'ACCEPTED' : 'NOT ACCEPTED' ?>
+                                </span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">SMIS Declaration</span>
+                                <span class="cr-badge <?= ($smisRequest && $smisRequest->declaration_status == '1') ? 'cr-badge--approved' : ($smisRequest ? 'cr-badge--rejected' : 'cr-badge--pending') ?>" style="font-size: 0.65rem;">
+                                    <?= ($smisRequest && $smisRequest->declaration_status == '1') ? 'ACCEPTED' : ($smisRequest ? 'NOT ACCEPTED' : 'NOT SYNCED') ?>
+                                </span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">Request Status</span>
                                 <span class="cr-badge <?= $request ? 'cr-badge--pending' : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
                                     <?= $request ? 'ACTIVE REQUEST' : 'NO ACTIVE REQUEST' ?>
                                 </span>

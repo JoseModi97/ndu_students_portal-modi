@@ -153,8 +153,10 @@ class DefaultController extends BaseController
         $refundTypes = \app\modules\refund_requests\models\RefundType::find()->where(['refund_type_status' => true])->all();
         
         $existingRequest = null;
+        $smisRequest = null;
         if ($check['student_prog_curriculum_id']) {
             $existingRequest = RefundRequest::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
+            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
         }
 
         // Mode: STATUS (Already applied)
@@ -167,6 +169,7 @@ class DefaultController extends BaseController
                 'mode' => 'status',
                 'user' => $user,
                 'request' => $existingRequest,
+                'smisRequest' => $smisRequest,
                 'approvals' => $approvals,
                 'allLevels' => $allLevels,
                 'academicStatus' => $academicStatus
@@ -319,9 +322,11 @@ class DefaultController extends BaseController
         $check = $this->checkEligibility($user);
 
         $request = null;
+        $smisRequest = null;
         $approvals = [];
         if ($check['student_prog_curriculum_id']) {
             $request = RefundRequest::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
+            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
             if ($request) {
                 $approvals = ApprovalProcess::find()
                     ->where(['request_id' => $request->request_id])
@@ -335,6 +340,7 @@ class DefaultController extends BaseController
         return $this->render('track', [
             'user' => $user,
             'request' => $request,
+            'smisRequest' => $smisRequest,
             'approvals' => $approvals,
             'allLevels' => $allLevels,
             'balance' => $balance
