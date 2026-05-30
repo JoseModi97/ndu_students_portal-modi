@@ -311,6 +311,11 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
+        if ($check['hasExistingRequest']) {
+            $this->setFlash('info', 'Active Application Found', 'You already have a pending refund request. You can track its status from your dashboard.');
+            return $this->redirect(['index']);
+        }
+
         $typeId = $this->request->get('type');
         $refundType = \app\modules\refund_requests\models\RefundType::findOne($typeId);
         $passedAmount = $this->request->get('amount');
