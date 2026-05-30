@@ -66,6 +66,14 @@ $this->registerJs("
                     errorMsg.text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
                     return;
                 }
+
+                if (displayAmount <= 0) {
+                    applyBtn.attr('href', '#');
+                    applyBtn.css({'opacity': '0.7'});
+                    selectField.css('border-color', 'var(--cr-red)');
+                    errorMsg.text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
+                    return;
+                }
                 
                 // Show dynamic summary for caution
                 $('#caution-amount-display').text(new Intl.NumberFormat('en-KE', { 
@@ -102,9 +110,15 @@ $this->registerJs("
             e.preventDefault();
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
             $('#type-error-msg').text('Please select a refund type to proceed').show();
-        } else if (typeText.includes('CAUTION') && cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
-            e.preventDefault();
-            $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
+        } else if (typeText.includes('CAUTION')) {
+            var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+            if (cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
+                e.preventDefault();
+                $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
+            } else if (displayAmount <= 0) {
+                e.preventDefault();
+                $('#type-error-msg').text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
+            }
         }
     });
 ");
