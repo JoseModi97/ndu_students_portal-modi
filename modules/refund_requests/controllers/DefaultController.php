@@ -98,7 +98,7 @@ class DefaultController extends BaseController
         $academicStatus = $smisStudentData['status'] ?? 'UNKNOWN';
         $balance = $this->calculateFeeBalance($normalizedRegNo);
         $cautionFeePaid = $this->calculateCautionFeePaid($normalizedRegNo);
-        $expectedCaution = $this->calculateExpectedCautionFee($smisStudentData['prog_curriculum_id'] ?? 0);
+        $expectedCaution = $this->calculateExpectedCautionFee($normalizedRegNo);
         
         $hasExistingRequest = false;
         if (!empty($smisStudentData['student_prog_curriculum_id'])) {
@@ -118,15 +118,20 @@ class DefaultController extends BaseController
         $reason = null;
         $allowedStatuses = ['GRADUATED', 'COMPLETED'];
 
+        /** @var \app\modules\refund_requests\Module $module */
+        $module = $this->module;
+
         if (strtoupper($user->clearance_status) !== 'CLEARED') {
             $eligible = false;
             $reason = 'You must be CLEARED to access this feature. Current status: ' . ($user->clearance_status ?: 'PENDING');
         } elseif (!in_array(strtoupper($academicStatus), $allowedStatuses)) {
             $eligible = false;
             $reason = 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' . $academicStatus;
-        } elseif ($expectedCaution > 0 && $cautionFeePaid < $expectedCaution && !$this->module->overrideCautionFee) {
+        } elseif (!$module->overrideCautionFee && $cautionFeePaid < $expectedCaution) {
             $eligible = false;
-            $reason = 'You are not eligible for refunds because the required CAUTION FEE of ' . Yii::$app->formatter->asCurrency($expectedCaution) . ' has not been fully paid.';
+            $maxStr = Yii::$app->formatter->asCurrency($expectedCaution);
+            $paidStr = Yii::$app->formatter->asCurrency($cautionFeePaid);
+            $reason = "You have not fully paid the required CAUTION FEE. (Required: {$maxStr}, Paid: {$paidStr})";
         }
 
         return [
@@ -144,17 +149,23 @@ class DefaultController extends BaseController
     }
 
     /**
-     * Calculate expected caution fee for a program curriculum
-     * @param int $progCurriculumId
+     * Calculate expected caution fee for a student from their transactions
+     * @param string $regNumber Registration number (normalized)
      * @return float
      */
-    private function calculateExpectedCautionFee(int $progCurriculumId): float
+    private function calculateExpectedCautionFee(string $regNumber): float
     {
         return (float)(new \yii\db\Query())
-            ->from('smis.fss_prog_curr_charges pcc')
-            ->where(['pcc.prog_curr_id' => $progCurriculumId, 'pcc.fee_code' => 82])
-            ->select(['pcc.amount_charged'])
-            ->scalar(Yii::$app->smisDb) ?: 0.0;
+            ->from('smis.fss_fee_transactions ft')
+            ->innerJoin('smis.fss_fee_items fi', 'ft.trans_desc = fi.fee_description')
+            ->where(['LIKE', 'ft.progress_code', $regNumber . '%', false])
+            ->andWhere([
+                'fi.fee_description' => 'CAUTION MONEY',
+                'fi.fee_type' => 'OTHER',
+                'fi.priority' => 1,
+                'ft.trans_type' => 'DR'
+            ])
+            ->sum('ft.trans_amount', Yii::$app->smisDb);
     }
 
     /**
@@ -241,7 +252,10 @@ class DefaultController extends BaseController
                 'smisRequest' => $smisRequest,
                 'approvals' => $approvals,
                 'allLevels' => $allLevels,
-                'academicStatus' => $academicStatus
+                'academicStatus' => $academicStatus,
+                'cautionFeePaid' => $check['cautionFeePaid'],
+                'expectedCautionFee' => $expectedCautionFee,
+                'overrideCautionFee' => $this->module->overrideCautionFee,
             ]);
         }
 
@@ -305,10 +319,20 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
-        $typeId = $this->request->get('type');
-        $refundType = \app\modules\refund_requests\models\RefundType::findOne($typeId);
-        $passedAmount = $this->request->get('amount');
+        if ($check['hasExistingRequest']) {
+            $this->setFlash('info', 'Active Application Found', 'You already have a pending refund request. You can track its status from your dashboard.');
+            return $this->redirect(['index']);
+        }
 
+        $typeId = $this->request->post('type', $this->request->get('type'));
+        if (!$typeId && $this->request->isPost && isset($this->request->post('RefundRequest')['refund_type'])) {
+            $typeId = $this->request->post('RefundRequest')['refund_type'];
+        }
+
+        $refundType = \app\modules\refund_requests\models\RefundType::findOne($typeId);
+        $passedAmount = $this->request->post('amount', $this->request->get('amount'));
+
+        $refundableAmount = 0;
         // Validation for CAUTION refund type
         if ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
             /** @var \app\modules\refund_requests\Module $module */
@@ -317,9 +341,19 @@ class DefaultController extends BaseController
                 $this->setFlash('danger', 'Requirement Not Met', 'You have not fully paid the CAUTION FEE required for this refund type.');
                 return $this->redirect(['index']);
             }
+            
+            $refundableAmount = ($check['cautionFeePaid'] >= $check['expectedCaution']) ? $check['cautionFeePaid'] : ($module->overrideCautionFee ? $check['expectedCaution'] : 0);
+            if ($refundableAmount <= 0) {
+                $this->setFlash('danger', 'Requirement Not Met', 'The calculated Caution Refund amount must be greater than zero.');
+                return $this->redirect(['index']);
+            }
+        } else {
+            // For non-caution types, we could potentially limit by fee balance if it's a credit balance
+            $refundableAmount = ($check['balance'] < 0) ? abs((float)$check['balance']) : 0;
         }
 
         $model = new RefundRequest();
+        $model->max_amount = (float)$refundableAmount;
 
         if ($typeId) {
             $model->refund_type = $typeId;
@@ -330,8 +364,8 @@ class DefaultController extends BaseController
             } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
                 // Fallback autofill logic for CAUTION type if not passed from index
                 $amount = $check['cautionFeePaid'];
-                if ($amount <= 0 && $this->module->overrideCautionFee && $check['prog_curriculum_id']) {
-                    $amount = $this->calculateExpectedCautionFee($check['prog_curriculum_id']);
+                if ($amount <= 0 && $this->module->overrideCautionFee) {
+                    $amount = $check['expectedCaution'];
                 }
                 $model->amount_requested = $amount;
             }
@@ -354,7 +388,7 @@ class DefaultController extends BaseController
         $model->mobile_no = $user->primary_phone_no ?: '0000000000';
         $model->payment_method = 'bank';
 
-        if ($this->request->isPost) {
+        if ($this->request->isPost && $this->request->post('RefundRequest')) {
             $post = $this->request->post();
 
             if ($model->load($post)) {
@@ -434,7 +468,12 @@ class DefaultController extends BaseController
             'smisRequest' => $smisRequest,
             'approvals' => $approvals,
             'allLevels' => $allLevels,
-            'balance' => $balance
+            'balance' => $balance,
+            'cautionFeePaid' => $check['cautionFeePaid'],
+            'expectedCautionFee' => $check['expectedCaution'],
+            'overrideCautionFee' => $this->module->overrideCautionFee,
+            'eligible' => $check['eligible'],
+            'reason' => $check['reason'],
         ]);
     }
 }

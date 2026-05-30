@@ -75,7 +75,7 @@ foreach ($refundTypes as $type) {
                         <input type="text" class="form-control" value="<?= Html::encode($regNumber) ?>" readonly>
                     </div>
                     <?= $form->field($model, 'amount_requested')->textInput(['type' => 'number', 'step' => '0.01', 'placeholder' => 'Enter amount (e.g. 5000)']) ?>
-                    <?= $form->field($model, 'voucher_no')->textInput(['type' => 'number', 'placeholder' => 'Voucher No. (Optional)']) ?>
+                    <?php $form->field($model, 'voucher_no')->textInput(['type' => 'number', 'placeholder' => 'Voucher No. (Optional)']) ?>
                 </div>
             </div>
         </div>
@@ -197,7 +197,31 @@ $refundTypeId = (int)$model->refund_type;
 $defaultEmail = \yii\helpers\Json::htmlEncode($model->email);
 $defaultPassportId = \yii\helpers\Json::htmlEncode($model->passport_id);
 $defaultAccountName = \yii\helpers\Json::htmlEncode($model->account_name);
+$maxAmount = (float)$model->max_amount;
+
 $js = <<<JS
+var maxAmount = $maxAmount;
+
+// Add amount requested validation
+$('#refund-requests-form').yiiActiveForm('add', {
+    id: 'refundrequest-amount_requested',
+    name: 'amount_requested',
+    container: '.field-refundrequest-amount_requested',
+    input: '#refundrequest-amount_requested',
+    error: '.cr-error',
+    validate: function (attribute, value, messages, deferred, \$form) {
+        var val = parseFloat(value);
+        if (val > maxAmount) {
+            var formattedMax = new Intl.NumberFormat('en-KE', { 
+                style: 'currency', 
+                currency: 'KES',
+                minimumFractionDigits: 2
+            }).format(maxAmount);
+            messages.push("The requested amount cannot exceed the estimated refundable amount of " + formattedMax);
+        }
+    }
+});
+
 function togglePaymentOptionFields(value) {
     var form = $('#refund-requests-form');
     if (value === 'mpesa') {

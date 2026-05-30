@@ -16,6 +16,7 @@ use yii\helpers\Url;
 /** @var float|null $balance */
 /** @var float|null $cautionFeePaid */
 /** @var float|null $expectedCautionFee */
+/** @var bool $overrideCautionFee */
 
 $this->title = 'Refund Request Dashboard';
 
@@ -66,6 +67,14 @@ $this->registerJs("
                     errorMsg.text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
                     return;
                 }
+
+                if (displayAmount <= 0) {
+                    applyBtn.attr('href', '#');
+                    applyBtn.css({'opacity': '0.7'});
+                    selectField.css('border-color', 'var(--cr-red)');
+                    errorMsg.text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
+                    return;
+                }
                 
                 // Show dynamic summary for caution
                 $('#caution-amount-display').text(new Intl.NumberFormat('en-KE', { 
@@ -77,13 +86,6 @@ $this->registerJs("
                 cautionSummary.fadeIn();
             }
 
-            var baseUrl = '" . Url::to(['apply']) . "';
-            var amountParam = '';
-            if (typeText.includes('CAUTION')) {
-                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
-                amountParam = '&amount=' + displayAmount;
-            }
-            applyBtn.attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId + amountParam);
             applyBtn.css({'opacity': '1'});
             errorMsg.hide();
         } else {
@@ -93,19 +95,33 @@ $this->registerJs("
     });
 
     $('#proceed-to-apply').on('click', function(e) {
+        e.preventDefault();
         var typeId = $('.dash-refund-type').val();
         var typeText = $('.dash-refund-type option:selected').text().toUpperCase();
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
+        var expectedCautionFee = " . (float)$expectedCautionFee . ";
         var overrideCautionFee = " . ($overrideCautionFee ? 'true' : 'false') . ";
 
         if (!typeId) {
-            e.preventDefault();
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
             $('#type-error-msg').text('Please select a refund type to proceed').show();
-        } else if (typeText.includes('CAUTION') && cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
-            e.preventDefault();
-            $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
+            return;
+        } 
+        
+        if (typeText.includes('CAUTION')) {
+            var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+            if (cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
+                $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
+                return;
+            } else if (displayAmount <= 0) {
+                $('#type-error-msg').text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
+                return;
+            }
+            $('#apply-post-amount').val(displayAmount);
         }
+
+        $('#apply-post-type').val(typeId);
+        $('#apply-post-form').submit();
     });
 ");
 ?>
@@ -184,11 +200,17 @@ $this->registerJs("
                         </span>
                     </div>
                     <div class="cr-status-row">
+                        <span class="cr-status-row__label">Refund Type</span>
+                        <span class="cr-status-row__value"><span class="badge bg-info text-dark" style="font-weight: 700;"><?= Html::encode($request->refundType->refund_type_name ?? 'Standard') ?></span></span>
+                    </div>
+                    <div class="cr-status-row">
                         <span class="cr-status-row__label">Reference No</span>
                         <span class="cr-status-row__value">#REF-<?= str_pad($request->request_id, 5, '0', STR_PAD_LEFT) ?></span>
                     </div>
                     <div class="cr-status-row">
-                        <span class="cr-status-row__label">Requested Amount</span>
+                        <span class="cr-status-row__label">
+                            <?= (isset($request->refundType) && strtoupper($request->refundType->refund_type_name) === 'CAUTION') ? 'Caution Amount' : 'Requested Amount' ?>
+                        </span>
                         <span class="cr-status-row__value"><strong><?= Yii::$app->formatter->asCurrency($request->amount_requested) ?></strong></span>
                     </div>
                     <div class="cr-status-row">
@@ -242,6 +264,20 @@ $this->registerJs("
                         </span>
                     </div>
 
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Caution Money Payment</span>
+                        <span class="cr-status-row__value">
+                            <?php 
+                            $cp = (float)$cautionFeePaid;
+                            $ex = (float)$expectedCautionFee;
+                            $ov = (bool)$overrideCautionFee;
+                            $cpBadge = ($cp >= $ex || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
+                            $cpLabel = ($cp >= $ex) ? 'PAID' : ($ov ? 'OVERRIDDEN' : 'NOT PAID');
+                            ?>
+                            <span class="cr-badge <?= $cpBadge ?>"><?= $cpLabel ?></span>
+                        </span>
+                    </div>
+
                     <div class="cr-section">
                         <?php if ($mode === 'eligibility'): ?>
                             <div class="cr-notice">
@@ -273,6 +309,11 @@ $this->registerJs("
                                 </div>
 
                                 <div style="text-align: center; margin-top: 1rem;">
+                                    <?= Html::beginForm(['apply'], 'post', ['id' => 'apply-post-form', 'style' => 'display:none;']) ?>
+                                        <input type="hidden" name="type" id="apply-post-type">
+                                        <input type="hidden" name="amount" id="apply-post-amount">
+                                    <?= Html::endForm() ?>
+
                                     <?= Html::a('Proceed to Application', '#', [
                                         'id' => 'proceed-to-apply',
                                         'class' => 'cr-btn cr-btn--primary',

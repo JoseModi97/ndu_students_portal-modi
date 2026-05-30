@@ -40,6 +40,11 @@ use yii\db\ActiveRecord;
 class RefundRequest extends ActiveRecord
 {
     /**
+     * @var float|null Maximum allowed amount for this request, set dynamically based on refund type and student records.
+     */
+    public $max_amount;
+
+    /**
      * {@inheritdoc}
      */
     public static function tableName(): string
@@ -57,6 +62,7 @@ class RefundRequest extends ActiveRecord
             [['refund_status'], 'default', 'value' => 'NOT REFUNDED'],
             
             [['amount_requested'], 'required', 'message' => 'Please enter the amount you wish to be refunded.'],
+            [['amount_requested'], 'validateAmountLimit'],
             [['payment_method'], 'required', 'message' => 'Please select a payment disbursement method (Bank or M-PESA).'],
             [['declaration_status'], 'required', 'message' => 'You must accept the declaration to proceed.'],
             
@@ -108,6 +114,19 @@ class RefundRequest extends ActiveRecord
             [['refund_type'], 'exist', 'skipOnError' => true, 'targetClass' => RefundType::class, 'targetAttribute' => ['refund_type' => 'refund_type_id']],
             [['student_prog_curriculum_id'], 'exist', 'skipOnError' => true, 'targetClass' => StudentProgCurriculum::class, 'targetAttribute' => ['student_prog_curriculum_id' => 'student_prog_curriculum_id']],
         ];
+    }
+
+    /**
+     * Custom validation to ensure requested amount does not exceed the calculated limit.
+     * @param string $attribute
+     * @param array $params
+     */
+    public function validateAmountLimit($attribute, $params)
+    {
+        if ($this->max_amount !== null && $this->amount_requested > $this->max_amount) {
+            $maxStr = Yii::$app->formatter->asCurrency($this->max_amount);
+            $this->addError($attribute, "The requested amount cannot exceed the estimated refundable amount of {$maxStr}.");
+        }
     }
 
     /**

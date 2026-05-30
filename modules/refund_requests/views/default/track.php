@@ -9,6 +9,11 @@ use yii\helpers\Url;
 /** @var app\modules\refund_requests\models\ApprovalProcess[] $approvals */
 /** @var app\modules\refund_requests\models\ApprovalLevel[] $allLevels */
 /** @var float $balance */
+/** @var float $cautionFeePaid */
+/** @var float $expectedCautionFee */
+/** @var bool $overrideCautionFee */
+/** @var bool $eligible */
+/** @var string|null $reason */
 
 $this->title = 'Full Process Tracking';
 $this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
@@ -20,10 +25,10 @@ $totalStages = count($allLevels) + 2; // +1 for Eligibility, +1 for Application
 $currentStageIndex = 0;
 
 if (!$request) {
-    if (strtoupper($user->clearance_status) === 'CLEARED') {
-        $currentStageIndex = 1; // Application stage
+    if ($eligible) {
+        $currentStageIndex = 1; // Application stage (Eligibility passed)
     } else {
-        $currentStageIndex = 0; // Eligibility stage
+        $currentStageIndex = 0; // Eligibility stage (Stuck here)
     }
 } else {
     $currentStageIndex = 2 + $completedCount; // Approval stages
@@ -37,7 +42,9 @@ $progressPercent = ($currentStageIndex / $totalStages) * 100;
         
         <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
-            <h1 class="cr-header__title">Process Overview</h1>
+            <h1 class="cr-header__title">
+                <?= $request ? Html::encode($request->refundType->refund_type_name) . ' Refund Overview' : 'Process Overview' ?>
+            </h1>
             <p class="cr-header__sub">Real-time tracking of the entire refund lifecycle</p>
         </div>
 
@@ -122,10 +129,10 @@ $progressPercent = ($currentStageIndex / $totalStages) * 100;
                         <?php if ($currentStageIndex == 0): ?>
                             <div class="cr-notice cr-notice--warning">
                                 <p class="cr-notice__title">Action Required</p>
-                                <p>You have not yet met the eligibility criteria. Please ensure you are CLEARED by the university.</p>
+                                <p><?= Html::encode($reason ?: 'You have not yet met the eligibility criteria. Please ensure you meet all University requirements.') ?></p>
                             </div>
                             <div style="margin-top: 1.5rem;">
-                                <?= Html::a('View Eligibility Checklist', ['index'], ['class' => 'cr-btn cr-btn--secondary']) ?>
+                                <?= Html::a('View Requirements Checklist', ['index'], ['class' => 'cr-btn cr-btn--secondary', 'style' => 'text-decoration: none;']) ?>
                             </div>
                         <?php elseif ($currentStageIndex == 1): ?>
                             <div class="cr-notice">
@@ -181,6 +188,59 @@ $progressPercent = ($currentStageIndex / $totalStages) * 100;
 
                         <p style="font-size: 0.9rem; font-weight: 800; color: var(--cr-blue-800); margin-bottom: 0.2rem;"><?= Html::encode($user->surname . ' ' . $user->other_names) ?></p>
                         <p style="font-size: 0.8rem; color: var(--cr-slate-400); margin-bottom: 0;"><?= Html::encode($user->registration_number) ?></p>
+                    </div>
+                </div>
+
+                <div class="cr-card">
+                    <div class="cr-card__header">
+                        <div class="cr-card__header-icon" style="background: var(--cr-teal-400);">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                        </div>
+                        <h2 class="cr-card__title">
+                            <?= ($request && strtoupper($request->refundType->refund_type_name) === 'CAUTION') ? 'Caution Refund Summary' : 'Financial Summary' ?>
+                        </h2>
+                    </div>
+                    <div class="cr-card__body" style="padding: 1.25rem;">
+                        <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--cr-slate-100);">
+                            <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase; display: block; margin-bottom: 0.4rem;">
+                                <?= $request ? 'Approved Refund Amount' : 'Total Fee Balance' ?>
+                            </span>
+                            <span style="font-size: 1.1rem; font-weight: 800; color: <?= (!$request && $balance > 0) ? 'var(--cr-red)' : 'var(--cr-teal-600)' ?>;">
+                                <?= $request ? Yii::$app->formatter->asCurrency($request->amount_requested) : Yii::$app->formatter->asCurrency($balance) ?>
+                            </span>
+                        </div>
+
+                        <?php if (($request && strtoupper($request->refundType->refund_type_name) === 'CAUTION') || (!$request)): ?>
+                            <div style="margin-bottom: 1rem;">
+                                <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase; display: block; margin-bottom: 0.4rem;">Caution Money Details</span>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.25rem;">
+                                    <span style="color: var(--cr-slate-600);">Paid:</span>
+                                    <span style="font-weight: 700; color: var(--cr-slate-800);"><?= Yii::$app->formatter->asCurrency($cautionFeePaid) ?></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
+                                    <span style="color: var(--cr-slate-600);">Required:</span>
+                                    <span style="font-weight: 700; color: var(--cr-slate-800);"><?= Yii::$app->formatter->asCurrency($expectedCautionFee) ?></span>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($overrideCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
+                            <div style="background: var(--cr-teal-50); border: 1px solid var(--cr-teal-100); border-radius: 8px; padding: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;">
+                                <div style="color: var(--cr-teal-600); font-size: 0.9rem;">✔️</div>
+                                <div style="font-size: 0.75rem; color: var(--cr-teal-800); line-height: 1.4;">
+                                    <strong>Override Enabled:</strong> Requirements for full caution fee payment are currently bypassed for this process.
+                                </div>
+                            </div>
+                        <?php elseif (!$overrideCautionFee && $cautionFeePaid < $expectedCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
+                            <div style="background: var(--cr-red-50); border: 1px solid var(--cr-red-100); border-radius: 8px; padding: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;">
+                                <div style="color: var(--cr-red); font-size: 0.9rem;">⚠️</div>
+                                <div style="font-size: 0.75rem; color: var(--cr-red-800); line-height: 1.4;">
+                                    <strong>Payment Required:</strong> You must fully pay the caution fee before applying for a refund.
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
