@@ -316,9 +316,9 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
-        $typeId = $this->request->get('type');
+        $typeId = $this->request->post('type', $this->request->get('type'));
         $refundType = \app\modules\refund_requests\models\RefundType::findOne($typeId);
-        $passedAmount = $this->request->get('amount');
+        $passedAmount = $this->request->post('amount', $this->request->get('amount'));
 
         // Validation for CAUTION refund type
         if ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {

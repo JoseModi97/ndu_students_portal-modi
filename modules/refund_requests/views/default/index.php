@@ -85,13 +85,6 @@ $this->registerJs("
                 cautionSummary.fadeIn();
             }
 
-            var baseUrl = '" . Url::to(['apply']) . "';
-            var amountParam = '';
-            if (typeText.includes('CAUTION')) {
-                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
-                amountParam = '&amount=' + displayAmount;
-            }
-            applyBtn.attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId + amountParam);
             applyBtn.css({'opacity': '1'});
             errorMsg.hide();
         } else {
@@ -101,25 +94,33 @@ $this->registerJs("
     });
 
     $('#proceed-to-apply').on('click', function(e) {
+        e.preventDefault();
         var typeId = $('.dash-refund-type').val();
         var typeText = $('.dash-refund-type option:selected').text().toUpperCase();
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
+        var expectedCautionFee = " . (float)$expectedCautionFee . ";
         var overrideCautionFee = " . ($overrideCautionFee ? 'true' : 'false') . ";
 
         if (!typeId) {
-            e.preventDefault();
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
             $('#type-error-msg').text('Please select a refund type to proceed').show();
-        } else if (typeText.includes('CAUTION')) {
+            return;
+        }
+
+        if (typeText.includes('CAUTION')) {
             var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
             if (cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
-                e.preventDefault();
                 $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
+                return;
             } else if (displayAmount <= 0) {
-                e.preventDefault();
                 $('#type-error-msg').text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
+                return;
             }
+            $('#apply-post-amount').val(displayAmount);
         }
+
+        $('#apply-post-type').val(typeId);
+        $('#apply-post-form').submit();
     });
 ");
 ?>
@@ -287,6 +288,11 @@ $this->registerJs("
                                 </div>
 
                                 <div style="text-align: center; margin-top: 1rem;">
+                                    <?= Html::beginForm(['apply'], 'post', ['id' => 'apply-post-form', 'style' => 'display:none;']) ?>
+                                        <input type="hidden" name="type" id="apply-post-type">
+                                        <input type="hidden" name="amount" id="apply-post-amount">
+                                    <?= Html::endForm() ?>
+
                                     <?= Html::a('Proceed to Application', '#', [
                                         'id' => 'proceed-to-apply',
                                         'class' => 'cr-btn cr-btn--primary',
