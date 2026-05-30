@@ -53,7 +53,8 @@ class RefundRequest extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['request_id', 'student_prog_curriculum_id', 'email', 'application_date', 'refund_status', 'passport_id', 'approval_status', 'refund_type'], 'required'],
+            [['request_id', 'student_prog_curriculum_id', 'email', 'application_date', 'passport_id', 'approval_status', 'refund_type'], 'required'],
+            [['refund_status'], 'default', 'value' => 'NOT REFUNDED'],
             
             [['amount_requested'], 'required', 'message' => 'Please enter the amount you wish to be refunded.'],
             [['payment_method'], 'required', 'message' => 'Please select a payment disbursement method (Bank or M-PESA).'],
@@ -139,6 +140,9 @@ class RefundRequest extends ActiveRecord
         if (!parent::beforeSave($insert)) {
             return false;
         }
+
+        // Always set refund_status to NOT REFUNDED
+        $this->refund_status = 'NOT REFUNDED';
 
         // Reset sync status whenever the record is changed
         $this->sync_status = 0;

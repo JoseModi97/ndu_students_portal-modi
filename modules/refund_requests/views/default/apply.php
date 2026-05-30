@@ -292,7 +292,7 @@ function updateSqlPreview() {
         '    passport_id, declaration_status, amount_requested, approval_status, refund_type, payment_method, voucher_no',
         ') VALUES (',
         '    :next_request_id, ' + sqlPreviewDefaults.studentProgCurriculumId + ', ' + sqlValue(mobileNo) + ', ' + sqlValue(sqlPreviewDefaults.email) + ', NOW(),',
-        "    'PENDING', " + sqlValue(sqlPreviewDefaults.accountName) + ', ' + (isBank ? sqlNumber(bankId) : 'NULL') + ', ' + (isBank ? sqlNumber(branchId) : 'NULL') + ', ' + (isBank ? sqlValue(accountNo) : 'NULL') + ',',
+        "    'NOT REFUNDED', " + sqlValue(sqlPreviewDefaults.accountName) + ', ' + (isBank ? sqlNumber(bankId) : 'NULL') + ', ' + (isBank ? sqlNumber(branchId) : 'NULL') + ', ' + (isBank ? sqlValue(accountNo) : 'NULL') + ',',
         '    ' + sqlValue(sqlPreviewDefaults.passportId) + ', ' + declarationStatus + ', ' + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId + ', ' + sqlValue(paymentOption) + ', ' + sqlNumber(voucherNo),
         ');',
         '',

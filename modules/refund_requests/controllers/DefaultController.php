@@ -66,7 +66,7 @@ class DefaultController extends BaseController
     /**
      * Check if a student is eligible for refund request
      * @param User $user
-     * @return array ['eligible' => bool, 'reason' => string|null, 'academicStatus' => string, 'balance' => float]
+     * @return array ['eligible' => bool, 'reason' => string|null, 'academicStatus' => string, 'balance' => float, 'cautionFeePaid' => float, 'prog_curriculum_id' => int]
      */
     private function checkEligibility(User $user): array
     {
@@ -76,38 +76,57 @@ class DefaultController extends BaseController
                 'eligible' => false,
                 'reason' => 'No registration number found. Please contact the administrator.',
                 'academicStatus' => 'UNKNOWN',
-                'balance' => 0
+                'balance' => 0,
+                'cautionFeePaid' => 0,
+                'expectedCaution' => 0,
+                'hasExistingRequest' => false,
+                'prog_curriculum_id' => null
             ];
         }
 
+        // Normalize registration number: convert dashes to slashes for DB consistency with SMIS
+        $normalizedRegNo = str_replace('-', '/', $regNumber);
+
         // Fetch Academic Status from authoritative SMIS database
         $smisStudentData = (new \yii\db\Query())
-            ->select(['s.status', 'spc.status_id', 'spc.student_prog_curriculum_id'])
+            ->select(['s.status', 'spc.status_id', 'spc.student_prog_curriculum_id', 'spc.prog_curriculum_id'])
             ->from('smis.sm_student_programme_curriculum spc')
             ->leftJoin('smis.sm_student_status s', 'spc.status_id = s.status_id')
-            ->where(['spc.registration_number' => $regNumber])
+            ->where(['spc.registration_number' => $normalizedRegNo])
             ->one(Yii::$app->smisDb);
 
         $academicStatus = $smisStudentData['status'] ?? 'UNKNOWN';
-        $balance = $this->calculateFeeBalance($regNumber);
+        $balance = $this->calculateFeeBalance($normalizedRegNo);
+        $cautionFeePaid = $this->calculateCautionFeePaid($normalizedRegNo);
+        $expectedCaution = $this->calculateExpectedCautionFee($smisStudentData['prog_curriculum_id'] ?? 0);
         
+        $hasExistingRequest = false;
+        if (!empty($smisStudentData['student_prog_curriculum_id'])) {
+            $hasExistingRequest = RefundRequest::find()
+                ->where(['student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id']])
+                ->exists();
+                
+            if (!$hasExistingRequest) {
+                $hasExistingRequest = (new \yii\db\Query())
+                    ->from('smis.fss_refund_requests')
+                    ->where(['student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id']])
+                    ->exists(Yii::$app->smisDb);
+            }
+        }
+
         $eligible = true;
         $reason = null;
         $allowedStatuses = ['GRADUATED', 'COMPLETED'];
 
-        /** @var \app\modules\refund_requests\Module $module */
-        $module = $this->module;
-        $feeBalanceSatisfied = $balance <= 0 || $module->overrideFeeBalance;
-
         if (strtoupper($user->clearance_status) !== 'CLEARED') {
             $eligible = false;
             $reason = 'You must be CLEARED to access this feature. Current status: ' . ($user->clearance_status ?: 'PENDING');
-        } elseif (!$feeBalanceSatisfied) {
-            $eligible = false;
-            $reason = 'You have an outstanding fee balance of ' . Yii::$app->formatter->asCurrency($balance) . '. Please clear your balance.';
         } elseif (!in_array(strtoupper($academicStatus), $allowedStatuses)) {
             $eligible = false;
             $reason = 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' . $academicStatus;
+        } elseif ($expectedCaution > 0 && $cautionFeePaid <= 0 && !$this->module->overrideCautionFee) {
+            $eligible = false;
+            $reason = 'You are not eligible for refunds because the required CAUTION FEE of ' . Yii::$app->formatter->asCurrency($expectedCaution) . ' has not been paid.';
         }
 
         return [
@@ -115,10 +134,54 @@ class DefaultController extends BaseController
             'reason' => $reason,
             'academicStatus' => $academicStatus,
             'balance' => $balance,
+            'cautionFeePaid' => $cautionFeePaid,
+            'expectedCaution' => $expectedCaution,
+            'hasExistingRequest' => $hasExistingRequest,
             'smisStudentData' => $smisStudentData,
-            'student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id'] ?? null
+            'student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id'] ?? null,
+            'prog_curriculum_id' => $smisStudentData['prog_curriculum_id'] ?? null
         ];
     }
+
+    /**
+     * Calculate expected caution fee for a program curriculum
+     * @param int $progCurriculumId
+     * @return float
+     */
+    private function calculateExpectedCautionFee(int $progCurriculumId): float
+    {
+        return (float)(new \yii\db\Query())
+            ->from('smis.fss_prog_curr_charges pcc')
+            ->where(['pcc.prog_curr_id' => $progCurriculumId, 'pcc.fee_code' => 82])
+            ->select(['pcc.amount_charged'])
+            ->scalar(Yii::$app->smisDb) ?: 0.0;
+    }
+
+    /**
+     * Calculate total caution fee paid by student
+     * @param string $regNumber Registration number (can be with dashes or slashes)
+     * @return float
+     */
+    private function calculateCautionFeePaid(string $regNumber): float
+    {
+        // Normalize registration number: convert dashes to slashes for DB consistency with SMIS
+        $normalizedRegNo = str_replace('-', '/', $regNumber);
+
+        // Use normalized registration number logic from QueryController.php
+        // We use DR because in this context CAUTION MONEY is recorded as DR transactions in SMIS
+        return (float)(new \yii\db\Query())
+            ->from('smis.fss_fee_transactions ft')
+            ->innerJoin('smis.fss_fee_items fi', 'ft.trans_desc = fi.fee_description')
+            ->where(['LIKE', 'ft.progress_code', $normalizedRegNo . '%', false])
+            ->andWhere([
+                'fi.fee_description' => 'CAUTION MONEY',
+                'fi.fee_type' => 'OTHER',
+                'fi.priority' => 1,
+                'ft.trans_type' => 'DR'
+            ])
+            ->sum('ft.trans_amount', Yii::$app->smisDb);
+    }
+
 
     /**
      * Renders the index view for the module
@@ -133,6 +196,15 @@ class DefaultController extends BaseController
         $check = $this->checkEligibility($user);
         $academicStatus = $check['academicStatus'];
 
+        // Calculate expected caution fee for display on index if override is active
+        $expectedCautionFee = 0;
+        if ($this->module->overrideCautionFee && $check['prog_curriculum_id']) {
+            $expectedCautionFee = $this->calculateExpectedCautionFee($check['prog_curriculum_id']);
+        }
+
+        // Normalize reg number for portal update
+        $normalizedRegNo = str_replace('-', '/', $regNumber);
+
         // Synchronize student status to portal if it differs
         if (!empty($check['smisStudentData'])) {
             $portalStatusId = (new \yii\db\Query())
@@ -144,7 +216,7 @@ class DefaultController extends BaseController
             if ($portalStatusId) {
                 Yii::$app->db->createCommand()->update('smisportal.sm_student_programme_curriculum',
                     ['status_id' => $portalStatusId],
-                    ['registration_number' => $regNumber]
+                    ['registration_number' => $regNumber] // Keep portal reg number format if it's dashes
                 )->execute();
             }
         }
@@ -182,6 +254,9 @@ class DefaultController extends BaseController
             'eligible' => $check['eligible'],
             'reason' => $check['reason'],
             'balance' => $check['balance'],
+            'cautionFeePaid' => $check['cautionFeePaid'],
+            'expectedCautionFee' => $expectedCautionFee,
+            'overrideCautionFee' => $this->module->overrideCautionFee,
             'allLevels' => $allLevels,
             'refundTypes' => $refundTypes,
             'academicStatus' => $academicStatus
@@ -190,15 +265,17 @@ class DefaultController extends BaseController
 
     /**
      * Calculate fee balance from transactions
-     * @param string $regNumber
+     * @param string $regNumber Registration number (can be with dashes or slashes)
      * @return float
      */
     private function calculateFeeBalance(string $regNumber): float
     {
+        $normalizedRegNo = str_replace('-', '/', $regNumber);
+
         $transactions = (new \yii\db\Query())
             ->select(['trans_amount', 'trans_type'])
             ->from('smis.fss_fee_transactions')
-            ->where(['LIKE', 'progress_code', $regNumber . '%', false])
+            ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
             ->all(Yii::$app->smisDb);
 
         $credits = 0;
@@ -213,6 +290,7 @@ class DefaultController extends BaseController
         }
         return $debits - $credits;
     }
+
 
     /**
      * Create a new refund request
@@ -230,10 +308,36 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
+        $typeId = $this->request->get('type');
+        $refundType = \app\modules\refund_requests\models\RefundType::findOne($typeId);
+        $passedAmount = $this->request->get('amount');
+
+        // Validation for CAUTION refund type
+        if ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
+            /** @var \app\modules\refund_requests\Module $module */
+            $module = $this->module;
+            if ($check['cautionFeePaid'] <= 0 && !$module->overrideCautionFee) {
+                $this->setFlash('danger', 'Requirement Not Met', 'You have not paid the CAUTION FEE required for this refund type.');
+                return $this->redirect(['index']);
+            }
+        }
+
         $model = new RefundRequest();
 
-        if ($type = $this->request->get('type')) {
-            $model->refund_type = $type;
+        if ($typeId) {
+            $model->refund_type = $typeId;
+
+            // Use amount passed from the first screen if available
+            if ($passedAmount !== null) {
+                $model->amount_requested = (float)$passedAmount;
+            } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
+                // Fallback autofill logic for CAUTION type if not passed from index
+                $amount = $check['cautionFeePaid'];
+                if ($amount <= 0 && $this->module->overrideCautionFee && $check['prog_curriculum_id']) {
+                    $amount = $this->calculateExpectedCautionFee($check['prog_curriculum_id']);
+                }
+                $model->amount_requested = $amount;
+            }
         } else {
             // Default to STANDARD if no type is specified
             $standardType = \app\modules\refund_requests\models\RefundType::findOne(['refund_type_name' => 'STANDARD']);
@@ -244,7 +348,7 @@ class DefaultController extends BaseController
 
         $model->student_prog_curriculum_id = $check['student_prog_curriculum_id'];
         $model->application_date = date('Y-m-d H:i:s');
-        $model->refund_status = 'PENDING';
+        $model->refund_status = 'NOT REFUNDED';
         $model->approval_status = 'PENDING';
         $model->declaration_status = '0';
         $model->email = $user->primary_email;

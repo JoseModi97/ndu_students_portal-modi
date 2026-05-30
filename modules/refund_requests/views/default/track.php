@@ -20,7 +20,7 @@ $totalStages = count($allLevels) + 2; // +1 for Eligibility, +1 for Application
 $currentStageIndex = 0;
 
 if (!$request) {
-    if (strtoupper($user->clearance_status) === 'CLEARED' && $balance <= 0) {
+    if (strtoupper($user->clearance_status) === 'CLEARED') {
         $currentStageIndex = 1; // Application stage
     } else {
         $currentStageIndex = 0; // Eligibility stage
@@ -122,7 +122,7 @@ $progressPercent = ($currentStageIndex / $totalStages) * 100;
                         <?php if ($currentStageIndex == 0): ?>
                             <div class="cr-notice cr-notice--warning">
                                 <p class="cr-notice__title">Action Required</p>
-                                <p>You have not yet met the eligibility criteria. Please ensure you are cleared and have no fee balance.</p>
+                                <p>You have not yet met the eligibility criteria. Please ensure you are CLEARED by the university.</p>
                             </div>
                             <div style="margin-top: 1.5rem;">
                                 <?= Html::a('View Eligibility Checklist', ['index'], ['class' => 'cr-btn cr-btn--secondary']) ?>

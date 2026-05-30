@@ -81,7 +81,6 @@ try {
 
     Yii::$app->db->createCommand()
         ->update('smisportal.fss_refund_requests', [
-            'refund_status' => 'APPROVED',
             'approval_status' => 'APPROVED',
             'amount_approved' => new \yii\db\Expression('amount_requested'),
             'sync_status' => 0, // Reset sync status to trigger sync to SMIS

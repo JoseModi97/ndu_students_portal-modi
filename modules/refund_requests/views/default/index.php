@@ -14,6 +14,8 @@ use yii\helpers\Url;
 /** @var bool|null $eligible */
 /** @var string|null $reason */
 /** @var float|null $balance */
+/** @var float|null $cautionFeePaid */
+/** @var float|null $expectedCautionFee */
 
 $this->title = 'Refund Request Dashboard';
 
@@ -38,15 +40,51 @@ $this->registerJs("
 
     $('.dash-refund-type').on('change', function() {
         var typeId = $(this).val();
+        var typeText = $(this).find('option:selected').text().toUpperCase();
         var applyBtn = $('#proceed-to-apply');
         var selectField = $(this);
         var errorMsg = $('#type-error-msg');
+        var cautionSummary = $('#caution-refund-summary');
         
+        var cautionFeePaid = " . (float)$cautionFeePaid . ";
+        var expectedCautionFee = " . (float)$expectedCautionFee . ";
+        var overrideCautionFee = " . ($overrideCautionFee ? 'true' : 'false') . ";
+        
+        cautionSummary.hide();
+        errorMsg.hide();
+        selectField.css('border-color', 'var(--cr-blue-100)');
+
         if (typeId) {
+            // Logic for Caution Refund
+            if (typeText.includes('CAUTION')) {
+                var displayAmount = (cautionFeePaid > 0) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+                
+                if (displayAmount <= 0 && !overrideCautionFee) {
+                    applyBtn.attr('href', '#');
+                    applyBtn.css({'opacity': '0.7'});
+                    selectField.css('border-color', 'var(--cr-red)');
+                    errorMsg.text('You cannot apply for a Caution Refund because you have not paid the CAUTION FEE.').show();
+                    return;
+                }
+                
+                // Show dynamic summary for caution
+                $('#caution-amount-display').text(new Intl.NumberFormat('en-KE', { 
+                    style: 'currency', 
+                    currency: 'KES',
+                    minimumFractionDigits: 2
+                }).format(displayAmount));
+                
+                cautionSummary.fadeIn();
+            }
+
             var baseUrl = '" . Url::to(['apply']) . "';
-            applyBtn.attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId);
+            var amountParam = '';
+            if (typeText.includes('CAUTION')) {
+                var displayAmount = (cautionFeePaid > 0) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+                amountParam = '&amount=' + displayAmount;
+            }
+            applyBtn.attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId + amountParam);
             applyBtn.css({'opacity': '1'});
-            selectField.css('border-color', 'var(--cr-blue-100)');
             errorMsg.hide();
         } else {
             applyBtn.attr('href', '#');
@@ -56,10 +94,17 @@ $this->registerJs("
 
     $('#proceed-to-apply').on('click', function(e) {
         var typeId = $('.dash-refund-type').val();
+        var typeText = $('.dash-refund-type option:selected').text().toUpperCase();
+        var cautionFeePaid = " . (float)$cautionFeePaid . ";
+        var overrideCautionFee = " . ($overrideCautionFee ? 'true' : 'false') . ";
+
         if (!typeId) {
             e.preventDefault();
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
-            $('#type-error-msg').show();
+            $('#type-error-msg').text('Please select a refund type to proceed').show();
+        } else if (typeText.includes('CAUTION') && cautionFeePaid <= 0 && !overrideCautionFee) {
+            e.preventDefault();
+            $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not paid the CAUTION FEE.').show();
         }
     });
 ");
@@ -132,7 +177,7 @@ $this->registerJs("
                         <span class="cr-status-row__label">Current Status</span>
                         <span class="cr-status-row__value">
                             <?php 
-                            $s = strtoupper($request->refund_status);
+                            $s = strtoupper($request->approval_status);
                             $b = $s === 'APPROVED' ? 'cr-badge--approved' : ($s === 'REJECTED' ? 'cr-badge--rejected' : 'cr-badge--pending');
                             ?>
                             <span class="cr-badge <?= $b ?>" style="font-size: 0.9rem; padding: 0.3rem 1rem;"><?= $s ?></span>
@@ -180,11 +225,10 @@ $this->registerJs("
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">Fee Balance</span>
                         <span class="cr-status-row__value">
-                            <?php if (isset($balance) && $balance <= 0): ?>
-                                <span class="cr-badge cr-badge--approved">NO DEBT</span>
-                            <?php else: ?>
-                                <span class="cr-badge cr-badge--rejected"><?= Yii::$app->formatter->asCurrency($balance ?? 0) ?></span>
-                            <?php endif; ?>
+                            <span class="cr-badge cr-badge--pending" style="background: var(--cr-blue-50); border: 1px solid var(--cr-blue-200); color: var(--cr-blue-800);">
+                                <?= Yii::$app->formatter->asCurrency($balance ?? 0) ?>
+                            </span>
+                            <small class="ms-2 text-muted" style="font-size: 0.75rem;">(Informational only)</small>
                         </span>
                     </div>
                     <div class="cr-status-row">
@@ -221,6 +265,12 @@ $this->registerJs("
                                     ) ?>
                                 </div>
                                 <p id="type-error-msg" style="display: none; color: var(--cr-red); font-size: 0.8rem; font-weight: 700; text-align: center; margin-bottom: 1.5rem;">Please select a refund type to proceed</p>
+
+                                <div id="caution-refund-summary" style="display: none; background: var(--cr-teal-50); border: 1px solid var(--cr-teal-200); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                                    <p style="margin: 0; font-size: 0.8rem; color: var(--cr-teal-800); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Estimated Refundable Amount</p>
+                                    <p id="caution-amount-display" style="margin: 0; font-size: 1.5rem; font-weight: 800; color: var(--cr-teal-900);"></p>
+                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--cr-teal-600);">This amount is based on your Caution Money records.</p>
+                                </div>
 
                                 <div style="text-align: center; margin-top: 1rem;">
                                     <?= Html::a('Proceed to Application', '#', [

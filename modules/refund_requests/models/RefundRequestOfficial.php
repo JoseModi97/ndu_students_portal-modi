@@ -61,7 +61,8 @@ class RefundRequestOfficial extends \yii\db\ActiveRecord
     {
         return [
             [['account_no', 'account_name', 'bank_id', 'branch_id', 'voucher_no', 'amount_approved'], 'default', 'value' => null],
-            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'refund_status', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type'], 'required'],
+            [['request_id', 'student_prog_curriculum_id', 'mobile_no', 'email', 'application_date', 'passport_id', 'declaration_status', 'amount_requested', 'approval_status', 'refund_type'], 'required'],
+            [['refund_status'], 'default', 'value' => 'NOT REFUNDED'],
             [['request_id', 'student_prog_curriculum_id', 'bank_id', 'branch_id', 'voucher_no', 'refund_type'], 'integer'],
             [['application_date'], 'safe'],
             [['amount_requested', 'amount_approved'], 'number'],
@@ -74,6 +75,20 @@ class RefundRequestOfficial extends \yii\db\ActiveRecord
             [['declaration_status'], 'compare', 'compareValue' => '1', 'message' => 'Declaration must be confirmed before syncing the application.'],
             [['request_id'], 'unique'],
         ];
+    }
+
+    /**
+     * @param bool $insert
+     * @return bool
+     */
+    public function beforeSave($insert): bool
+    {
+        if (!parent::beforeSave($insert)) {
+            return false;
+        }
+
+        $this->refund_status = 'NOT REFUNDED';
+        return true;
     }
 
     /**
