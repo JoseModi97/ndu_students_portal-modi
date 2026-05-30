@@ -11,7 +11,7 @@ $application = new yii\console\Application($config);
 
 // Manually instantiate the module
 $module = new \app\modules\refund_requests\Module('refund-requests');
-$module->overrideCautionFee = false;
+$module->overrideEligibility = false;
 
 // Mock the controller
 $controller = new \app\modules\refund_requests\controllers\DefaultController('default', $module);
@@ -45,7 +45,7 @@ $result = $method->invoke($controller, $user);
 echo "Eligibility Result:\n";
 print_r($result);
 
-echo "\nModule overrideCautionFee in script: " . ($module->overrideCautionFee ? 'TRUE' : 'FALSE') . "\n";
+echo "\nModule overrideEligibility in script: " . ($module->overrideEligibility ? 'TRUE' : 'FALSE') . "\n";
 
 $progCurrId = $result['prog_curriculum_id'];
 if ($progCurrId) {

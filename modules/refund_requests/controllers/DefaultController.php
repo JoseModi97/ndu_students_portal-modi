@@ -127,11 +127,17 @@ class DefaultController extends BaseController
         } elseif (!in_array(strtoupper($academicStatus), $allowedStatuses)) {
             $eligible = false;
             $reason = 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' . $academicStatus;
-        } elseif (!$module->overrideCautionFee && $cautionFeePaid < $expectedCaution) {
-            $eligible = false;
-            $maxStr = Yii::$app->formatter->asCurrency($expectedCaution);
-            $paidStr = Yii::$app->formatter->asCurrency($cautionFeePaid);
-            $reason = "You have not fully paid the required CAUTION FEE. (Required: {$maxStr}, Paid: {$paidStr})";
+        } elseif (!$module->overrideEligibility) {
+            if ($cautionFeePaid < $expectedCaution) {
+                $eligible = false;
+                $maxStr = Yii::$app->formatter->asCurrency($expectedCaution);
+                $paidStr = Yii::$app->formatter->asCurrency($cautionFeePaid);
+                $reason = "You have not fully paid the required CAUTION FEE. (Required: {$maxStr}, Paid: {$paidStr})";
+            } elseif ($balance > 0) {
+                $eligible = false;
+                $balStr = Yii::$app->formatter->asCurrency($balance);
+                $reason = "You have an outstanding fee balance of {$balStr}. All balances must be cleared to apply.";
+            }
         }
 
         return [
@@ -255,7 +261,7 @@ class DefaultController extends BaseController
                 'academicStatus' => $academicStatus,
                 'cautionFeePaid' => $check['cautionFeePaid'],
                 'expectedCautionFee' => $expectedCautionFee,
-                'overrideCautionFee' => $this->module->overrideCautionFee,
+                'overrideEligibility' => $this->module->overrideEligibility,
             ]);
         }
 
@@ -267,7 +273,7 @@ class DefaultController extends BaseController
             'balance' => $check['balance'],
             'cautionFeePaid' => $check['cautionFeePaid'],
             'expectedCautionFee' => $expectedCautionFee,
-            'overrideCautionFee' => $this->module->overrideCautionFee,
+            'overrideEligibility' => $this->module->overrideEligibility,
             'allLevels' => $allLevels,
             'refundTypes' => $refundTypes,
             'academicStatus' => $academicStatus
@@ -337,12 +343,12 @@ class DefaultController extends BaseController
         if ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
             /** @var \app\modules\refund_requests\Module $module */
             $module = $this->module;
-            if ($check['cautionFeePaid'] < $check['expectedCaution'] && !$module->overrideCautionFee) {
+            if ($check['cautionFeePaid'] < $check['expectedCaution'] && !$module->overrideEligibility) {
                 $this->setFlash('danger', 'Requirement Not Met', 'You have not fully paid the CAUTION FEE required for this refund type.');
                 return $this->redirect(['index']);
             }
             
-            $refundableAmount = ($check['cautionFeePaid'] >= $check['expectedCaution']) ? $check['cautionFeePaid'] : ($module->overrideCautionFee ? $check['expectedCaution'] : 0);
+            $refundableAmount = ($check['cautionFeePaid'] >= $check['expectedCaution']) ? $check['cautionFeePaid'] : ($module->overrideEligibility ? $check['expectedCaution'] : 0);
             if ($refundableAmount <= 0) {
                 $this->setFlash('danger', 'Requirement Not Met', 'The calculated Caution Refund amount must be greater than zero.');
                 return $this->redirect(['index']);
@@ -364,7 +370,7 @@ class DefaultController extends BaseController
             } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
                 // Fallback autofill logic for CAUTION type if not passed from index
                 $amount = $check['cautionFeePaid'];
-                if ($amount <= 0 && $this->module->overrideCautionFee) {
+                if ($amount <= 0 && $this->module->overrideEligibility) {
                     $amount = $check['expectedCaution'];
                 }
                 $model->amount_requested = $amount;
@@ -468,7 +474,7 @@ class DefaultController extends BaseController
             'balance' => $balance,
             'cautionFeePaid' => $check['cautionFeePaid'],
             'expectedCautionFee' => $check['expectedCaution'],
-            'overrideCautionFee' => $this->module->overrideCautionFee,
+            'overrideEligibility' => $this->module->overrideEligibility,
             'eligible' => $check['eligible'],
             'reason' => $check['reason'],
         ]);

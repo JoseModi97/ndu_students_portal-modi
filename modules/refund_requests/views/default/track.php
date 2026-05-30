@@ -11,7 +11,7 @@ use yii\helpers\Url;
 /** @var float $balance */
 /** @var float $cautionFeePaid */
 /** @var float $expectedCautionFee */
-/** @var bool $overrideCautionFee */
+/** @var bool $overrideEligibility */
 /** @var bool $eligible */
 /** @var string|null $reason */
 
@@ -226,14 +226,14 @@ $progressPercent = ($currentStageIndex / $totalStages) * 100;
                             </div>
                         <?php endif; ?>
 
-                        <?php if ($overrideCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
+                        <?php if ($overrideEligibility && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
                             <div style="background: var(--cr-teal-50); border: 1px solid var(--cr-teal-100); border-radius: 8px; padding: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;">
                                 <div style="color: var(--cr-teal-600); font-size: 0.9rem;">✔️</div>
                                 <div style="font-size: 0.75rem; color: var(--cr-teal-800); line-height: 1.4;">
                                     <strong>Override Enabled:</strong> Requirements for full caution fee payment are currently bypassed for this process.
                                 </div>
                             </div>
-                        <?php elseif (!$overrideCautionFee && $cautionFeePaid < $expectedCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
+                        <?php elseif (!$overrideEligibility && $cautionFeePaid < $expectedCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
                             <div style="background: var(--cr-red-50); border: 1px solid var(--cr-red-100); border-radius: 8px; padding: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;">
                                 <div style="color: var(--cr-red); font-size: 0.9rem;">⚠️</div>
                                 <div style="font-size: 0.75rem; color: var(--cr-red-800); line-height: 1.4;">

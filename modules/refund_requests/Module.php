@@ -10,9 +10,9 @@ use yii\base\Module as BaseModule;
 class Module extends BaseModule
 {
     /**
-     * @var bool Whether to override/bypass the caution fee payment requirement.
+     * @var bool Whether to override/bypass the caution fee and fee balance requirements.
      */
-    public $overrideCautionFee = false;
+    public $overrideEligibility = true;
 
     /**
      * {@inheritdoc}

@@ -16,7 +16,7 @@ use yii\helpers\Url;
 /** @var float|null $balance */
 /** @var float|null $cautionFeePaid */
 /** @var float|null $expectedCautionFee */
-/** @var bool $overrideCautionFee */
+/** @var bool $overrideEligibility */
 
 $this->title = 'Refund Request Dashboard';
 
@@ -49,7 +49,7 @@ $this->registerJs("
         
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
-        var overrideCautionFee = " . ($overrideCautionFee ? 'true' : 'false') . ";
+        var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
         
         cautionSummary.hide();
         errorMsg.hide();
@@ -58,9 +58,9 @@ $this->registerJs("
         if (typeId) {
             // Logic for Caution Refund
             if (typeText.includes('CAUTION')) {
-                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideEligibility ? expectedCautionFee : 0);
                 
-                if (cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
+                if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
                     applyBtn.attr('href', '#');
                     applyBtn.css({'opacity': '0.7'});
                     selectField.css('border-color', 'var(--cr-red)');
@@ -100,7 +100,7 @@ $this->registerJs("
         var typeText = $('.dash-refund-type option:selected').text().toUpperCase();
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
-        var overrideCautionFee = " . ($overrideCautionFee ? 'true' : 'false') . ";
+        var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
 
         if (!typeId) {
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
@@ -109,8 +109,8 @@ $this->registerJs("
         } 
         
         if (typeText.includes('CAUTION')) {
-            var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
-            if (cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
+            var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideEligibility ? expectedCautionFee : 0);
+            if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
                 $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
                 return;
             } else if (displayAmount <= 0) {
@@ -246,10 +246,14 @@ $this->registerJs("
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">Fee Balance</span>
                         <span class="cr-status-row__value">
-                            <span class="cr-badge cr-badge--pending" style="background: var(--cr-blue-50); border: 1px solid var(--cr-blue-200); color: var(--cr-blue-800);">
-                                <?= Yii::$app->formatter->asCurrency($balance ?? 0) ?>
-                            </span>
-                            <small class="ms-2 text-muted" style="font-size: 0.75rem;">(Informational only)</small>
+                            <?php 
+                            $fb = (float)$balance;
+                            $ov = (bool)$overrideEligibility;
+                            $fbBadge = ($fb <= 0 || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
+                            $fbLabel = ($fb <= 0) ? 'CLEARED' : ($ov ? 'OVERRIDDEN' : 'HAS BALANCE');
+                            ?>
+                            <span class="cr-badge <?= $fbBadge ?>"><?= $fbLabel ?> (<?= Yii::$app->formatter->asCurrency($fb) ?>)</span>
+                            <small class="ms-2 text-muted" style="font-size: 0.75rem;">(Required: No balance)</small>
                         </span>
                     </div>
                     <div class="cr-status-row">
@@ -269,7 +273,7 @@ $this->registerJs("
                             <?php 
                             $cp = (float)$cautionFeePaid;
                             $ex = (float)$expectedCautionFee;
-                            $ov = (bool)$overrideCautionFee;
+                            $ov = (bool)$overrideEligibility;
                             $cpBadge = ($cp >= $ex || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
                             $cpLabel = ($cp >= $ex) ? 'PAID' : ($ov ? 'OVERRIDDEN' : 'NOT PAID');
                             ?>
