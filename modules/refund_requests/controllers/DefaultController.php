@@ -371,7 +371,7 @@ class DefaultController extends BaseController
         $model->mobile_no = $user->primary_phone_no ?: '0000000000';
         $model->payment_method = 'bank';
 
-        if ($this->request->isPost) {
+        if ($this->request->isPost && $this->request->post($model->formName())) {
             $post = $this->request->post();
 
             if ($model->load($post)) {
@@ -386,9 +386,6 @@ class DefaultController extends BaseController
                     $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
                     $this->setFlash('danger', 'Error', 'Failed to save your application: ' . $errors);
                 }
-            } else {
-                $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
-                $this->setFlash('danger', 'Error', 'Failed to load your application data: ' . $errors);
             }
         }
 
