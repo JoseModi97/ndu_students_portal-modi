@@ -403,9 +403,6 @@ class DefaultController extends BaseController
                     $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
                     $this->setFlash('danger', 'Error', 'Failed to save your application: ' . $errors);
                 }
-            } else {
-                $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
-                $this->setFlash('danger', 'Error', 'Failed to load your application data: ' . $errors);
             }
         }
 

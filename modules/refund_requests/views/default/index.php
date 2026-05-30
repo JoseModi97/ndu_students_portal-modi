@@ -119,7 +119,6 @@ $this->registerJs("
             }
             $('#apply-post-amount').val(displayAmount);
         }
-
         $('#apply-post-type').val(typeId);
         $('#apply-post-form').submit();
     });
