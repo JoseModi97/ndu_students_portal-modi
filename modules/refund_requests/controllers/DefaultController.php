@@ -124,9 +124,6 @@ class DefaultController extends BaseController
         } elseif (!in_array(strtoupper($academicStatus), $allowedStatuses)) {
             $eligible = false;
             $reason = 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' . $academicStatus;
-        } elseif ($expectedCaution > 0 && $cautionFeePaid < $expectedCaution && !$this->module->overrideCautionFee) {
-            $eligible = false;
-            $reason = 'You are not eligible for refunds because the required CAUTION FEE of ' . Yii::$app->formatter->asCurrency($expectedCaution) . ' has not been fully paid.';
         }
 
         return [
