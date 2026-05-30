@@ -244,7 +244,10 @@ class DefaultController extends BaseController
                 'smisRequest' => $smisRequest,
                 'approvals' => $approvals,
                 'allLevels' => $allLevels,
-                'academicStatus' => $academicStatus
+                'academicStatus' => $academicStatus,
+                'cautionFeePaid' => $check['cautionFeePaid'],
+                'expectedCautionFee' => $expectedCautionFee,
+                'overrideCautionFee' => $this->module->overrideCautionFee,
             ]);
         }
 
