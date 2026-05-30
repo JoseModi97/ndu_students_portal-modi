@@ -57,13 +57,13 @@ $this->registerJs("
         if (typeId) {
             // Logic for Caution Refund
             if (typeText.includes('CAUTION')) {
-                var displayAmount = (cautionFeePaid > 0) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
                 
-                if (displayAmount <= 0 && !overrideCautionFee) {
+                if (cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
                     applyBtn.attr('href', '#');
                     applyBtn.css({'opacity': '0.7'});
                     selectField.css('border-color', 'var(--cr-red)');
-                    errorMsg.text('You cannot apply for a Caution Refund because you have not paid the CAUTION FEE.').show();
+                    errorMsg.text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
                     return;
                 }
                 
@@ -80,7 +80,7 @@ $this->registerJs("
             var baseUrl = '" . Url::to(['apply']) . "';
             var amountParam = '';
             if (typeText.includes('CAUTION')) {
-                var displayAmount = (cautionFeePaid > 0) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
+                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideCautionFee ? expectedCautionFee : 0);
                 amountParam = '&amount=' + displayAmount;
             }
             applyBtn.attr('href', baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + typeId + amountParam);
@@ -102,9 +102,9 @@ $this->registerJs("
             e.preventDefault();
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
             $('#type-error-msg').text('Please select a refund type to proceed').show();
-        } else if (typeText.includes('CAUTION') && cautionFeePaid <= 0 && !overrideCautionFee) {
+        } else if (typeText.includes('CAUTION') && cautionFeePaid < expectedCautionFee && !overrideCautionFee) {
             e.preventDefault();
-            $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not paid the CAUTION FEE.').show();
+            $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
         }
     });
 ");

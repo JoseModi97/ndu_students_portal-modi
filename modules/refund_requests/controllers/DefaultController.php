@@ -124,9 +124,9 @@ class DefaultController extends BaseController
         } elseif (!in_array(strtoupper($academicStatus), $allowedStatuses)) {
             $eligible = false;
             $reason = 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' . $academicStatus;
-        } elseif ($expectedCaution > 0 && $cautionFeePaid <= 0 && !$this->module->overrideCautionFee) {
+        } elseif ($expectedCaution > 0 && $cautionFeePaid < $expectedCaution && !$this->module->overrideCautionFee) {
             $eligible = false;
-            $reason = 'You are not eligible for refunds because the required CAUTION FEE of ' . Yii::$app->formatter->asCurrency($expectedCaution) . ' has not been paid.';
+            $reason = 'You are not eligible for refunds because the required CAUTION FEE of ' . Yii::$app->formatter->asCurrency($expectedCaution) . ' has not been fully paid.';
         }
 
         return [
@@ -177,7 +177,7 @@ class DefaultController extends BaseController
                 'fi.fee_description' => 'CAUTION MONEY',
                 'fi.fee_type' => 'OTHER',
                 'fi.priority' => 1,
-                'ft.trans_type' => 'DR'
+                'ft.trans_type' => 'CR'
             ])
             ->sum('ft.trans_amount', Yii::$app->smisDb);
     }
@@ -196,11 +196,8 @@ class DefaultController extends BaseController
         $check = $this->checkEligibility($user);
         $academicStatus = $check['academicStatus'];
 
-        // Calculate expected caution fee for display on index if override is active
-        $expectedCautionFee = 0;
-        if ($this->module->overrideCautionFee && $check['prog_curriculum_id']) {
-            $expectedCautionFee = $this->calculateExpectedCautionFee($check['prog_curriculum_id']);
-        }
+        // Use expected caution fee from eligibility check
+        $expectedCautionFee = $check['expectedCaution'];
 
         // Normalize reg number for portal update
         $normalizedRegNo = str_replace('-', '/', $regNumber);
@@ -316,8 +313,8 @@ class DefaultController extends BaseController
         if ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
             /** @var \app\modules\refund_requests\Module $module */
             $module = $this->module;
-            if ($check['cautionFeePaid'] <= 0 && !$module->overrideCautionFee) {
-                $this->setFlash('danger', 'Requirement Not Met', 'You have not paid the CAUTION FEE required for this refund type.');
+            if ($check['cautionFeePaid'] < $check['expectedCaution'] && !$module->overrideCautionFee) {
+                $this->setFlash('danger', 'Requirement Not Met', 'You have not fully paid the CAUTION FEE required for this refund type.');
                 return $this->redirect(['index']);
             }
         }
