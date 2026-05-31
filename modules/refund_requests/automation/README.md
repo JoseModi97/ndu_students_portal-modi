@@ -36,7 +36,7 @@ php modules\refund_requests\automation\step1_eligibility.php
 
 ### 3. `step2_apply.php`
 
-Creates a valid pending refund request in both `smisportal.fss_refund_requests` and `smis.fss_refund_requests`.
+Creates a valid pending refund request in `smisportal.fss_refund_requests` with `sync_status = 0`. Run the refund sync command to copy it to `smis.fss_refund_requests`.
 
 Default usage creates a Bank payment request with mandatory bank, branch, account number, and `declaration_status = 1`:
 
@@ -62,7 +62,7 @@ php modules\refund_requests\automation\step3_approve_level1.php
 
 ### 5. `step4_finalize.php`
 
-Approves all remaining configured approval levels, then marks the refund request as `APPROVED` in both Portal and SMIS request tables.
+Approves all remaining configured approval levels, then marks the refund request as `APPROVED` in the Portal request table and resets `sync_status = 0`. Run the refund sync command to copy the final request state to SMIS.
 
 Usage:
 
@@ -83,6 +83,10 @@ Prints the SMIS fee balance, SMIS academic status, and portal clearance status u
 ### `check_status.php`
 
 Prints a quick clearance-status summary for the target student.
+
+### `check_bank_reference_data.php`
+
+Prints SMIS and Portal row counts and maximum primary-key values for `fss_banks` and `fss_bank_branches`.
 
 ### `sync_student_status_cli.php`
 

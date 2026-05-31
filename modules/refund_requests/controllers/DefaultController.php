@@ -398,6 +398,8 @@ class DefaultController extends BaseController
             $post = $this->request->post();
 
             if ($model->load($post)) {
+                $model->payment_method = $post['RefundRequest']['payment_method'] ?? 'bank';
+
                 // Generate a request_id if not identity
                 $maxId = RefundRequest::find()->max('request_id');
                 $model->request_id = ($maxId ?: 0) + 1;

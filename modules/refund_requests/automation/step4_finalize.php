@@ -83,7 +83,7 @@ try {
         ->update('smisportal.fss_refund_requests', [
             'approval_status' => 'APPROVED',
             'amount_approved' => new \yii\db\Expression('amount_requested'),
-            'sync_status' => 0, // Reset sync status to trigger sync to SMIS
+            'sync_status' => 0,
         ], ['request_id' => $requestId])
         ->execute();
 

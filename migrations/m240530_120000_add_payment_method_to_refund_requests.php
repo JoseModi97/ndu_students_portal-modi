@@ -12,11 +12,7 @@ class m240530_120000_add_payment_method_to_refund_requests extends Migration
      */
     public function safeUp()
     {
-        $this->addColumn(
-            'smisportal.fss_refund_requests',
-            'payment_method',
-            $this->string(20)->notNull()->defaultValue('bank')
-        );
+        echo "Skipped: payment_method is not part of the SMIS fss_refund_requests DDL.\n";
     }
 
     /**
@@ -24,9 +20,6 @@ class m240530_120000_add_payment_method_to_refund_requests extends Migration
      */
     public function safeDown()
     {
-        $this->dropColumn(
-            'smisportal.fss_refund_requests',
-            'payment_method'
-        );
+        echo "Skipped: no schema change was applied.\n";
     }
 }

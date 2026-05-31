@@ -105,7 +105,7 @@ $row = [
     'refund_type' => $refundTypeId,
     'payment_method' => $paymentOption,
     'voucher_no' => $voucherNo,
-    'sync_status' => 0, // Explicitly set sync status to pending
+    'sync_status' => 0,
 ];
 
 try {

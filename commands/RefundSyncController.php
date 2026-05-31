@@ -47,9 +47,7 @@ class RefundSyncController extends Controller
                     ->exists($smisDb);
 
                 $attributes = $request->getAttributes();
-                // Remove sync columns before sending to SMIS
                 unset($attributes['sync_status'], $attributes['sync_error'], $attributes['last_synced_at']);
-                // payment_method is likely portal-only as per migration analysis
                 unset($attributes['payment_method']);
 
                 if ($exists) {

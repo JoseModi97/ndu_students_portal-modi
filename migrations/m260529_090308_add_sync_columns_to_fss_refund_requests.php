@@ -9,9 +9,7 @@ class m260529_090308_add_sync_columns_to_fss_refund_requests extends Migration
      */
     public function safeUp()
     {
-        $this->addColumn('smisportal.fss_refund_requests', 'sync_status', $this->smallInteger()->notNull()->defaultValue(0));
-        $this->addColumn('smisportal.fss_refund_requests', 'sync_error', $this->text());
-        $this->addColumn('smisportal.fss_refund_requests', 'last_synced_at', $this->timestamp());
+        echo "Skipped: sync_status, sync_error, and last_synced_at are not part of the SMIS fss_refund_requests DDL.\n";
     }
 
     /**
@@ -19,8 +17,6 @@ class m260529_090308_add_sync_columns_to_fss_refund_requests extends Migration
      */
     public function safeDown()
     {
-        $this->dropColumn('smisportal.fss_refund_requests', 'last_synced_at');
-        $this->dropColumn('smisportal.fss_refund_requests', 'sync_error');
-        $this->dropColumn('smisportal.fss_refund_requests', 'sync_status');
+        echo "Skipped: no schema change was applied.\n";
     }
 }
