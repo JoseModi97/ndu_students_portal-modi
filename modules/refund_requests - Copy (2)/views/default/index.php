@@ -16,10 +16,7 @@ use yii\helpers\Url;
 /** @var float|null $balance */
 /** @var float|null $cautionFeePaid */
 /** @var float|null $expectedCautionFee */
-/** @var float|null $cautionReservedAmount */
-/** @var float|null $cautionRemainingAmount */
 /** @var bool $overrideEligibility */
-/** @var app\modules\refund_requests\models\RefundRequest[] $previousRequests */
 
 $this->title = 'Refund Request Dashboard';
 
@@ -52,8 +49,6 @@ $this->registerJs("
         
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
-        var cautionReservedAmount = " . (float)$cautionReservedAmount . ";
-        var cautionRemainingAmount = " . (float)$cautionRemainingAmount . ";
         var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
         
         cautionSummary.hide();
@@ -63,7 +58,7 @@ $this->registerJs("
         if (typeId) {
             // Logic for Caution Refund
             if (typeText.includes('CAUTION')) {
-                var displayAmount = cautionRemainingAmount;
+                var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideEligibility ? expectedCautionFee : 0);
                 
                 if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
                     applyBtn.attr('href', '#');
@@ -87,11 +82,6 @@ $this->registerJs("
                     currency: 'KES',
                     minimumFractionDigits: 2
                 }).format(displayAmount));
-                $('#caution-reserved-display').text(new Intl.NumberFormat('en-KE', {
-                    style: 'currency',
-                    currency: 'KES',
-                    minimumFractionDigits: 2
-                }).format(cautionReservedAmount));
                 
                 cautionSummary.fadeIn();
             }
@@ -110,7 +100,6 @@ $this->registerJs("
         var typeText = $('.dash-refund-type option:selected').text().toUpperCase();
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
-        var cautionRemainingAmount = " . (float)$cautionRemainingAmount . ";
         var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
 
         if (!typeId) {
@@ -120,7 +109,7 @@ $this->registerJs("
         } 
         
         if (typeText.includes('CAUTION')) {
-            var displayAmount = cautionRemainingAmount;
+            var displayAmount = (cautionFeePaid >= expectedCautionFee) ? cautionFeePaid : (overrideEligibility ? expectedCautionFee : 0);
             if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
                 $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
                 return;
@@ -145,9 +134,6 @@ $this->registerJs("
         <?php if (Yii::$app->session->hasFlash('danger')): ?>
             <div class="cr-flash cr-flash--danger"><?= Html::encode(Yii::$app->session->getFlash('danger')) ?></div>
         <?php endif; ?>
-        <?php if (Yii::$app->session->hasFlash('info')): ?>
-            <div class="cr-flash"><?= Html::encode(Yii::$app->session->getFlash('info')) ?></div>
-        <?php endif; ?>
 
         <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
@@ -165,18 +151,6 @@ $this->registerJs("
                     <p class="cr-notice__title" style="margin:0;">Active Application Found</p>
                     <p style="font-size: 0.85rem; margin:0; color: var(--cr-slate-700);">You have an active refund request submitted on <?= Yii::$app->formatter->asDate($request->application_date) ?>.</p>
                 </div>
-            </div>
-        <?php endif; ?>
-
-        <?php if (!empty($previousRequests)): ?>
-            <div class="cr-notice" style="background: var(--cr-teal-50); border-color: var(--cr-teal-200); margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                <div>
-                    <p class="cr-notice__title" style="margin:0;">Previous Not Approved Request<?= count($previousRequests) === 1 ? '' : 's' ?> Found</p>
-                    <p style="font-size: 0.85rem; margin:0; color: var(--cr-slate-700);">
-                        You may submit a new refund request because your earlier application was not approved.
-                    </p>
-                </div>
-                <?= Html::a('View Previous Requests', '#previous-refund-requests', ['class' => 'cr-btn cr-btn--secondary']) ?>
             </div>
         <?php endif; ?>
 
@@ -219,11 +193,9 @@ $this->registerJs("
                         <span class="cr-status-row__value">
                             <?php 
                             $s = strtoupper($request->approval_status);
-                            $isNotApproved = $s === 'NOT APPROVED';
-                            $b = $s === 'APPROVED' ? 'cr-badge--approved' : ($isNotApproved ? 'cr-badge--rejected' : 'cr-badge--pending');
-                            $statusLabel = $isNotApproved ? 'NOT APPROVED' : $s;
+                            $b = $s === 'APPROVED' ? 'cr-badge--approved' : ($s === 'REJECTED' ? 'cr-badge--rejected' : 'cr-badge--pending');
                             ?>
-                            <span class="cr-badge <?= $b ?>" style="font-size: 0.9rem; padding: 0.3rem 1rem;"><?= Html::encode($statusLabel) ?></span>
+                            <span class="cr-badge <?= $b ?>" style="font-size: 0.9rem; padding: 0.3rem 1rem;"><?= $s ?></span>
                         </span>
                     </div>
                     <div class="cr-status-row">
@@ -258,7 +230,7 @@ $this->registerJs("
                         </span>
                     </div>
                     <div style="text-align: center; margin-top: 2rem;">
-                        <?= Html::a('View Application Details', ['track', 'request_id' => $request->request_id], ['class' => 'cr-btn cr-btn--primary']) ?>
+                        <?= Html::a('View Application Details', ['track'], ['class' => 'cr-btn cr-btn--primary']) ?>
                     </div>
                 <?php else: ?>
                     <div class="cr-status-row">
@@ -336,8 +308,7 @@ $this->registerJs("
                                 <div id="caution-refund-summary" style="display: none; background: var(--cr-teal-50); border: 1px solid var(--cr-teal-200); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
                                     <p style="margin: 0; font-size: 0.8rem; color: var(--cr-teal-800); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Estimated Refundable Amount</p>
                                     <p id="caution-amount-display" style="margin: 0; font-size: 1.5rem; font-weight: 800; color: var(--cr-teal-900);"></p>
-                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--cr-teal-600);">This is the remaining amount after previous requested or approved Caution Refunds.</p>
-                                    <p style="margin: 0.25rem 0 0 0; font-size: 0.72rem; color: var(--cr-teal-600);">Already requested or approved: <strong id="caution-reserved-display"></strong></p>
+                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--cr-teal-600);">This amount is based on your Caution Money records.</p>
                                 </div>
 
                                 <div style="text-align: center; margin-top: 1rem;">
@@ -367,49 +338,5 @@ $this->registerJs("
                 <?php endif; ?>
             </div>
         </div>
-
-        <?php if (!empty($previousRequests)): ?>
-            <div id="previous-refund-requests" class="cr-card" style="margin-top: 2rem;">
-                <div class="cr-card__header" style="display: flex; align-items: center;">
-                    <div class="cr-card__header-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/>
-                        </svg>
-                    </div>
-                    <h2 class="cr-card__title">Previous Requests</h2>
-                </div>
-                <div class="cr-card__body">
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle">
-                            <thead>
-                            <tr>
-                                <th>Reference No</th>
-                                <th>Refund Type</th>
-                                <th>Application Date</th>
-                                <th class="text-end">Amount Requested</th>
-                                <th>Status</th>
-                                <th>Not Approval Comment</th>
-                                <th>Action</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($previousRequests as $previousRequest): ?>
-                                <?php $rejection = $previousRequest->approvalProcesses[0] ?? null; ?>
-                                <tr>
-                                    <td>#REF-<?= str_pad($previousRequest->request_id, 5, '0', STR_PAD_LEFT) ?></td>
-                                    <td><?= Html::encode($previousRequest->refundType->displayName ?? $previousRequest->refundType->refund_type_name ?? 'Refund') ?></td>
-                                    <td><?= Yii::$app->formatter->asDate($previousRequest->application_date) ?></td>
-                                    <td class="text-end"><?= Yii::$app->formatter->asCurrency($previousRequest->amount_requested) ?></td>
-                                    <td><span class="cr-badge cr-badge--rejected">NOT APPROVED</span></td>
-                                    <td><?= Html::encode($rejection->remarks ?? 'No comment provided') ?></td>
-                                    <td><?= Html::a('Track', ['track', 'request_id' => $previousRequest->request_id], ['class' => 'cr-btn cr-btn--secondary', 'style' => 'padding: 0.35rem 0.75rem; font-size: 0.75rem;']) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
     </div>
 </div>

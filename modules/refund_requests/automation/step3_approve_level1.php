@@ -34,21 +34,106 @@ if (!$level) {
     die("ERROR: Approval level 1 not found.\n");
 }
 
+$decision = promptDecision();
+$remarks = $decision === 'NOT APPROVED'
+    ? promptComment()
+    : null;
+
 $transactionPortal = Yii::$app->db->beginTransaction();
+$transactionSmis = Yii::$app->smisDb->beginTransaction();
 
 try {
+    ensureSmisRequest((int)$request['request_id']);
+    insertDecision(Yii::$app->db, 'smisportal', (int)$request['request_id'], (int)$level['approval_level_id'], $decision, $remarks);
+    insertDecision(Yii::$app->smisDb, 'smis', (int)$request['request_id'], (int)$level['approval_level_id'], $decision, $remarks);
+
+    if ($decision === 'NOT APPROVED') {
+        markRequestRejected(Yii::$app->db, 'smisportal', (int)$request['request_id']);
+        markRequestRejected(Yii::$app->smisDb, 'smis', (int)$request['request_id']);
+    }
+
+    $transactionPortal->commit();
+    $transactionSmis->commit();
+    echo "SUCCESS: Level 1 {$decision} decision recorded for request {$request['request_id']} in Portal and SMIS.\n";
+} catch (\Throwable $e) {
+    $transactionPortal->rollBack();
+    $transactionSmis->rollBack();
+    echo "ERROR: " . $e->getMessage() . "\n";
+}
+
+function promptDecision(): string
+{
+    while (true) {
+        echo "Decision for Level 1? Type 'approve' or 'reject': ";
+        $answer = strtolower(trim((string)fgets(STDIN)));
+
+        if (in_array($answer, ['approve', 'approved'], true)) {
+            return 'APPROVED';
+        }
+
+        if (in_array($answer, ['reject', 'rejected'], true)) {
+            return 'NOT APPROVED';
+        }
+
+        echo "Invalid decision. Please type approve or reject.\n";
+    }
+}
+
+function promptComment(): string
+{
+    while (true) {
+        echo "Enter rejection comment: ";
+        $comment = trim((string)fgets(STDIN));
+
+        if ($comment !== '') {
+            return substr($comment, 0, 150);
+        }
+
+        echo "A rejection comment is required.\n";
+    }
+}
+
+function ensureSmisRequest(int $requestId): void
+{
+    $exists = (new \yii\db\Query())
+        ->from('smis.fss_refund_requests')
+        ->where(['request_id' => $requestId])
+        ->exists(Yii::$app->smisDb);
+
+    if ($exists) {
+        return;
+    }
+
+    $portalRequest = (new \yii\db\Query())
+        ->from('smisportal.fss_refund_requests')
+        ->where(['request_id' => $requestId])
+        ->one(Yii::$app->db);
+
+    if (!$portalRequest) {
+        throw new \RuntimeException("Portal request {$requestId} not found.");
+    }
+
+    unset($portalRequest['payment_method'], $portalRequest['sync_status'], $portalRequest['sync_error'], $portalRequest['last_synced_at']);
+
+    Yii::$app->smisDb->createCommand()
+        ->insert('smis.fss_refund_requests', $portalRequest)
+        ->execute();
+}
+
+function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, int $levelId, string $decision, ?string $remarks): void
+{
     $approver = (new \yii\db\Query())
-        ->from('smisportal.fss_refund_approvers')
-        ->where(['approval_level_id' => $level['approval_level_id'], 'approver_status' => 'ACTIVE'])
-        ->one();
+        ->from($schema . '.fss_refund_approvers')
+        ->where(['approval_level_id' => $levelId, 'approver_status' => 'ACTIVE'])
+        ->one($db);
 
     if (!$approver) {
-        $approverId = ((int)Yii::$app->db->createCommand('SELECT COALESCE(MAX(approver_id), 0) FROM smisportal.fss_refund_approvers')->queryScalar()) + 1;
-        Yii::$app->db->createCommand()
-            ->insert('smisportal.fss_refund_approvers', [
+        $approverId = ((int)$db->createCommand("SELECT COALESCE(MAX(approver_id), 0) FROM {$schema}.fss_refund_approvers")->queryScalar()) + 1;
+        $db->createCommand()
+            ->insert($schema . '.fss_refund_approvers', [
                 'approver_id' => $approverId,
-                'user_id' => 'AUTO-L1',
-                'approval_level_id' => $level['approval_level_id'],
+                'user_id' => 'AUTO-L' . $levelId,
+                'approval_level_id' => $levelId,
                 'approver_status' => 'ACTIVE',
             ])
             ->execute();
@@ -56,22 +141,41 @@ try {
         $approverId = (int)$approver['approver_id'];
     }
 
-    $approvalProcessId = ((int)Yii::$app->db->createCommand('SELECT COALESCE(MAX(approval_process_id), 0) FROM smisportal.fss_refund_approval_process')->queryScalar()) + 1;
+    $exists = (new \yii\db\Query())
+        ->from($schema . '.fss_refund_approval_process p')
+        ->innerJoin($schema . '.fss_refund_approvers a', 'a.approver_id = p.approver_id')
+        ->where([
+            'p.request_id' => $requestId,
+            'a.approval_level_id' => $levelId,
+        ])
+        ->exists($db);
 
-    Yii::$app->db->createCommand()
-        ->insert('smisportal.fss_refund_approval_process', [
+    if ($exists) {
+        throw new \RuntimeException("Request {$requestId} already has a level {$levelId} decision in {$schema}.");
+    }
+
+    $approvalProcessId = ((int)$db->createCommand("SELECT COALESCE(MAX(approval_process_id), 0) FROM {$schema}.fss_refund_approval_process")->queryScalar()) + 1;
+
+    $db->createCommand()
+        ->insert($schema . '.fss_refund_approval_process', [
             'approval_process_id' => $approvalProcessId,
-            'request_id' => $request['request_id'],
-            'approval_status' => 'APPROVED',
-            'remarks' => 'Approved by automated script (Level 1)',
+            'request_id' => $requestId,
+            'approval_status' => $decision,
+            'remarks' => $remarks,
             'approval_date' => date('Y-m-d H:i:s'),
             'approver_id' => $approverId,
         ])
         ->execute();
+}
 
-    $transactionPortal->commit();
-    echo "SUCCESS: Level 1 approval recorded for request {$request['request_id']}.\n";
-} catch (\Throwable $e) {
-    $transactionPortal->rollBack();
-    echo "ERROR: " . $e->getMessage() . "\n";
+function markRequestRejected(\yii\db\Connection $db, string $schema, int $requestId): void
+{
+    $attributes = ['approval_status' => 'NOT APPROVED'];
+    if ($schema === 'smisportal') {
+        $attributes['sync_status'] = 0;
+    }
+
+    $db->createCommand()
+        ->update($schema . '.fss_refund_requests', $attributes, ['request_id' => $requestId])
+        ->execute();
 }

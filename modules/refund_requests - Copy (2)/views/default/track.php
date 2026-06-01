@@ -6,7 +6,6 @@ use yii\helpers\Url;
 /** @var yii\web\View $this */
 /** @var app\modules\refund_requests\models\User $user */
 /** @var app\modules\refund_requests\models\RefundRequest|null $request */
-/** @var app\modules\refund_requests\models\RefundRequest[] $requests */
 /** @var app\modules\refund_requests\models\ApprovalProcess[] $approvals */
 /** @var app\modules\refund_requests\models\ApprovalLevel[] $allLevels */
 /** @var float $balance */
@@ -24,11 +23,6 @@ $this->registerCssFile('@web/css/refund-requests.css');
 $completedCount = count($approvals);
 $totalStages = count($allLevels) + 2; // +1 for Eligibility, +1 for Application
 $currentStageIndex = 0;
-$requestStatus = $request ? strtoupper((string)$request->approval_status) : null;
-$isRejected = $requestStatus === 'NOT APPROVED';
-$requestStatusLabel = $isRejected ? 'NOT APPROVED' : $requestStatus;
-$isApproved = $requestStatus === 'APPROVED';
-$referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
 
 if (!$request) {
     if ($eligible) {
@@ -40,12 +34,7 @@ if (!$request) {
     $currentStageIndex = 2 + $completedCount; // Approval stages
 }
 
-if ($request && ($isRejected || $isApproved)) {
-    $currentStageIndex = $totalStages;
-}
-
 $progressPercent = ($currentStageIndex / $totalStages) * 100;
-$progressPercent = min(100, max(0, $progressPercent));
 ?>
 
 <div class="cr-page">
@@ -56,37 +45,8 @@ $progressPercent = min(100, max(0, $progressPercent));
             <h1 class="cr-header__title">
                 <?= $request ? Html::encode($request->refundType->refund_type_name) . ' Refund Overview' : 'Process Overview' ?>
             </h1>
-            <p class="cr-header__sub">
-                <?= $request ? Html::encode($referenceNo . ' - ' . $requestStatusLabel) : 'Real-time tracking of the entire refund lifecycle' ?>
-            </p>
+            <p class="cr-header__sub">Real-time tracking of the entire refund lifecycle</p>
         </div>
-
-        <?php if (!empty($requests)): ?>
-            <div class="cr-card" style="margin-bottom: 1.5rem;">
-                <div class="cr-card__body">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                        <div>
-                            <p style="font-size: 0.8rem; font-weight: 800; color: var(--cr-blue-600); text-transform: uppercase; margin: 0;">Select Request</p>
-                            <p style="font-size: 0.82rem; color: var(--cr-slate-500); margin: 0;">Choose a reference number to view the exact lifecycle for that application.</p>
-                        </div>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <?php foreach ($requests as $item): ?>
-                                <?php
-                                $itemStatus = strtoupper((string)$item->approval_status);
-                                $itemStatusLabel = $itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : $itemStatus;
-                                $itemClass = $request && (int)$request->request_id === (int)$item->request_id ? 'cr-btn--primary' : 'cr-btn--secondary';
-                                ?>
-                                <?= Html::a(
-                                    '#REF-' . str_pad($item->request_id, 5, '0', STR_PAD_LEFT) . ' - ' . $itemStatusLabel,
-                                    ['track', 'request_id' => $item->request_id],
-                                    ['class' => 'cr-btn ' . $itemClass, 'style' => 'padding: 0.45rem 0.8rem; font-size: 0.75rem;']
-                                ) ?>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
 
         <div class="cr-card" style="margin-bottom: 2.5rem;">
             <div class="cr-card__body">
@@ -123,18 +83,14 @@ $progressPercent = min(100, max(0, $progressPercent));
                         $isAct = $currentStageIndex == $stageIdx;
                         $isRej = false;
                         foreach ($approvals as $app) {
-                            if ($app->approver && $app->approver->approval_level_id == $level->approval_level_id && strtoupper($app->approval_status) === 'NOT APPROVED') {
+                            if ($app->approver && $app->approver->approval_level_id == $level->approval_level_id && strtoupper($app->approval_status) === 'REJECTED') {
                                 $isRej = true;
                                 break;
                             }
                         }
                         
                         $cls = $isComp ? 'cr-step--completed' : ($isAct ? 'cr-step--active' : '');
-                        if ($isRej) {
-                            $cls = 'cr-step--rejected';
-                        } elseif ($isRejected && !$isComp) {
-                            $cls = '';
-                        }
+                        if ($isRej) $cls = 'cr-step--rejected';
                     ?>
                         <div class="cr-step <?= $cls ?>">
                             <div class="cr-step__icon">
@@ -193,12 +149,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                                         <div class="cr-timeline-dot" style="border-color: var(--cr-teal-400);"></div>
                                         <div style="display: flex; justify-content: space-between;">
                                             <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0;"><?= Html::encode($approval->approver->approvalLevel->description ?? 'Unknown Level') ?></h4>
-                                            <?php
-                                            $approvalStatus = strtoupper((string)$approval->approval_status);
-                                            $approvalIsNotApproved = $approvalStatus === 'NOT APPROVED';
-                                            $approvalStatusLabel = $approvalIsNotApproved ? 'NOT APPROVED' : $approvalStatus;
-                                            ?>
-                                            <span class="cr-badge <?= $approvalIsNotApproved ? 'cr-badge--rejected' : 'cr-badge--approved' ?>"><?= Html::encode($approvalStatusLabel) ?></span>
+                                            <span class="cr-badge cr-badge--approved"><?= Html::encode($approval->approval_status) ?></span>
                                         </div>
                                         <p style="font-size: 0.75rem; color: var(--cr-slate-400); margin: 0.2rem 0;"><?= Yii::$app->formatter->asDatetime($approval->approval_date) ?></p>
                                         <?php if ($approval->remarks): ?>
@@ -206,25 +157,11 @@ $progressPercent = min(100, max(0, $progressPercent));
                                         <?php endif; ?>
                                     </div>
                                 <?php endforeach; ?>
-                                <?php if ($isRejected): ?>
-                                    <div class="cr-timeline-item">
-                                        <div class="cr-timeline-dot" style="border-color: var(--cr-red);"></div>
-                                        <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--cr-red);">Request Closed: Not Approved</h4>
-                                        <p style="font-size: 0.85rem; color: var(--cr-slate-400);">This request is no longer active. Use the request selector above to track another application.</p>
-                                    </div>
-                                <?php elseif ($isApproved): ?>
-                                    <div class="cr-timeline-item">
-                                        <div class="cr-timeline-dot" style="border-color: var(--cr-teal-400);"></div>
-                                        <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--cr-teal-600);">Request Approved</h4>
-                                        <p style="font-size: 0.85rem; color: var(--cr-slate-400);">This request has completed the approval workflow.</p>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="cr-timeline-item">
-                                        <div class="cr-timeline-dot" style="border-color: var(--cr-blue-400); animation: pulse 2s infinite;"></div>
-                                        <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--cr-blue-600);">Currently At: <?= Html::encode($allLevels[$completedCount]->description ?? 'Final Processing') ?></h4>
-                                        <p style="font-size: 0.85rem; color: var(--cr-slate-400);">Awaiting review by the respective office.</p>
-                                    </div>
-                                <?php endif; ?>
+                                <div class="cr-timeline-item">
+                                    <div class="cr-timeline-dot" style="border-color: var(--cr-blue-400); animation: pulse 2s infinite;"></div>
+                                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--cr-blue-600);">Currently At: <?= Html::encode($allLevels[$completedCount]->description ?? 'Final Processing') ?></h4>
+                                    <p style="font-size: 0.85rem; color: var(--cr-slate-400);">Awaiting review by the respective office.</p>
+                                </div>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -245,7 +182,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">Request Status</span>
                             <span class="cr-badge <?= $request ? 'cr-badge--pending' : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
-                                <?= $request ? Html::encode($referenceNo . ' - ' . $requestStatusLabel) : 'NO ACTIVE REQUEST' ?>
+                                <?= $request ? 'ACTIVE REQUEST' : 'NO ACTIVE REQUEST' ?>
                             </span>
                         </div>
 

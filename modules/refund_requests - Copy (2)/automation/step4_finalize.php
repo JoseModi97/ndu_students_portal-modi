@@ -43,9 +43,9 @@ $previousLevels = array_filter($levels, static function (array $level) use ($fin
 });
 
 $decision = promptDecision((int)$finalLevelId);
-$remarks = $decision === 'NOT APPROVED'
+$remarks = $decision === 'REJECTED'
     ? promptComment()
-    : null;
+    : 'Final level approval';
 
 $transactionPortal = Yii::$app->db->beginTransaction();
 $transactionSmis = Yii::$app->smisDb->beginTransaction();
@@ -88,7 +88,7 @@ function promptDecision(int $levelId): string
         }
 
         if (in_array($answer, ['reject', 'rejected'], true)) {
-            return 'NOT APPROVED';
+            return 'REJECTED';
         }
 
         echo "Invalid decision. Please type approve or reject.\n";
@@ -157,7 +157,7 @@ function ensureSmisRequest(int $requestId): void
         ->execute();
 }
 
-function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, int $levelId, string $decision, ?string $remarks): void
+function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, int $levelId, string $decision, string $remarks): void
 {
     $approver = (new \yii\db\Query())
         ->from($schema . '.fss_refund_approvers')
@@ -223,7 +223,7 @@ function markRequestApproved(\yii\db\Connection $db, string $schema, int $reques
 
 function markRequestRejected(\yii\db\Connection $db, string $schema, int $requestId): void
 {
-    $attributes = ['approval_status' => 'NOT APPROVED'];
+    $attributes = ['approval_status' => 'REJECTED'];
     if ($schema === 'smisportal') {
         $attributes['sync_status'] = 0;
     }

@@ -52,7 +52,7 @@ php modules\refund_requests\automation\step2_apply.php mpesa
 
 ### 4. `step3_approve_level1.php`
 
-Prompts for an approval decision for Level 1, then records that decision in both Portal and SMIS approval-process tables. If you choose `reject`, the script asks for a rejection comment and marks the request `NOT APPROVED` on both request tables.
+Prompts for an approval decision for Level 1, then records that decision in both Portal and SMIS approval-process tables. If you choose `reject`, the script asks for a rejection comment and marks the request `REJECTED` on both request tables.
 
 Usage:
 
@@ -62,7 +62,7 @@ php modules\refund_requests\automation\step3_approve_level1.php
 
 ### 5. `step4_approve_level2.php`
 
-Prompts for an approval decision for Level 2, then records only that Level 2 decision in both Portal and SMIS. It requires the refund request to exist and Level 1 approval to already exist in both databases. If you choose `reject`, the script asks for a rejection comment and marks the request `NOT APPROVED` on both request tables.
+Prompts for an approval decision for Level 2, then records only that Level 2 decision in both Portal and SMIS. It requires the refund request to exist and Level 1 approval to already exist in both databases. If you choose `reject`, the script asks for a rejection comment and marks the request `REJECTED` on both request tables.
 
 Usage:
 
@@ -72,7 +72,7 @@ php modules\refund_requests\automation\step4_approve_level2.php
 
 ### 6. `step4_finalize.php`
 
-Prompts for an approval decision for the final approval level, then records only that final-level decision in both Portal and SMIS. It requires all previous approval levels to already be approved in both databases. If you choose `approve`, the request is marked `APPROVED`; if you choose `reject`, the script asks for a rejection comment and marks the request `NOT APPROVED` on both request tables.
+Prompts for an approval decision for the final approval level, then records only that final-level decision in both Portal and SMIS. It requires all previous approval levels to already be approved in both databases. If you choose `approve`, the request is marked `APPROVED`; if you choose `reject`, the script asks for a rejection comment and marks the request `REJECTED` on both request tables.
 
 Usage:
 

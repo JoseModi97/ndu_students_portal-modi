@@ -80,8 +80,6 @@ class DefaultController extends BaseController
                 'cautionFeePaid' => 0,
                 'expectedCaution' => 0,
                 'hasExistingRequest' => false,
-                'cautionReservedAmount' => 0,
-                'cautionRemainingAmount' => 0,
                 'prog_curriculum_id' => null
             ];
         }
@@ -101,31 +99,17 @@ class DefaultController extends BaseController
         $balance = $this->calculateFeeBalance($normalizedRegNo);
         $cautionFeePaid = $this->calculateCautionFeePaid($normalizedRegNo);
         $expectedCaution = $this->calculateExpectedCautionFee($normalizedRegNo);
-        $cautionTypeId = $this->refundTypeId('CAUTION');
-        $cautionReservedAmount = (!empty($smisStudentData['student_prog_curriculum_id']) && $cautionTypeId !== null)
-            ? $this->reservedRefundAmount((int)$smisStudentData['student_prog_curriculum_id'], $cautionTypeId)
-            : 0;
-        $cautionBaseAmount = ($cautionFeePaid >= $expectedCaution) ? $cautionFeePaid : ($this->module->overrideEligibility ? $expectedCaution : 0);
-        $cautionRemainingAmount = max(0, $cautionBaseAmount - $cautionReservedAmount);
         
         $hasExistingRequest = false;
         if (!empty($smisStudentData['student_prog_curriculum_id'])) {
             $hasExistingRequest = RefundRequest::find()
                 ->where(['student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id']])
-                ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
-                    ':approved' => 'APPROVED',
-                    ':notApproved' => 'NOT APPROVED',
-                ])
                 ->exists();
                 
             if (!$hasExistingRequest) {
                 $hasExistingRequest = (new \yii\db\Query())
                     ->from('smis.fss_refund_requests')
                     ->where(['student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id']])
-                    ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
-                        ':approved' => 'APPROVED',
-                        ':notApproved' => 'NOT APPROVED',
-                    ])
                     ->exists(Yii::$app->smisDb);
             }
         }
@@ -164,54 +148,10 @@ class DefaultController extends BaseController
             'cautionFeePaid' => $cautionFeePaid,
             'expectedCaution' => $expectedCaution,
             'hasExistingRequest' => $hasExistingRequest,
-            'cautionReservedAmount' => $cautionReservedAmount,
-            'cautionRemainingAmount' => $cautionRemainingAmount,
             'smisStudentData' => $smisStudentData,
             'student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id'] ?? null,
             'prog_curriculum_id' => $smisStudentData['prog_curriculum_id'] ?? null
         ];
-    }
-
-    private function refundTypeId(string $refundTypeName): ?int
-    {
-        $value = \app\modules\refund_requests\models\RefundType::find()
-            ->select('refund_type_id')
-            ->where('UPPER(refund_type_name) = :refund_type_name', [':refund_type_name' => strtoupper($refundTypeName)])
-            ->scalar();
-
-        return $value === false || $value === null ? null : (int)$value;
-    }
-
-    private function reservedRefundAmount(int $studentProgCurriculumId, int $refundTypeId): float
-    {
-        $rows = [];
-        $sources = [
-            [Yii::$app->db, 'smisportal.fss_refund_requests'],
-            [Yii::$app->smisDb, 'smis.fss_refund_requests'],
-        ];
-
-        foreach ($sources as [$db, $table]) {
-            $sourceRows = (new \yii\db\Query())
-                ->select(['request_id', 'approval_status', 'amount_requested', 'amount_approved'])
-                ->from($table)
-                ->where([
-                    'student_prog_curriculum_id' => $studentProgCurriculumId,
-                    'refund_type' => $refundTypeId,
-                ])
-                ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
-                ->all($db);
-
-            foreach ($sourceRows as $row) {
-                $requestId = (string)$row['request_id'];
-                $amount = strtoupper((string)$row['approval_status']) === 'APPROVED' && (float)$row['amount_approved'] > 0
-                    ? (float)$row['amount_approved']
-                    : (float)$row['amount_requested'];
-
-                $rows[$requestId] = max($rows[$requestId] ?? 0, $amount);
-            }
-        }
-
-        return array_sum($rows);
     }
 
     /**
@@ -300,39 +240,12 @@ class DefaultController extends BaseController
         
         $existingRequest = null;
         $smisRequest = null;
-        $previousRequests = [];
         if ($check['student_prog_curriculum_id']) {
-            $existingRequest = RefundRequest::find()
-                ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
-                ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
-                    ':approved' => 'APPROVED',
-                    ':notApproved' => 'NOT APPROVED',
-                ])
-                ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-                ->one();
-            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::find()
-                ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
-                ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
-                    ':approved' => 'APPROVED',
-                    ':notApproved' => 'NOT APPROVED',
-                ])
-                ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-                ->one();
-            $previousRequests = RefundRequest::find()
-                ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
-                ->andWhere('UPPER(approval_status) = :notApproved', [':notApproved' => 'NOT APPROVED'])
-                ->with([
-                    'refundType',
-                    'approvalProcesses' => function ($query) {
-                        $query->andWhere('UPPER(approval_status) = :notApproved', [':notApproved' => 'NOT APPROVED'])
-                            ->orderBy(['approval_date' => SORT_DESC, 'approval_process_id' => SORT_DESC]);
-                    },
-                ])
-                ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-                ->all();
+            $existingRequest = RefundRequest::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
+            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
         }
 
-        // Mode: STATUS (an application is still pending/in progress)
+        // Mode: STATUS (Already applied)
         if ($existingRequest) {
             $approvals = ApprovalProcess::find()
                 ->where(['request_id' => $existingRequest->request_id])
@@ -348,32 +261,22 @@ class DefaultController extends BaseController
                 'academicStatus' => $academicStatus,
                 'cautionFeePaid' => $check['cautionFeePaid'],
                 'expectedCautionFee' => $expectedCautionFee,
-                'cautionReservedAmount' => $check['cautionReservedAmount'],
-                'cautionRemainingAmount' => $check['cautionRemainingAmount'],
                 'overrideEligibility' => $this->module->overrideEligibility,
-                'previousRequests' => $previousRequests,
             ]);
         }
 
-        $hasExternalActiveRequest = $check['hasExistingRequest'] && !$existingRequest;
-
         return $this->render('index', [
-            'mode' => ($check['eligible'] && !$hasExternalActiveRequest) ? 'eligibility' : 'not-eligible',
+            'mode' => $check['eligible'] ? 'eligibility' : 'not-eligible',
             'user' => $user,
-            'eligible' => $check['eligible'] && !$hasExternalActiveRequest,
-            'reason' => $hasExternalActiveRequest
-                ? 'You can make another refund request only after the current request has been approved through all approval levels or not approved.'
-                : $check['reason'],
+            'eligible' => $check['eligible'],
+            'reason' => $check['reason'],
             'balance' => $check['balance'],
             'cautionFeePaid' => $check['cautionFeePaid'],
             'expectedCautionFee' => $expectedCautionFee,
-            'cautionReservedAmount' => $check['cautionReservedAmount'],
-            'cautionRemainingAmount' => $check['cautionRemainingAmount'],
             'overrideEligibility' => $this->module->overrideEligibility,
             'allLevels' => $allLevels,
             'refundTypes' => $refundTypes,
-            'academicStatus' => $academicStatus,
-            'previousRequests' => $previousRequests,
+            'academicStatus' => $academicStatus
         ]);
     }
 
@@ -423,7 +326,7 @@ class DefaultController extends BaseController
         }
 
         if ($check['hasExistingRequest']) {
-            $this->setFlash('info', 'Active Application Found', 'You can make another refund request only after the current request has been approved through all approval levels or not approved.');
+            $this->setFlash('info', 'Active Application Found', 'You already have a pending refund request. You can track its status from your dashboard.');
             return $this->redirect(['index']);
         }
 
@@ -432,17 +335,7 @@ class DefaultController extends BaseController
             $typeId = $this->request->post('RefundRequest')['refund_type'];
         }
 
-        if (!$typeId) {
-            $this->setFlash('info', 'Refund Request', 'Please start your refund application from the requirements page.');
-            return $this->redirect(['index']);
-        }
-
         $refundType = \app\modules\refund_requests\models\RefundType::findOne($typeId);
-        if (!$refundType) {
-            $this->setFlash('danger', 'Refund Request', 'The selected refund type was not found. Please start again.');
-            return $this->redirect(['index']);
-        }
-
         $passedAmount = $this->request->post('amount', $this->request->get('amount'));
 
         $refundableAmount = 0;
@@ -455,19 +348,14 @@ class DefaultController extends BaseController
                 return $this->redirect(['index']);
             }
             
-            $refundableAmount = (float)$check['cautionRemainingAmount'];
+            $refundableAmount = ($check['cautionFeePaid'] >= $check['expectedCaution']) ? $check['cautionFeePaid'] : ($module->overrideEligibility ? $check['expectedCaution'] : 0);
             if ($refundableAmount <= 0) {
-                $this->setFlash('danger', 'Requirement Not Met', 'Your available Caution Refund balance has already been requested or approved.');
+                $this->setFlash('danger', 'Requirement Not Met', 'The calculated Caution Refund amount must be greater than zero.');
                 return $this->redirect(['index']);
             }
         } else {
             // For non-caution types, we could potentially limit by fee balance if it's a credit balance
-            $reservedAmount = $typeId ? $this->reservedRefundAmount((int)$check['student_prog_curriculum_id'], (int)$typeId) : 0;
-            $refundableAmount = max(0, (($check['balance'] < 0) ? abs((float)$check['balance']) : 0) - $reservedAmount);
-            if ($refundableAmount <= 0 && $check['hasExistingRequest']) {
-                $this->setFlash('info', 'Active Application Found', 'You already have a pending or approved refund request using the available balance.');
-                return $this->redirect(['index']);
-            }
+            $refundableAmount = ($check['balance'] < 0) ? abs((float)$check['balance']) : 0;
         }
 
         $model = new RefundRequest();
@@ -481,7 +369,11 @@ class DefaultController extends BaseController
                 $model->amount_requested = (float)$passedAmount;
             } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
                 // Fallback autofill logic for CAUTION type if not passed from index
-                $model->amount_requested = $refundableAmount;
+                $amount = $check['cautionFeePaid'];
+                if ($amount <= 0 && $this->module->overrideEligibility) {
+                    $amount = $check['expectedCaution'];
+                }
+                $model->amount_requested = $amount;
             }
         } else {
             // Default to STANDARD if no type is specified
@@ -552,7 +444,7 @@ class DefaultController extends BaseController
      * Dedicated interface to track the whole process
      * @return string
      */
-    public function actionTrack(?int $request_id = null)
+    public function actionTrack()
     {
         /** @var User $user */
         $user = User::findOne(Yii::$app->user->id);
@@ -562,48 +454,14 @@ class DefaultController extends BaseController
         $request = null;
         $smisRequest = null;
         $approvals = [];
-        $requests = [];
         if ($check['student_prog_curriculum_id']) {
-            $requests = RefundRequest::find()
-                ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
-                ->with('refundType')
-                ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-                ->all();
-
-            if ($request_id !== null) {
-                $request = RefundRequest::find()
-                    ->where([
-                        'student_prog_curriculum_id' => $check['student_prog_curriculum_id'],
-                        'request_id' => $request_id,
-                    ])
-                    ->with('refundType')
-                    ->one();
-
-                if ($request === null) {
-                    $this->setFlash('warning', 'Refund Request', 'The requested refund application was not found.');
-                    return $this->redirect(['index']);
-                }
-            }
-
-            if ($request === null && $requests) {
-                $request = $requests[0];
-            }
-
-            if ($request) {
-                $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['request_id' => $request->request_id]);
-            }
-
+            $request = RefundRequest::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
+            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']]);
             if ($request) {
                 $approvals = ApprovalProcess::find()
                     ->where(['request_id' => $request->request_id])
-                    ->orderBy(['approval_date' => SORT_ASC, 'approval_process_id' => SORT_ASC])
                     ->all();
             }
-        }
-
-        if ($request === null) {
-            $this->setFlash('info', 'Refund Request', 'No refund application is available to track.');
-            return $this->redirect(['index']);
         }
 
         $allLevels = ApprovalLevel::find()->orderBy(['approval_order' => SORT_ASC])->all();
@@ -612,7 +470,6 @@ class DefaultController extends BaseController
         return $this->render('track', [
             'user' => $user,
             'request' => $request,
-            'requests' => $requests,
             'smisRequest' => $smisRequest,
             'approvals' => $approvals,
             'allLevels' => $allLevels,
