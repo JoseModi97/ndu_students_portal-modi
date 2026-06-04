@@ -336,6 +336,7 @@ class DefaultController extends BaseController
         if ($existingRequest) {
             $approvals = ApprovalProcess::find()
                 ->where(['request_id' => $existingRequest->request_id])
+                ->andWhere('approval_date >= :application_date', [':application_date' => $existingRequest->application_date])
                 ->all();
 
             return $this->render('index', [
@@ -427,9 +428,37 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
+        $rejectedRequestId = (int)$this->request->post('rejected_request_id', $this->request->get('rejected_request_id', 0));
+        $rejectedRequest = null;
+        $latestRejection = null;
+        if ($rejectedRequestId > 0) {
+            $rejectedRequest = RefundRequest::find()
+                ->where([
+                    'request_id' => $rejectedRequestId,
+                    'student_prog_curriculum_id' => $check['student_prog_curriculum_id'],
+                ])
+                ->andWhere('UPPER(approval_status) = :notApproved', [':notApproved' => 'NOT APPROVED'])
+                ->with('refundType')
+                ->one();
+
+            if ($rejectedRequest === null) {
+                $this->setFlash('warning', 'Refund Request', 'The rejected refund request was not found.');
+                return $this->redirect(['index']);
+            }
+
+            $latestRejection = ApprovalProcess::find()
+                ->where(['request_id' => $rejectedRequest->request_id])
+                ->andWhere('UPPER(approval_status) = :notApproved', [':notApproved' => 'NOT APPROVED'])
+                ->orderBy(['approval_date' => SORT_DESC, 'approval_process_id' => SORT_DESC])
+                ->one();
+        }
+
         $typeId = $this->request->post('type', $this->request->get('type'));
         if (!$typeId && $this->request->isPost && isset($this->request->post('RefundRequest')['refund_type'])) {
             $typeId = $this->request->post('RefundRequest')['refund_type'];
+        }
+        if (!$typeId && $rejectedRequest !== null) {
+            $typeId = $rejectedRequest->refund_type;
         }
 
         if (!$typeId) {
@@ -470,7 +499,7 @@ class DefaultController extends BaseController
             }
         }
 
-        $model = new RefundRequest();
+        $model = $rejectedRequest ?: new RefundRequest();
         $model->max_amount = (float)$refundableAmount;
 
         if ($typeId) {
@@ -491,16 +520,20 @@ class DefaultController extends BaseController
             }
         }
 
-        $model->student_prog_curriculum_id = $check['student_prog_curriculum_id'];
-        $model->application_date = date('Y-m-d H:i:s');
-        $model->refund_status = 'NOT REFUNDED';
-        $model->approval_status = 'PENDING';
-        $model->declaration_status = '0';
-        $model->email = $user->primary_email;
-        $model->passport_id = $user->passport_no ?: ($user->national_id ?: 'N/A');
-        $model->account_name = $user->surname . ' ' . $user->other_names;
-        $model->mobile_no = $user->primary_phone_no ?: '0000000000';
-        $model->payment_method = 'bank';
+        if ($rejectedRequest === null) {
+            $model->student_prog_curriculum_id = $check['student_prog_curriculum_id'];
+            $model->application_date = date('Y-m-d H:i:s');
+            $model->refund_status = 'NOT REFUNDED';
+            $model->approval_status = 'PENDING';
+            $model->declaration_status = '0';
+            $model->email = $user->primary_email;
+            $model->passport_id = $user->passport_no ?: ($user->national_id ?: 'N/A');
+            $model->account_name = $user->surname . ' ' . $user->other_names;
+            $model->mobile_no = $user->primary_phone_no ?: '0000000000';
+            $model->payment_method = 'bank';
+        } else {
+            $model->max_amount = max((float)$refundableAmount, (float)$model->amount_requested);
+        }
 
         if ($this->request->isPost && $this->request->post('RefundRequest')) {
             $post = $this->request->post();
@@ -508,12 +541,27 @@ class DefaultController extends BaseController
             if ($model->load($post)) {
                 $model->payment_method = $post['RefundRequest']['payment_method'] ?? 'bank';
 
-                // Generate a request_id if not identity
-                $maxId = RefundRequest::find()->max('request_id');
-                $model->request_id = ($maxId ?: 0) + 1;
+                if ($rejectedRequest === null) {
+                    // Generate a request_id if not identity
+                    $maxId = RefundRequest::find()->max('request_id');
+                    $model->request_id = ($maxId ?: 0) + 1;
+                } else {
+                    $model->application_date = date('Y-m-d H:i:s');
+                    $model->approval_status = 'PENDING';
+                    $model->refund_status = 'NOT REFUNDED';
+                    $model->amount_approved = null;
+                    $model->sync_error = null;
+                }
 
                 if ($model->save()) {
-                    $this->setFlash('success', 'Refund Request', 'Your application has been submitted successfully and will be synchronized soon.');
+                    if ($rejectedRequest !== null) {
+                        $this->markDisapprovedRequestActioned((int)$rejectedRequest->request_id);
+                    }
+
+                    $message = $rejectedRequest !== null
+                        ? 'Your updated application has been submitted and will restart approval from Level 1.'
+                        : 'Your application has been submitted successfully and will be synchronized soon.';
+                    $this->setFlash('success', 'Refund Request', $message);
                     return $this->redirect(['index']);
                 } else {
                     $errors = implode('<br>', \yii\helpers\ArrayHelper::getColumn($model->getErrors(), 0));
@@ -529,8 +577,32 @@ class DefaultController extends BaseController
             'model' => $model,
             'banks' => $banks,
             'refundTypes' => $refundTypes,
-            'regNumber' => $regNumber
+            'regNumber' => $regNumber,
+            'rejectedRequest' => $rejectedRequest,
+            'latestRejection' => $latestRejection,
         ]);
+    }
+
+    private function markDisapprovedRequestActioned(int $requestId): void
+    {
+        foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
+            if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {
+                continue;
+            }
+
+            $db->createCommand()
+                ->update(
+                    $schema . '.fss_refund_requests_disapproved',
+                    [
+                        'action_flag' => true,
+                        'date_reinstated' => date('Y-m-d H:i:s'),
+                        'reinstatement_remarks' => 'Student updated rejected refund request.',
+                        'reinstated_by' => Yii::$app->user->id,
+                    ],
+                    ['request_id' => $requestId]
+                )
+                ->execute();
+        }
     }
 
     /**
@@ -596,6 +668,7 @@ class DefaultController extends BaseController
             if ($request) {
                 $approvals = ApprovalProcess::find()
                     ->where(['request_id' => $request->request_id])
+                    ->andWhere('approval_date >= :application_date', [':application_date' => $request->application_date])
                     ->orderBy(['approval_date' => SORT_ASC, 'approval_process_id' => SORT_ASC])
                     ->all();
             }

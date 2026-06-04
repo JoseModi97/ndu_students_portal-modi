@@ -43,10 +43,18 @@ $transactionSmis = Yii::$app->smisDb->beginTransaction();
 try {
     $deletedApprovals = 0;
     $deletedSmisApprovals = 0;
+    $deletedDisapproved = 0;
+    $deletedSmisDisapproved = 0;
     $deletedPortal = 0;
     $deletedSmis = 0;
 
     if ($requestIds) {
+        if (Yii::$app->db->getTableSchema('smisportal.fss_refund_requests_disapproved', true) !== null) {
+            $deletedDisapproved = Yii::$app->db->createCommand()
+                ->delete('smisportal.fss_refund_requests_disapproved', ['request_id' => $requestIds])
+                ->execute();
+        }
+
         $deletedApprovals = Yii::$app->db->createCommand()
             ->delete('smisportal.fss_refund_approval_process', ['request_id' => $requestIds])
             ->execute();
@@ -57,6 +65,12 @@ try {
     }
 
     if ($allSmisRequestIds) {
+        if (Yii::$app->smisDb->getTableSchema('smis.fss_refund_requests_disapproved', true) !== null) {
+            $deletedSmisDisapproved = Yii::$app->smisDb->createCommand()
+                ->delete('smis.fss_refund_requests_disapproved', ['request_id' => $allSmisRequestIds])
+                ->execute();
+        }
+
         $deletedSmisApprovals = Yii::$app->smisDb->createCommand()
             ->delete('smis.fss_refund_approval_process', ['request_id' => $allSmisRequestIds])
             ->execute();
@@ -72,6 +86,8 @@ try {
             ->execute();
     }
 
+    echo "Deleted $deletedDisapproved disapproved records from smisportal.fss_refund_requests_disapproved\n";
+    echo "Deleted $deletedSmisDisapproved disapproved records from smis.fss_refund_requests_disapproved\n";
     echo "Deleted $deletedApprovals approval records from smisportal.fss_refund_approval_process\n";
     echo "Deleted $deletedSmisApprovals approval records from smis.fss_refund_approval_process\n";
     echo "Deleted $deletedPortal records from smisportal.fss_refund_requests\n";

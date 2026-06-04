@@ -30,4 +30,24 @@ echo "Application Record Found: " . ($record ? 'YES' : 'NO') . "\n";
 
 if ($record) {
     print_r($record);
+
+    foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
+        if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {
+            echo "\n{$schema}.fss_refund_requests_disapproved: table not found\n";
+            continue;
+        }
+
+        $disapprovedRows = (new \yii\db\Query())
+            ->select(['d.*', 'a.user_id', 'a.approval_level_id'])
+            ->from($schema . '.fss_refund_requests_disapproved d')
+            ->leftJoin($schema . '.fss_refund_approvers a', 'a.approver_id = d.approver_id')
+            ->where(['d.request_id' => $record['request_id']])
+            ->orderBy(['d.approval_date' => SORT_DESC, 'd.disapproved_refund_id' => SORT_DESC])
+            ->all($db);
+
+        echo "\n{$schema}.fss_refund_requests_disapproved rows: " . count($disapprovedRows) . "\n";
+        if ($disapprovedRows) {
+            print_r($disapprovedRows);
+        }
+    }
 }

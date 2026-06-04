@@ -11,6 +11,8 @@ use kartik\select2\Select2;
 /** @var app\modules\refund_requests\models\Bank[] $banks */
 /** @var app\modules\refund_requests\models\RefundType[] $refundTypes */
 /** @var string $regNumber */
+/** @var app\modules\refund_requests\models\RefundRequest|null $rejectedRequest */
+/** @var app\modules\refund_requests\models\ApprovalProcess|null $latestRejection */
 
 $this->title = 'Apply for Refund Request';
 $this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
@@ -30,10 +32,19 @@ foreach ($refundTypes as $type) {
         break;
     }
 }
+$selectedBranchData = [];
+if ($model->branch_id && $model->branch) {
+    $selectedBranchData = [$model->branch_id => $model->branch->branch_name];
+}
 ?>
 
 <div class="cr-page">
     <div class="cr-container">
+        <nav class="cr-breadcrumb" aria-label="Breadcrumb">
+            <?= Html::a('Refund Requests', ['index']) ?>
+            <span class="cr-breadcrumb__separator">/</span>
+            <span class="cr-breadcrumb__current"><?= $rejectedRequest ? 'Update Request' : 'Apply' ?></span>
+        </nav>
         
         <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
@@ -51,6 +62,21 @@ foreach ($refundTypes as $type) {
             'enableAjaxValidation' => false,
             'enableClientValidation' => true,
         ]); ?>
+
+        <?php if ($rejectedRequest): ?>
+            <div class="cr-flash" style="margin-bottom: 1.5rem; border-color: #f59e0b; background: #fffbeb; color: #92400e;">
+                <p style="font-weight: 800; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Update Rejected Request</p>
+                <p style="margin-bottom: 0.35rem;">
+                    You are updating request <strong>#REF-<?= str_pad((string)$rejectedRequest->request_id, 5, '0', STR_PAD_LEFT) ?></strong>.
+                    Submitting this form will return the same request to Level 1 approval.
+                </p>
+                <p style="margin-bottom: 0;">
+                    <strong>Latest rejection comment:</strong>
+                    <?= Html::encode($latestRejection->remarks ?? 'No comment provided') ?>
+                </p>
+            </div>
+            <?= Html::hiddenInput('rejected_request_id', $rejectedRequest->request_id) ?>
+        <?php endif; ?>
 
         <div id="validation-error-summary" class="cr-flash cr-flash--danger" style="display: none; margin-bottom: 2rem;">
             <p style="font-weight: 800; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Please correct the following errors:</p>
@@ -120,7 +146,7 @@ foreach ($refundTypes as $type) {
                         ],
                     ]) ?>
                     <?= $form->field($model, 'branch_id')->widget(Select2::class, [
-                        'data' => [],
+                        'data' => $selectedBranchData,
                         'options' => [
                             'placeholder' => 'Select Branch',
                             'id' => 'branch-selector'

@@ -31,6 +31,8 @@ $totalLevels = count($allLevels);
 $studentInfoHtml = "<b>Name:</b> " . Html::encode($user->surname . ' ' . $user->other_names) . "<br><b>Reg No:</b> " . Html::encode($user->registration_number);
 $helpHtml = "For technical issues with this portal, contact ICT Support. For application status inquiries after 14 days, visit the Finance Office.";
 $secureHtml = "All refund disbursements are audited and verified to ensure funds are sent only to accounts registered in the student's name.";
+$hasRejectedRequests = !empty($previousRequests);
+$showMainRequestCard = $mode === 'status' || !$hasRejectedRequests;
 
 // Initialize Popovers
 $this->registerJs("
@@ -138,6 +140,9 @@ $this->registerJs("
 
 <div class="cr-page">
     <div class="cr-container">
+        <nav class="cr-breadcrumb" aria-label="Breadcrumb">
+            <span class="cr-breadcrumb__current">Refund Requests</span>
+        </nav>
         
         <?php if (Yii::$app->session->hasFlash('success')): ?>
             <div class="cr-flash cr-flash--success"><?= Html::encode(Yii::$app->session->getFlash('success')) ?></div>
@@ -180,6 +185,7 @@ $this->registerJs("
             </div>
         <?php endif; ?>
 
+        <?php if ($showMainRequestCard): ?>
         <div class="cr-card">
             <div class="cr-card__header" style="display: flex; align-items: center;">
                 <div class="cr-card__header-icon">
@@ -367,8 +373,10 @@ $this->registerJs("
                 <?php endif; ?>
             </div>
         </div>
+        <?php endif; ?>
 
         <?php if (!empty($previousRequests)): ?>
+            <?php $canUpdateRejectedRequest = isset($eligible) && $eligible; ?>
             <div id="previous-refund-requests" class="cr-card" style="margin-top: 2rem;">
                 <div class="cr-card__header" style="display: flex; align-items: center;">
                     <div class="cr-card__header-icon">
@@ -379,30 +387,49 @@ $this->registerJs("
                     <h2 class="cr-card__title">Previous Requests</h2>
                 </div>
                 <div class="cr-card__body">
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle">
+                    <div class="table-responsive cr-table-responsive">
+                        <table class="table table-sm align-middle cr-requests-table">
                             <thead>
                             <tr>
-                                <th>Reference No</th>
-                                <th>Refund Type</th>
-                                <th>Application Date</th>
-                                <th class="text-end">Amount Requested</th>
-                                <th>Status</th>
-                                <th>Not Approval Comment</th>
-                                <th>Action</th>
+                                <th class="cr-col-reference">Reference No</th>
+                                <th class="cr-col-type">Refund Type</th>
+                                <th class="cr-col-date">Application Date</th>
+                                <th class="cr-col-amount text-end">Amount Requested</th>
+                                <th class="cr-col-status">Status</th>
+                                <th class="cr-col-comment">Comment</th>
+                                <th class="cr-col-action">Action</th>
                             </tr>
                             </thead>
                             <tbody>
+                            <?php $latestRejectedRequestId = $previousRequests[0]->request_id ?? null; ?>
                             <?php foreach ($previousRequests as $previousRequest): ?>
                                 <?php $rejection = $previousRequest->approvalProcesses[0] ?? null; ?>
                                 <tr>
-                                    <td>#REF-<?= str_pad($previousRequest->request_id, 5, '0', STR_PAD_LEFT) ?></td>
-                                    <td><?= Html::encode($previousRequest->refundType->displayName ?? $previousRequest->refundType->refund_type_name ?? 'Refund') ?></td>
-                                    <td><?= Yii::$app->formatter->asDate($previousRequest->application_date) ?></td>
-                                    <td class="text-end"><?= Yii::$app->formatter->asCurrency($previousRequest->amount_requested) ?></td>
-                                    <td><span class="cr-badge cr-badge--rejected">NOT APPROVED</span></td>
-                                    <td><?= Html::encode($rejection->remarks ?? 'No comment provided') ?></td>
-                                    <td><?= Html::a('Track', ['track', 'request_id' => $previousRequest->request_id], ['class' => 'cr-btn cr-btn--secondary', 'style' => 'padding: 0.35rem 0.75rem; font-size: 0.75rem;']) ?></td>
+                                    <td class="cr-nowrap">#REF-<?= str_pad($previousRequest->request_id, 5, '0', STR_PAD_LEFT) ?></td>
+                                    <td class="cr-nowrap"><?= Html::encode($previousRequest->refundType->displayName ?? $previousRequest->refundType->refund_type_name ?? 'Refund') ?></td>
+                                    <td class="cr-nowrap"><?= Yii::$app->formatter->asDate($previousRequest->application_date) ?></td>
+                                    <td class="cr-nowrap text-end"><?= Yii::$app->formatter->asCurrency($previousRequest->amount_requested) ?></td>
+                                    <td class="cr-nowrap"><span class="cr-badge cr-badge--rejected">NOT APPROVED</span></td>
+                                    <td class="cr-nowrap">
+                                        <?= Html::button('<i class="fas fa-comment-dots" aria-hidden="true"></i>', [
+                                            'type' => 'button',
+                                            'class' => 'cr-btn cr-btn--secondary cr-comment-button',
+                                            'data-bs-toggle' => 'popover',
+                                            'data-bs-trigger' => 'focus',
+                                            'data-bs-placement' => 'left',
+                                            'title' => 'Not Approval Comment',
+                                            'data-bs-content' => Html::encode($rejection->remarks ?? 'No comment provided'),
+                                            'aria-label' => 'View not approval comment',
+                                        ]) ?>
+                                    </td>
+                                    <td>
+                                        <div class="cr-row-actions">
+                                            <?= Html::a('Track', ['track', 'request_id' => $previousRequest->request_id], ['class' => 'cr-btn cr-btn--secondary']) ?>
+                                            <?php if ($canUpdateRejectedRequest && (int)$previousRequest->request_id === (int)$latestRejectedRequestId): ?>
+                                                <?= Html::a('Update Request', ['apply', 'rejected_request_id' => $previousRequest->request_id], ['class' => 'cr-btn cr-btn--primary']) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>

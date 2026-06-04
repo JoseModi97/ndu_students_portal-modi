@@ -29,6 +29,20 @@ $isRejected = $requestStatus === 'NOT APPROVED';
 $requestStatusLabel = $isRejected ? 'NOT APPROVED' : $requestStatus;
 $isApproved = $requestStatus === 'APPROVED';
 $referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
+$formatNairobiDateTime = static function ($value): string {
+    if (empty($value)) {
+        return 'Not recorded';
+    }
+
+    try {
+        $date = new \DateTimeImmutable((string)$value, new \DateTimeZone('UTC'));
+        return $date
+            ->setTimezone(new \DateTimeZone('Africa/Nairobi'))
+            ->format('d M Y, h:i:s A') . ' EAT';
+    } catch (\Exception $e) {
+        return (string)$value;
+    }
+};
 
 if (!$request) {
     if ($eligible) {
@@ -50,6 +64,11 @@ $progressPercent = min(100, max(0, $progressPercent));
 
 <div class="cr-page">
     <div class="cr-container">
+        <nav class="cr-breadcrumb" aria-label="Breadcrumb">
+            <?= Html::a('Refund Requests', ['index']) ?>
+            <span class="cr-breadcrumb__separator">/</span>
+            <span class="cr-breadcrumb__current"><?= $request ? Html::encode($referenceNo) : 'Track' ?></span>
+        </nav>
         
         <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
@@ -200,7 +219,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                                             ?>
                                             <span class="cr-badge <?= $approvalIsNotApproved ? 'cr-badge--rejected' : 'cr-badge--approved' ?>"><?= Html::encode($approvalStatusLabel) ?></span>
                                         </div>
-                                        <p style="font-size: 0.75rem; color: var(--cr-slate-400); margin: 0.2rem 0;"><?= Yii::$app->formatter->asDatetime($approval->approval_date) ?></p>
+                                        <p style="font-size: 0.75rem; color: var(--cr-slate-400); margin: 0.2rem 0;"><?= Html::encode($formatNairobiDateTime($approval->approval_date)) ?></p>
                                         <?php if ($approval->remarks): ?>
                                             <div class="cr-timeline-comment"><?= Html::encode($approval->remarks) ?></div>
                                         <?php endif; ?>

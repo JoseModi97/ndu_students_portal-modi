@@ -41,10 +41,12 @@ try {
     ensureLevelApproved(Yii::$app->db, 'smisportal', $requestId, 1);
     ensureLevelApproved(Yii::$app->smisDb, 'smis', $requestId, 1);
 
-    insertDecision(Yii::$app->db, 'smisportal', $requestId, $levelId, $decision, $remarks);
-    insertDecision(Yii::$app->smisDb, 'smis', $requestId, $levelId, $decision, $remarks);
+    $portalApproverId = insertDecision(Yii::$app->db, 'smisportal', $requestId, $levelId, $decision, $remarks);
+    $smisApproverId = insertDecision(Yii::$app->smisDb, 'smis', $requestId, $levelId, $decision, $remarks);
 
     if ($decision === 'NOT APPROVED') {
+        archiveDisapprovedRequest(Yii::$app->db, 'smisportal', $requestId, $portalApproverId, $remarks);
+        archiveDisapprovedRequest(Yii::$app->smisDb, 'smis', $requestId, $smisApproverId, $remarks);
         markRequestRejected(Yii::$app->db, 'smisportal', $requestId);
         markRequestRejected(Yii::$app->smisDb, 'smis', $requestId);
     }
@@ -134,7 +136,7 @@ function ensureLevelApproved(\yii\db\Connection $db, string $schema, int $reques
     }
 }
 
-function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, int $levelId, string $decision, ?string $remarks): void
+function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, int $levelId, string $decision, ?string $remarks): int
 {
     $approver = (new \yii\db\Query())
         ->from($schema . '.fss_refund_approvers')
@@ -180,6 +182,58 @@ function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, 
             'approver_id' => $approverId,
         ])
         ->execute();
+
+    return $approverId;
+}
+
+function archiveDisapprovedRequest(\yii\db\Connection $db, string $schema, int $requestId, int $approverId, ?string $remarks): void
+{
+    ensureDisapprovedRequestsTable($db, $schema);
+    $disapprovedRefundId = ((int)$db->createCommand("SELECT COALESCE(MAX(disapproved_refund_id), 0) FROM {$schema}.fss_refund_requests_disapproved")->queryScalar()) + 1;
+
+    $db->createCommand()
+        ->insert($schema . '.fss_refund_requests_disapproved', [
+            'disapproved_refund_id' => $disapprovedRefundId,
+            'approver_id' => $approverId,
+            'request_id' => $requestId,
+            'approval_status' => 'NOT APPROVED',
+            'remarks' => $remarks,
+            'approval_date' => date('Y-m-d H:i:s'),
+            'action_flag' => false,
+        ])
+        ->execute();
+}
+
+function ensureDisapprovedRequestsTable(\yii\db\Connection $db, string $schema): void
+{
+    if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) !== null) {
+        return;
+    }
+
+    $quotedSchema = $db->quoteTableName($schema);
+    $quotedTable = $db->quoteTableName($schema . '.fss_refund_requests_disapproved');
+
+    $db->createCommand(<<<SQL
+CREATE TABLE IF NOT EXISTS {$quotedTable} (
+    disapproved_refund_id int8 NOT NULL,
+    approver_id int8 NULL,
+    request_id int8 NULL,
+    approval_status varchar NULL,
+    remarks varchar NULL,
+    approval_date timestamp NULL,
+    date_reinstated timestamp NULL,
+    reinstatement_remarks varchar NULL,
+    reinstated_by varchar NULL,
+    action_flag bool NULL DEFAULT false,
+    CONSTRAINT fss_refund_requests_disapproved_pkey PRIMARY KEY (disapproved_refund_id),
+    CONSTRAINT fk_approver_id
+        FOREIGN KEY (approver_id)
+        REFERENCES {$quotedSchema}.fss_refund_approvers(approver_id),
+    CONSTRAINT fk_request_id
+        FOREIGN KEY (request_id)
+        REFERENCES {$quotedSchema}.fss_refund_requests(request_id)
+)
+SQL)->execute();
 }
 
 function markRequestRejected(\yii\db\Connection $db, string $schema, int $requestId): void
