@@ -550,7 +550,9 @@ class DefaultController extends BaseController
                     $model->approval_status = 'PENDING';
                     $model->refund_status = 'NOT REFUNDED';
                     $model->amount_approved = null;
+                    $model->sync_status = 0;
                     $model->sync_error = null;
+                    $model->last_synced_at = null;
                 }
 
                 if ($model->save()) {
@@ -586,22 +588,48 @@ class DefaultController extends BaseController
     private function markDisapprovedRequestActioned(int $requestId): void
     {
         foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-            if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {
+            $table = $db->getTableSchema($schema . '.fss_refund_requests_disapproved', true);
+            if ($table === null) {
                 continue;
             }
 
-            $db->createCommand()
-                ->update(
-                    $schema . '.fss_refund_requests_disapproved',
-                    [
-                        'action_flag' => true,
-                        'date_reinstated' => date('Y-m-d H:i:s'),
-                        'reinstatement_remarks' => 'Student updated rejected refund request.',
-                        'reinstated_by' => Yii::$app->user->id,
-                    ],
-                    ['request_id' => $requestId]
-                )
-                ->execute();
+            $latestCondition = in_array('disapproved_refund_id', $table->columnNames, true)
+                ? "NOT EXISTS (
+                    SELECT 1
+                    FROM {$schema}.fss_refund_requests_disapproved newer
+                    WHERE newer.request_id = d.request_id
+                      AND (
+                          newer.approval_date > d.approval_date
+                          OR (
+                              newer.approval_date = d.approval_date
+                              AND newer.disapproved_refund_id > d.disapproved_refund_id
+                          )
+                      )
+                )"
+                : "NOT EXISTS (
+                    SELECT 1
+                    FROM {$schema}.fss_refund_requests_disapproved newer
+                    WHERE newer.request_id = d.request_id
+                      AND newer.approval_date > d.approval_date
+                )";
+
+            $db->createCommand(
+                <<<SQL
+UPDATE {$schema}.fss_refund_requests_disapproved d
+SET action_flag = true,
+    date_reinstated = :date_reinstated,
+    reinstatement_remarks = :reinstatement_remarks,
+    reinstated_by = :reinstated_by
+WHERE d.request_id = :request_id
+  AND {$latestCondition}
+SQL,
+                [
+                    ':date_reinstated' => date('Y-m-d H:i:s'),
+                    ':reinstatement_remarks' => 'Student updated rejected refund request.',
+                    ':reinstated_by' => Yii::$app->user->id,
+                    ':request_id' => $requestId,
+                ]
+            )->execute();
         }
     }
 
