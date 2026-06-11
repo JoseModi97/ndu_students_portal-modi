@@ -199,6 +199,7 @@ function archiveDisapprovedRequest(\yii\db\Connection $db, string $schema, int $
             'approval_status' => 'NOT APPROVED',
             'remarks' => $remarks,
             'approval_date' => date('Y-m-d H:i:s'),
+            'rejection_origin' => 'APPROVAL_FLOW',
             'action_flag' => false,
         ])
         ->execute();
@@ -206,7 +207,12 @@ function archiveDisapprovedRequest(\yii\db\Connection $db, string $schema, int $
 
 function ensureDisapprovedRequestsTable(\yii\db\Connection $db, string $schema): void
 {
-    if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) !== null) {
+    $table = $db->getTableSchema($schema . '.fss_refund_requests_disapproved', true);
+    if ($table !== null) {
+        if (!in_array('rejection_origin', $table->columnNames, true)) {
+            $quotedTable = $db->quoteTableName($schema . '.fss_refund_requests_disapproved');
+            $db->createCommand("ALTER TABLE {$quotedTable} ADD COLUMN IF NOT EXISTS rejection_origin varchar(40) NULL")->execute();
+        }
         return;
     }
 
@@ -224,6 +230,7 @@ CREATE TABLE IF NOT EXISTS {$quotedTable} (
     date_reinstated timestamp NULL,
     reinstatement_remarks varchar NULL,
     reinstated_by varchar NULL,
+    rejection_origin varchar(40) NULL,
     action_flag bool NULL DEFAULT false,
     CONSTRAINT fss_refund_requests_disapproved_pkey PRIMARY KEY (disapproved_refund_id),
     CONSTRAINT fk_approver_id

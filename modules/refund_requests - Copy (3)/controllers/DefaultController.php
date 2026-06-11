@@ -431,7 +431,6 @@ class DefaultController extends BaseController
         $rejectedRequestId = (int)$this->request->post('rejected_request_id', $this->request->get('rejected_request_id', 0));
         $rejectedRequest = null;
         $latestRejection = null;
-        $isPostingRejection = false;
         if ($rejectedRequestId > 0) {
             $rejectedRequest = RefundRequest::find()
                 ->where([
@@ -452,7 +451,6 @@ class DefaultController extends BaseController
                 ->andWhere('UPPER(approval_status) = :notApproved', [':notApproved' => 'NOT APPROVED'])
                 ->orderBy(['approval_date' => SORT_DESC, 'approval_process_id' => SORT_DESC])
                 ->one();
-            $isPostingRejection = $this->isPostingWindowDisapproval((int)$rejectedRequest->request_id);
         }
 
         $typeId = $this->request->post('type', $this->request->get('type'));
@@ -551,10 +549,10 @@ class DefaultController extends BaseController
                     $model->application_date = date('Y-m-d H:i:s');
                     $model->approval_status = 'PENDING';
                     $model->refund_status = 'NOT REFUNDED';
-                    if (!$isPostingRejection) {
-                        $model->amount_approved = null;
-                    }
+                    $model->amount_approved = null;
+                    $model->sync_status = 0;
                     $model->sync_error = null;
+                    $model->last_synced_at = null;
                 }
 
                 if ($model->save()) {
@@ -563,9 +561,7 @@ class DefaultController extends BaseController
                     }
 
                     $message = $rejectedRequest !== null
-                        ? ($isPostingRejection
-                            ? 'Your updated application has been submitted and will be returned to posting.'
-                            : 'Your updated application has been submitted and will restart approval from Level 1.')
+                        ? 'Your updated application has been submitted and will restart approval from Level 1.'
                         : 'Your application has been submitted successfully and will be synchronized soon.';
                     $this->setFlash('success', 'Refund Request', $message);
                     return $this->redirect(['index']);
@@ -586,33 +582,10 @@ class DefaultController extends BaseController
             'regNumber' => $regNumber,
             'rejectedRequest' => $rejectedRequest,
             'latestRejection' => $latestRejection,
-            'isPostingRejection' => $isPostingRejection,
         ]);
     }
 
     private function markDisapprovedRequestActioned(int $requestId): void
-    {
-        foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-            if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {
-                continue;
-            }
-
-            $db->createCommand()
-                ->update(
-                    $schema . '.fss_refund_requests_disapproved',
-                    [
-                        'action_flag' => true,
-                        'date_reinstated' => date('Y-m-d H:i:s'),
-                        'reinstatement_remarks' => 'Student updated rejected refund request.',
-                        'reinstated_by' => Yii::$app->user->id,
-                    ],
-                    ['request_id' => $requestId]
-                )
-                ->execute();
-        }
-    }
-
-    private function isPostingWindowDisapproval(int $requestId): bool
     {
         foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
             $table = $db->getTableSchema($schema . '.fss_refund_requests_disapproved', true);
@@ -620,11 +593,7 @@ class DefaultController extends BaseController
                 continue;
             }
 
-            $originCondition = in_array('rejection_origin', $table->columnNames, true)
-                ? "(UPPER(COALESCE(d.rejection_origin, '')) = 'POSTING_WINDOW' OR UPPER(COALESCE(d.remarks, '')) = 'CANCELLED AT POSTING WINDOW')"
-                : "UPPER(COALESCE(d.remarks, '')) = 'CANCELLED AT POSTING WINDOW'";
-
-            $latestRowCondition = in_array('disapproved_refund_id', $table->columnNames, true)
+            $latestCondition = in_array('disapproved_refund_id', $table->columnNames, true)
                 ? "NOT EXISTS (
                     SELECT 1
                     FROM {$schema}.fss_refund_requests_disapproved newer
@@ -644,20 +613,24 @@ class DefaultController extends BaseController
                       AND newer.approval_date > d.approval_date
                 )";
 
-            $exists = (new \yii\db\Query())
-                ->from($schema . '.fss_refund_requests_disapproved d')
-                ->where(['d.request_id' => $requestId])
-                ->andWhere('UPPER(COALESCE(d.approval_status, \'\')) = :status', [':status' => 'NOT APPROVED'])
-                ->andWhere($originCondition)
-                ->andWhere($latestRowCondition)
-                ->exists($db);
-
-            if ($exists) {
-                return true;
-            }
+            $db->createCommand(
+                <<<SQL
+UPDATE {$schema}.fss_refund_requests_disapproved d
+SET action_flag = true,
+    date_reinstated = :date_reinstated,
+    reinstatement_remarks = :reinstatement_remarks,
+    reinstated_by = :reinstated_by
+WHERE d.request_id = :request_id
+  AND {$latestCondition}
+SQL,
+                [
+                    ':date_reinstated' => date('Y-m-d H:i:s'),
+                    ':reinstatement_remarks' => 'Student updated rejected refund request.',
+                    ':reinstated_by' => Yii::$app->user->id,
+                    ':request_id' => $requestId,
+                ]
+            )->execute();
         }
-
-        return false;
     }
 
     /**

@@ -13,7 +13,6 @@ use kartik\select2\Select2;
 /** @var string $regNumber */
 /** @var app\modules\refund_requests\models\RefundRequest|null $rejectedRequest */
 /** @var app\modules\refund_requests\models\ApprovalProcess|null $latestRejection */
-/** @var bool $isPostingRejection */
 
 $this->title = 'Apply for Refund Request';
 $this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
@@ -37,7 +36,6 @@ $selectedBranchData = [];
 if ($model->branch_id && $model->branch) {
     $selectedBranchData = [$model->branch_id => $model->branch->branch_name];
 }
-$reinstatementLevelLabel = !empty($isPostingRejection) ? 'posting' : 'Level 1 approval';
 ?>
 
 <div class="cr-page">
@@ -70,7 +68,7 @@ $reinstatementLevelLabel = !empty($isPostingRejection) ? 'posting' : 'Level 1 ap
                 <p style="font-weight: 800; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Update Rejected Request</p>
                 <p style="margin-bottom: 0.35rem;">
                     You are updating request <strong>#REF-<?= str_pad((string)$rejectedRequest->request_id, 5, '0', STR_PAD_LEFT) ?></strong>.
-                    Submitting this form will return the same request to <?= Html::encode($reinstatementLevelLabel) ?>.
+                    Submitting this form will return the same request to Level 1 approval.
                 </p>
                 <p style="margin-bottom: 0;">
                     <strong>Latest rejection comment:</strong>

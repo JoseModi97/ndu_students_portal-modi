@@ -32,33 +32,6 @@ if ($record) {
     print_r($record);
 
     foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-        if ($db->getTableSchema($schema . '.fss_refund_posting_items', true) !== null) {
-            $postingRows = (new \yii\db\Query())
-                ->select(['i.*', 'b.voucher_no', 'b.total_amount', 'b.posted_by AS batch_posted_by', 'b.posted_at AS batch_posted_at'])
-                ->from($schema . '.fss_refund_posting_items i')
-                ->leftJoin($schema . '.fss_refund_posting_batches b', 'b.posting_batch_id = i.posting_batch_id')
-                ->where(['i.request_id' => $record['request_id']])
-                ->orderBy(['i.posted_at' => SORT_DESC])
-                ->all($db);
-
-            echo "\n{$schema}.fss_refund_posting_items rows: " . count($postingRows) . "\n";
-            if ($postingRows) {
-                print_r($postingRows);
-            }
-        } else {
-            echo "\n{$schema}.fss_refund_posting_items: table not found\n";
-        }
-
-        if (!empty($record['voucher_no']) && $db->getTableSchema($schema . '.fss_refund_details', true) !== null) {
-            $refundDetails = (new \yii\db\Query())
-                ->from($schema . '.fss_refund_details')
-                ->where(['pv_no' => $record['voucher_no']])
-                ->one($db);
-
-            echo "\n{$schema}.fss_refund_details row:\n";
-            print_r($refundDetails ?: []);
-        }
-
         if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {
             echo "\n{$schema}.fss_refund_requests_disapproved: table not found\n";
             continue;

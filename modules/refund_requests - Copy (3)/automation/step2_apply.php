@@ -43,11 +43,11 @@ if (!$student) {
 $refundTypeId = (int)(new \yii\db\Query())
     ->select('refund_type_id')
     ->from('smisportal.fss_refund_types')
-    ->where(['refund_type_name' => 'CAUTION', 'refund_type_status' => true])
+    ->where(['refund_type_name' => 'STANDARD', 'refund_type_status' => true])
     ->scalar();
 
 if (!$refundTypeId) {
-    die("ERROR: CAUTION refund type not found.\n");
+    die("ERROR: STANDARD refund type not found.\n");
 }
 
 $bankId = null;

@@ -6,8 +6,6 @@ This folder contains PHP CLI scripts for testing the current `refund_requests` m
 - SMIS sync table: `smis.fss_refund_requests`
 - Portal approval table: `smisportal.fss_refund_approval_process`
 - Disapproved request tables: `smisportal.fss_refund_requests_disapproved` and `smis.fss_refund_requests_disapproved`
-- Posting details tables: `fss_refund_details`, `fss_refund_posting_batches`, and `fss_refund_posting_items` in both `smisportal` and `smis`
-- Fee transaction tables: `smisportal.fss_fee_transactions` and `smis.fss_fee_transactions`
 
 ## Target Student
 
@@ -19,7 +17,7 @@ All scripts target:
 
 ### 1. `step0_cleanup.php`
 
-Deletes existing FSS refund requests, disapproved-request rows, approval-process rows, posting audit rows, refund details, and posting-generated fee transactions for the target student from both Portal and SMIS request tables.
+Deletes existing FSS refund requests, disapproved-request rows, and approval-process rows for the target student from both Portal and SMIS request tables.
 
 Usage:
 
@@ -39,9 +37,9 @@ php modules\refund_requests\automation\step1_eligibility.php
 
 ### 3. `step2_apply.php`
 
-Creates a valid pending `CAUTION` refund request in `smisportal.fss_refund_requests` and `smis.fss_refund_requests`.
+Creates a valid pending refund request in `smisportal.fss_refund_requests` with `sync_status = 0`. Run the refund sync command to copy it to `smis.fss_refund_requests`.
 
-Default usage creates a Bank payment request with mandatory bank, branch, account number, `refund_status = NOT REFUNDED`, and `declaration_status = 1`:
+Default usage creates a Bank payment request with mandatory bank, branch, account number, and `declaration_status = 1`:
 
 ```powershell
 php modules\refund_requests\automation\step2_apply.php
@@ -75,7 +73,7 @@ php modules\refund_requests\automation\step4_approve_level2.php
 
 ### 6. `step4_finalize.php`
 
-Prompts for an approval decision for the final approval level, then records only that final-level decision in both Portal and SMIS. It requires all previous approval levels to already be approved in both databases. If you choose `approve`, the request is marked `APPROVED` and is ready for posting; if you choose `reject`, the script asks for a rejection comment, inserts matching records in both disapproved-request tables, and marks the request `NOT APPROVED` on both request tables.
+Prompts for an approval decision for the final approval level, then records only that final-level decision in both Portal and SMIS. It requires all previous approval levels to already be approved in both databases. If you choose `approve`, the request is marked `APPROVED`; if you choose `reject`, the script asks for a rejection comment, inserts matching records in both disapproved-request tables, and marks the request `NOT APPROVED` on both request tables.
 
 Usage:
 
@@ -83,29 +81,19 @@ Usage:
 php modules\refund_requests\automation\step4_finalize.php
 ```
 
-### 7. `step5_post_caution_refund.php`
-
-Posts the latest fully approved, unrefunded `CAUTION` request for the target student. This creates the legacy-aligned `fss_refund_details` voucher row, a posting batch/item row, the caution DR/CR fee transactions, and marks the request `REFUNDED` with the voucher number in both Portal and SMIS.
-
-Usage:
-
-```powershell
-php modules\refund_requests\automation\step5_post_caution_refund.php
-```
-
 ## Utility Scripts
 
 ### `debug_record.php`
 
-Prints the latest FSS refund request for the target student, including refund type, bank/branch labels, posting rows, refund details, and any matching disapproved-request rows when available.
+Prints the latest FSS refund request for the target student, including refund type, bank/branch labels, and any matching disapproved-request rows when available.
 
 ### `verify_accuracy.php`
 
-Prints the SMIS fee balance, caution posting fee transactions, SMIS academic status, and portal clearance status used by the eligibility flow.
+Prints the SMIS fee balance, SMIS academic status, and portal clearance status used by the eligibility flow.
 
 ### `check_status.php`
 
-Prints a quick clearance-status summary and latest refund request approval/refund/voucher status for the target student.
+Prints a quick clearance-status summary for the target student.
 
 ### `check_bank_reference_data.php`
 

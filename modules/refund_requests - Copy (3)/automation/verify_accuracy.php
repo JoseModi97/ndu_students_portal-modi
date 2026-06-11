@@ -24,19 +24,6 @@ $balance = $debits - $credits;
 echo "Fee Transactions Found: " . count($transactions) . "\n";
 echo "Current Balance: " . Yii::$app->formatter->asCurrency($balance) . "\n";
 
-$postingTransactions = (new \yii\db\Query())
-    ->from('smis.fss_fee_transactions')
-    ->where(['LIKE', 'progress_code', $regNo . '%', false])
-    ->andWhere(['trans_desc' => ['Caution Money']])
-    ->orWhere(['and', ['LIKE', 'progress_code', $regNo . '%', false], ['LIKE', 'trans_desc', 'Caution Refund - ', false]])
-    ->orderBy(['trans_id' => SORT_DESC])
-    ->all(Yii::$app->smisDb);
-
-echo "Caution Posting Transactions Found: " . count($postingTransactions) . "\n";
-foreach ($postingTransactions as $transaction) {
-    echo "- {$transaction['trans_id']} {$transaction['trans_type']} {$transaction['trans_amount']} {$transaction['trans_desc']}\n";
-}
-
 // 2. Academic Status
 $status = (new \yii\db\Query())
     ->select(['s.status', 'spc.status_id'])
