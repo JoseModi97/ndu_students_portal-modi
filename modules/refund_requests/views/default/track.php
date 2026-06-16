@@ -26,8 +26,24 @@ $totalStages = count($allLevels) + 2; // +1 for Eligibility, +1 for Application
 $currentStageIndex = 0;
 $requestStatus = $request ? strtoupper((string)$request->approval_status) : null;
 $isRejected = $requestStatus === 'NOT APPROVED';
-$requestStatusLabel = $isRejected ? 'NOT APPROVED' : $requestStatus;
-$isApproved = $requestStatus === 'APPROVED';
+$approvedLevelIds = [];
+foreach ($approvals as $approval) {
+    if (!$approval->approver || strtoupper((string)$approval->approval_status) !== 'APPROVED') {
+        continue;
+    }
+
+    $approvedLevelIds[(int)$approval->approver->approval_level_id] = true;
+}
+$isWorkflowApproved = $request && count($allLevels) > 0;
+foreach ($allLevels as $level) {
+    if (!isset($approvedLevelIds[(int)$level->approval_level_id])) {
+        $isWorkflowApproved = false;
+        break;
+    }
+}
+$isRefunded = $request && strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED';
+$isApproved = $requestStatus === 'APPROVED' || $isWorkflowApproved || $isRefunded;
+$requestStatusLabel = $isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus);
 $referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
 $formatNairobiDateTime = static function ($value): string {
     if (empty($value)) {
@@ -92,7 +108,8 @@ $progressPercent = min(100, max(0, $progressPercent));
                             <?php foreach ($requests as $item): ?>
                                 <?php
                                 $itemStatus = strtoupper((string)$item->approval_status);
-                                $itemStatusLabel = $itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : $itemStatus;
+                                $itemIsRefunded = strtoupper((string)($item->refund_status ?? '')) === 'REFUNDED';
+                                $itemStatusLabel = $itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : ($itemIsRefunded ? 'APPROVED' : $itemStatus);
                                 $itemClass = $request && (int)$request->request_id === (int)$item->request_id ? 'cr-btn--primary' : 'cr-btn--secondary';
                                 ?>
                                 <?= Html::a(
@@ -263,7 +280,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                     <div class="cr-card__body">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">Request Status</span>
-                            <span class="cr-badge <?= $request ? 'cr-badge--pending' : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
+                            <span class="cr-badge <?= $request ? ($isApproved ? 'cr-badge--approved' : ($isRejected ? 'cr-badge--rejected' : 'cr-badge--pending')) : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
                                 <?= $request ? Html::encode($referenceNo . ' - ' . $requestStatusLabel) : 'NO ACTIVE REQUEST' ?>
                             </span>
                         </div>

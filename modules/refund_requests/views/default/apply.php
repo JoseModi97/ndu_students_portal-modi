@@ -103,7 +103,6 @@ $reinstatementLevelLabel = !empty($isPostingRejection) ? 'posting' : 'Level 1 ap
                         <input type="text" class="form-control" value="<?= Html::encode($regNumber) ?>" readonly>
                     </div>
                     <?= $form->field($model, 'amount_requested')->textInput(['type' => 'number', 'step' => '0.01', 'placeholder' => 'Enter amount (e.g. 5000)']) ?>
-                    <?php $form->field($model, 'voucher_no')->textInput(['type' => 'number', 'placeholder' => 'Voucher No. (Optional)']) ?>
                 </div>
             </div>
         </div>
@@ -308,7 +307,6 @@ function updateSqlPreview() {
     var accountNo = $('#refundrequest-account_no').val();
     var mobileNo = $('#refundrequest-mobile_no').val();
     var amountRequested = $('#refundrequest-amount_requested').val();
-    var voucherNo = $('#refundrequest-voucher_no').val();
     var declarationStatus = $('#refundrequest-declaration_status').is(':checked') ? '1' : '0';
     var isBank = paymentOption === 'bank';
 
@@ -341,11 +339,11 @@ function updateSqlPreview() {
         'INSERT INTO smisportal.fss_refund_requests (',
         '    request_id, student_prog_curriculum_id, mobile_no, email, application_date,',
         '    refund_status, account_name, bank_id, branch_id, account_no,',
-        '    passport_id, declaration_status, amount_requested, approval_status, refund_type, payment_method, voucher_no',
+        '    passport_id, declaration_status, amount_requested, approval_status, refund_type, payment_method',
         ') VALUES (',
         '    :next_request_id, ' + sqlPreviewDefaults.studentProgCurriculumId + ', ' + sqlValue(mobileNo) + ', ' + sqlValue(sqlPreviewDefaults.email) + ', NOW(),',
         "    'NOT REFUNDED', " + sqlValue(sqlPreviewDefaults.accountName) + ', ' + (isBank ? sqlNumber(bankId) : 'NULL') + ', ' + (isBank ? sqlNumber(branchId) : 'NULL') + ', ' + (isBank ? sqlValue(accountNo) : 'NULL') + ',',
-        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ', ' + declarationStatus + ', ' + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId + ', ' + sqlValue(paymentOption) + ', ' + sqlNumber(voucherNo),
+        '    ' + sqlValue(sqlPreviewDefaults.passportId) + ', ' + declarationStatus + ', ' + sqlNumber(amountRequested) + ", 'PENDING', " + sqlPreviewDefaults.refundTypeId + ', ' + sqlValue(paymentOption),
         ');',
         '',
         '-- SMIS sync insert uses the saved portal values',
@@ -367,7 +365,7 @@ $('.payment-option-radio').on('change', function() {
     updateSqlPreview();
 });
 
-$('#refundrequest-account_no, #refundrequest-mobile_no, #refundrequest-amount_requested, #refundrequest-voucher_no, #refundrequest-declaration_status, #branch-selector').on('input change', updateSqlPreview);
+$('#refundrequest-account_no, #refundrequest-mobile_no, #refundrequest-amount_requested, #refundrequest-declaration_status, #branch-selector').on('input change', updateSqlPreview);
 
 // Load branches dynamically
 $('#bank-selector').on('change', function(e) {

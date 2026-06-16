@@ -32,31 +32,54 @@ if ($record) {
     print_r($record);
 
     foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-        if ($db->getTableSchema($schema . '.fss_refund_posting_items', true) !== null) {
-            $postingRows = (new \yii\db\Query())
-                ->select(['i.*', 'b.voucher_no', 'b.total_amount', 'b.posted_by AS batch_posted_by', 'b.posted_at AS batch_posted_at'])
-                ->from($schema . '.fss_refund_posting_items i')
-                ->leftJoin($schema . '.fss_refund_posting_batches b', 'b.posting_batch_id = i.posting_batch_id')
-                ->where(['i.request_id' => $record['request_id']])
-                ->orderBy(['i.posted_at' => SORT_DESC])
-                ->all($db);
+        $schemaRecord = (new \yii\db\Query())
+            ->from($schema . '.fss_refund_requests')
+            ->where(['request_id' => $record['request_id']])
+            ->one($db);
 
-            echo "\n{$schema}.fss_refund_posting_items rows: " . count($postingRows) . "\n";
-            if ($postingRows) {
-                print_r($postingRows);
-            }
-        } else {
-            echo "\n{$schema}.fss_refund_posting_items: table not found\n";
-        }
-
-        if (!empty($record['voucher_no']) && $db->getTableSchema($schema . '.fss_refund_details', true) !== null) {
-            $refundDetails = (new \yii\db\Query())
-                ->from($schema . '.fss_refund_details')
-                ->where(['pv_no' => $record['voucher_no']])
+        if ($schemaRecord && !empty($schemaRecord['voucher_no']) && $db->getTableSchema($schema . '.fss_refund_batches', true) !== null) {
+            $batch = (new \yii\db\Query())
+                ->from($schema . '.fss_refund_batches')
+                ->where(['voucher_no' => $schemaRecord['voucher_no']])
                 ->one($db);
 
-            echo "\n{$schema}.fss_refund_details row:\n";
-            print_r($refundDetails ?: []);
+            echo "\n{$schema}.fss_refund_batches row:\n";
+            print_r($batch ?: []);
+        } else {
+            echo "\n{$schema}.fss_refund_batches: no voucher for this request\n";
+        }
+
+        if ($schema === 'smis' && !empty($schemaRecord['voucher_no'])) {
+            $postingTransactions = (new \yii\db\Query())
+                ->from($schema . '.fss_fee_transactions')
+                ->where(['trans_desc' => [' CAUTION MONEY', 'CAUTION REFUND - ' . $schemaRecord['voucher_no']]])
+                ->orderBy(['trans_id' => SORT_DESC])
+                ->all($db);
+
+            echo "\n{$schema}.fss_fee_transactions posting rows: " . count($postingTransactions) . "\n";
+            if ($postingTransactions) {
+                print_r($postingTransactions);
+            }
+        }
+
+        if ($db->getTableSchema($schema . '.fss_cancelled_vouchers', true) !== null) {
+            $cancelledQuery = (new \yii\db\Query())
+                ->from($schema . '.fss_cancelled_vouchers')
+                ->orderBy(['cancelled_vid' => SORT_DESC]);
+            $cancelledTable = $db->getTableSchema($schema . '.fss_cancelled_vouchers', true);
+            if ($cancelledTable !== null && in_array('request_id', $cancelledTable->columnNames, true)) {
+                $cancelledQuery->where(['request_id' => $record['request_id']]);
+            } elseif (!empty($schemaRecord['voucher_no'])) {
+                $cancelledQuery->where(['voucher_no' => $schemaRecord['voucher_no']]);
+            } else {
+                $cancelledQuery->where('1=0');
+            }
+
+            $cancelledRows = $cancelledQuery->all($db);
+            echo "\n{$schema}.fss_cancelled_vouchers rows: " . count($cancelledRows) . "\n";
+            if ($cancelledRows) {
+                print_r($cancelledRows);
+            }
         }
 
         if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {

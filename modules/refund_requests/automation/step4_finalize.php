@@ -72,9 +72,11 @@ try {
     $transactionPortal->commit();
     $transactionSmis->commit();
     echo "Recorded final level {$decision}: " . $finalLevel['description'] . "\n";
-    echo "SUCCESS: Request $requestId set to {$decision} in Portal and SMIS.\n";
     if ($decision === 'APPROVED') {
+        echo "SUCCESS: Request $requestId has final approval in Portal and SMIS; parent request rows remain PENDING until posting.\n";
         echo "NEXT: Run step5_post_caution_refund.php to post the approved caution refund.\n";
+    } else {
+        echo "SUCCESS: Request $requestId set to {$decision} in Portal and SMIS.\n";
     }
 } catch (\Throwable $e) {
     $transactionPortal->rollBack();
@@ -272,7 +274,7 @@ SQL)->execute();
 function markRequestApproved(\yii\db\Connection $db, string $schema, int $requestId): void
 {
     $attributes = [
-        'approval_status' => 'APPROVED',
+        'approval_status' => 'PENDING',
         'amount_approved' => new \yii\db\Expression('amount_requested'),
     ];
 

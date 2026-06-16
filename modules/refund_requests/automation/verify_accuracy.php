@@ -27,8 +27,11 @@ echo "Current Balance: " . Yii::$app->formatter->asCurrency($balance) . "\n";
 $postingTransactions = (new \yii\db\Query())
     ->from('smis.fss_fee_transactions')
     ->where(['LIKE', 'progress_code', $regNo . '%', false])
-    ->andWhere(['trans_desc' => ['Caution Money']])
-    ->orWhere(['and', ['LIKE', 'progress_code', $regNo . '%', false], ['LIKE', 'trans_desc', 'Caution Refund - ', false]])
+    ->andWhere([
+        'or',
+        ['trans_desc' => [' CAUTION MONEY', 'CAUTION MONEY']],
+        ['LIKE', 'trans_desc', 'CAUTION REFUND - ', false],
+    ])
     ->orderBy(['trans_id' => SORT_DESC])
     ->all(Yii::$app->smisDb);
 

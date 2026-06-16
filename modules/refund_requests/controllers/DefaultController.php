@@ -542,6 +542,7 @@ class DefaultController extends BaseController
 
             if ($model->load($post)) {
                 $model->payment_method = $post['RefundRequest']['payment_method'] ?? 'bank';
+                $model->voucher_no = null;
 
                 if ($rejectedRequest === null) {
                     // Generate a request_id if not identity

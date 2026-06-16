@@ -19,23 +19,25 @@ if ($student) {
     echo "Student not found.\n";
 }
 
-$request = (new \yii\db\Query())
-    ->select(['r.request_id', 'r.approval_status', 'r.refund_status', 'r.voucher_no', 'r.amount_requested', 'r.amount_approved', 'rt.refund_type_name'])
-    ->from('smisportal.fss_refund_requests r')
-    ->innerJoin('smisportal.sm_student_programme_curriculum spc', 'spc.student_prog_curriculum_id = r.student_prog_curriculum_id')
-    ->leftJoin('smisportal.fss_refund_types rt', 'rt.refund_type_id = r.refund_type')
-    ->where(['spc.registration_number' => $regNo])
-    ->orderBy(['r.request_id' => SORT_DESC])
-    ->one();
+foreach ([[Yii::$app->db, 'smisportal', 'Portal'], [Yii::$app->smisDb, 'smis', 'SMIS']] as [$db, $schema, $label]) {
+    $request = (new \yii\db\Query())
+        ->select(['r.request_id', 'r.approval_status', 'r.refund_status', 'r.voucher_no', 'r.amount_requested', 'r.amount_approved', 'rt.refund_type_name'])
+        ->from($schema . '.fss_refund_requests r')
+        ->innerJoin($schema . '.sm_student_programme_curriculum spc', 'spc.student_prog_curriculum_id = r.student_prog_curriculum_id')
+        ->leftJoin($schema . '.fss_refund_types rt', 'rt.refund_type_id = r.refund_type')
+        ->where(['spc.registration_number' => $regNo])
+        ->orderBy(['r.request_id' => SORT_DESC])
+        ->one($db);
 
-if ($request) {
-    echo "Latest Request ID: {$request['request_id']}\n";
-    echo "Refund Type: " . ($request['refund_type_name'] ?: 'UNKNOWN') . "\n";
-    echo "Approval Status: {$request['approval_status']}\n";
-    echo "Refund Status: {$request['refund_status']}\n";
-    echo "Voucher No: " . ($request['voucher_no'] ?: 'NULL') . "\n";
-    echo "Amount Requested: {$request['amount_requested']}\n";
-    echo "Amount Approved: " . ($request['amount_approved'] ?: 'NULL') . "\n";
-} else {
-    echo "Latest refund request: NOT FOUND\n";
+    if ($request) {
+        echo "\n{$label} Latest Request ID: {$request['request_id']}\n";
+        echo "Refund Type: " . ($request['refund_type_name'] ?: 'UNKNOWN') . "\n";
+        echo "Approval Status: {$request['approval_status']}\n";
+        echo "Refund Status: {$request['refund_status']}\n";
+        echo "Voucher No: " . ($request['voucher_no'] ?: 'NULL') . "\n";
+        echo "Amount Requested: {$request['amount_requested']}\n";
+        echo "Amount Approved: " . ($request['amount_approved'] ?: 'NULL') . "\n";
+    } else {
+        echo "\n{$label} latest refund request: NOT FOUND\n";
+    }
 }

@@ -1,7 +1,7 @@
 <?php
 /**
  * Step 5: Post Caution Refund
- * Posts the latest fully approved caution refund for NR605/0001/2022.
+ * Posts the latest fully approved caution refund for NR605/0001/2022 on SMIS only.
  */
 
 require __DIR__ . '/../../../vendor/autoload.php';
@@ -11,109 +11,127 @@ $config = require __DIR__ . '/../../../config/console.php';
 new yii\console\Application($config);
 
 $regNo = 'NR605/0001/2022';
-echo "--- Step 5: Posting caution refund for $regNo ---\n";
+echo "--- Step 5: Posting caution refund for $regNo on SMIS ---\n";
 
 $request = (new \yii\db\Query())
     ->select(['r.*', 'spc.registration_number', 'rt.refund_type_name'])
-    ->from('smisportal.fss_refund_requests r')
-    ->innerJoin('smisportal.sm_student_programme_curriculum spc', 'spc.student_prog_curriculum_id = r.student_prog_curriculum_id')
-    ->innerJoin('smisportal.fss_refund_types rt', 'rt.refund_type_id = r.refund_type')
+    ->from('smis.fss_refund_requests r')
+    ->innerJoin('smis.sm_student_programme_curriculum spc', 'spc.student_prog_curriculum_id = r.student_prog_curriculum_id')
+    ->innerJoin('smis.fss_refund_types rt', 'rt.refund_type_id = r.refund_type')
     ->where(['spc.registration_number' => $regNo])
-    ->andWhere(['rt.refund_type_name' => 'CAUTION'])
+    ->andWhere('UPPER(rt.refund_type_name) = :refund_type_name', [':refund_type_name' => 'CAUTION'])
+    ->andWhere(['r.voucher_no' => null])
     ->orderBy(['r.request_id' => SORT_DESC])
-    ->one(Yii::$app->db);
+    ->one(Yii::$app->smisDb);
 
 if (!$request) {
-    die("ERROR: Caution refund request not found.\n");
+    die("ERROR: Unposted caution refund request not found in SMIS.\n");
 }
 
 $requestId = (int)$request['request_id'];
 $amount = (float)($request['amount_approved'] ?: $request['amount_requested']);
 
-$transactionPortal = Yii::$app->db->beginTransaction();
-$transactionSmis = Yii::$app->smisDb->beginTransaction();
+$transaction = Yii::$app->smisDb->beginTransaction();
 
 try {
-    ensurePostingTables(Yii::$app->db, 'smisportal');
-    ensurePostingTables(Yii::$app->smisDb, 'smis');
-    ensurePostable(Yii::$app->db, 'smisportal', $requestId);
+    ensureRefundStructure(Yii::$app->smisDb, 'smis');
     ensurePostable(Yii::$app->smisDb, 'smis', $requestId);
 
-    $voucherNo = nextVoucherNo();
-    saveRefundDetails(Yii::$app->db, 'smisportal', $voucherNo);
-    saveRefundDetails(Yii::$app->smisDb, 'smis', $voucherNo);
-    insertPostingBatch(Yii::$app->db, 'smisportal', $voucherNo, 1, $amount);
-    insertPostingBatch(Yii::$app->smisDb, 'smis', $voucherNo, 1, $amount);
-
-    postSide(Yii::$app->db, 'smisportal', $requestId, $voucherNo, $amount);
+    $voucherNo = nextVoucherNo(Yii::$app->smisDb, 'smis');
+    insertRefundBatch(Yii::$app->smisDb, 'smis', $voucherNo, $amount);
     postSide(Yii::$app->smisDb, 'smis', $requestId, $voucherNo, $amount);
 
-    $transactionPortal->commit();
-    $transactionSmis->commit();
+    $transaction->commit();
 
-    echo "SUCCESS: Request {$requestId} posted under voucher #{$voucherNo}.\n";
+    echo "SUCCESS: SMIS request {$requestId} posted under voucher #{$voucherNo}.\n";
+    echo "Portal request table was not updated; posting workflow is SMIS-only.\n";
 } catch (\Throwable $e) {
-    $transactionPortal->rollBack();
-    $transactionSmis->rollBack();
+    $transaction->rollBack();
     echo "ERROR: " . $e->getMessage() . "\n";
 }
 
-function ensurePostingTables(\yii\db\Connection $db, string $schema): void
+function ensureRefundStructure(\yii\db\Connection $db, string $schema): void
 {
-    $quotedSchema = $db->quoteTableName($schema);
-    $detailsTable = $db->quoteTableName($schema . '.fss_refund_details');
-    $batchTable = $db->quoteTableName($schema . '.fss_refund_posting_batches');
-    $itemTable = $db->quoteTableName($schema . '.fss_refund_posting_items');
+    $batchTable = $db->quoteTableName($schema . '.fss_refund_batches');
+    $cancelledTable = $db->quoteTableName($schema . '.fss_cancelled_vouchers');
+    $requestTable = $db->quoteTableName($schema . '.fss_refund_requests');
 
-    $db->createCommand(<<<SQL
-CREATE TABLE IF NOT EXISTS {$detailsTable} (
-    pv_no int8 NOT NULL,
-    date_posted timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    user_id varchar(30) NOT NULL,
-    amount numeric(15,2) NOT NULL DEFAULT 0,
-    source varchar(50) NULL,
-    CONSTRAINT fss_refund_details_pkey PRIMARY KEY (pv_no)
+    $db->createCommand("DROP TABLE IF EXISTS {$db->quoteTableName($schema . '.fss_refund_posting_items')}")->execute();
+    $db->createCommand("DROP TABLE IF EXISTS {$db->quoteTableName($schema . '.fss_refund_details')}")->execute();
+
+    if (tableExists($db, $schema, 'fss_refund_posting_batches')) {
+        $oldBatchTable = $db->quoteTableName($schema . '.fss_refund_posting_batches');
+        $db->createCommand(<<<SQL
+CREATE TABLE IF NOT EXISTS {$batchTable} (
+    voucher_no int8 NOT NULL,
+    total_amount numeric(15,2) NOT NULL DEFAULT 0,
+    posted_by varchar(30) NULL,
+    posted_at timestamp NULL,
+    status varchar(20) NULL,
+    date_paid timestamp NULL,
+    CONSTRAINT fss_refund_batches_pkey PRIMARY KEY (voucher_no)
 )
 SQL)->execute();
+        $db->createCommand(<<<SQL
+INSERT INTO {$batchTable} (voucher_no, total_amount, posted_by, posted_at, status, date_paid)
+SELECT voucher_no, total_amount, posted_by, posted_at, NULL, NULL
+FROM {$oldBatchTable}
+ON CONFLICT (voucher_no) DO UPDATE SET
+    total_amount = EXCLUDED.total_amount,
+    posted_by = EXCLUDED.posted_by,
+    posted_at = EXCLUDED.posted_at,
+    status = NULL,
+    date_paid = NULL
+SQL)->execute();
+        $db->createCommand("DROP TABLE IF EXISTS {$oldBatchTable}")->execute();
+    }
 
     $db->createCommand(<<<SQL
 CREATE TABLE IF NOT EXISTS {$batchTable} (
-    posting_batch_id int8 NOT NULL,
     voucher_no int8 NOT NULL,
-    refund_type varchar(50) NOT NULL,
-    request_count int4 NOT NULL DEFAULT 0,
     total_amount numeric(15,2) NOT NULL DEFAULT 0,
-    posted_by varchar(30) NOT NULL,
-    posted_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    remarks varchar(255) NULL,
-    CONSTRAINT fss_refund_posting_batches_pkey PRIMARY KEY (posting_batch_id),
-    CONSTRAINT fss_refund_posting_batches_voucher_no_key UNIQUE (voucher_no)
+    posted_by varchar(30) NULL,
+    posted_at timestamp NULL,
+    status varchar(20) NULL,
+    date_paid timestamp NULL,
+    CONSTRAINT fss_refund_batches_pkey PRIMARY KEY (voucher_no)
 )
 SQL)->execute();
 
+    $db->createCommand("ALTER TABLE {$batchTable} ALTER COLUMN posted_by DROP NOT NULL")->execute();
+    $db->createCommand("ALTER TABLE {$batchTable} ALTER COLUMN posted_at DROP NOT NULL")->execute();
+    $db->createCommand("ALTER TABLE {$batchTable} ALTER COLUMN posted_at DROP DEFAULT")->execute();
+
     $db->createCommand(<<<SQL
-CREATE TABLE IF NOT EXISTS {$itemTable} (
-    posting_item_id int8 NOT NULL,
-    posting_batch_id int8 NOT NULL,
-    request_id int8 NOT NULL,
-    registration_number varchar(100) NULL,
-    amount_posted numeric(15,2) NOT NULL,
-    debit_trans_id int8 NULL,
-    credit_trans_id int8 NULL,
-    posted_by varchar(30) NOT NULL,
-    posted_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    posting_status varchar(20) NOT NULL DEFAULT 'POSTED',
+CREATE TABLE IF NOT EXISTS {$cancelledTable} (
+    cancelled_vid int8 NOT NULL,
+    voucher_no int8 NULL,
+    request_id int8 NULL,
+    date_cancelled timestamp NULL,
+    amount numeric(15,2) NULL,
+    userid varchar(30) NULL,
     remarks varchar(255) NULL,
-    CONSTRAINT fss_refund_posting_items_pkey PRIMARY KEY (posting_item_id),
-    CONSTRAINT fss_refund_posting_items_request_key UNIQUE (request_id),
-    CONSTRAINT fk_refund_posting_batch
-        FOREIGN KEY (posting_batch_id)
-        REFERENCES {$quotedSchema}.fss_refund_posting_batches(posting_batch_id),
-    CONSTRAINT fk_refund_posting_request
-        FOREIGN KEY (request_id)
-        REFERENCES {$quotedSchema}.fss_refund_requests(request_id)
+    CONSTRAINT fss_cancelled_vouchers_pkey PRIMARY KEY (cancelled_vid),
+    CONSTRAINT fk_voucher_no
+        FOREIGN KEY (voucher_no)
+        REFERENCES {$batchTable}(voucher_no)
 )
 SQL)->execute();
+
+    if (ownsTable($db, $schema, 'fss_cancelled_vouchers')) {
+        $db->createCommand("ALTER TABLE {$cancelledTable} ADD COLUMN IF NOT EXISTS request_id int8 NULL")->execute();
+    }
+
+    if (ownsTable($db, $schema, 'fss_refund_requests')) {
+        $db->createCommand("ALTER TABLE {$requestTable} DROP CONSTRAINT IF EXISTS fss_refund_requests_voucher_no_fkey")->execute();
+        $db->createCommand("ALTER TABLE {$requestTable} DROP CONSTRAINT IF EXISTS fk_voucher_no")->execute();
+        $db->createCommand(<<<SQL
+ALTER TABLE {$requestTable}
+ADD CONSTRAINT fk_voucher_no
+FOREIGN KEY (voucher_no)
+REFERENCES {$batchTable}(voucher_no)
+SQL)->execute();
+    }
 }
 
 function ensurePostable(\yii\db\Connection $db, string $schema, int $requestId): void
@@ -122,13 +140,13 @@ function ensurePostable(\yii\db\Connection $db, string $schema, int $requestId):
         ->from($schema . '.fss_refund_requests r')
         ->innerJoin($schema . '.fss_refund_types rt', 'rt.refund_type_id = r.refund_type')
         ->where(['r.request_id' => $requestId])
-        ->andWhere(['r.approval_status' => 'APPROVED'])
-        ->andWhere(['rt.refund_type_name' => 'CAUTION'])
-        ->andWhere("UPPER(COALESCE(r.refund_status, 'NOT REFUNDED')) <> 'REFUNDED'")
+        ->andWhere('UPPER(rt.refund_type_name) = :refund_type_name', [':refund_type_name' => 'CAUTION'])
+        ->andWhere("UPPER(COALESCE(r.approval_status, 'PENDING')) <> 'NOT APPROVED'")
+        ->andWhere(['r.voucher_no' => null])
         ->exists($db);
 
     if (!$approved) {
-        throw new \RuntimeException("Request {$requestId} is not a fully approved, unposted caution refund in {$schema}.");
+        throw new \RuntimeException("Request {$requestId} is not an unposted caution refund in {$schema}.");
     }
 
     $level3Approved = (new \yii\db\Query())
@@ -146,39 +164,16 @@ function ensurePostable(\yii\db\Connection $db, string $schema, int $requestId):
     }
 }
 
-function nextVoucherNo(): int
+function nextVoucherNo(\yii\db\Connection $db, string $schema): int
 {
-    $next = 1;
-    foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-        $detailsMax = (int)$db->createCommand("SELECT COALESCE(MAX(pv_no), 0) FROM {$schema}.fss_refund_details")->queryScalar();
-        $batchMax = (int)$db->createCommand("SELECT COALESCE(MAX(posting_batch_id), 0) FROM {$schema}.fss_refund_posting_batches")->queryScalar();
-        $next = max($next, $detailsMax + 1, $batchMax + 1);
-    }
-
-    return $next;
+    return ((int)$db->createCommand("SELECT COALESCE(MAX(voucher_no), 0) FROM {$schema}.fss_refund_batches")->queryScalar()) + 1;
 }
 
-function saveRefundDetails(\yii\db\Connection $db, string $schema, int $voucherNo): void
+function insertRefundBatch(\yii\db\Connection $db, string $schema, int $voucherNo, float $amount): void
 {
     $db->createCommand()
-        ->insert($schema . '.fss_refund_details', [
-            'pv_no' => $voucherNo,
-            'date_posted' => date('Y-m-d H:i:s'),
-            'user_id' => 'AUTO-POST',
-            'amount' => 0,
-            'source' => null,
-        ])
-        ->execute();
-}
-
-function insertPostingBatch(\yii\db\Connection $db, string $schema, int $voucherNo, int $count, float $amount): void
-{
-    $db->createCommand()
-        ->insert($schema . '.fss_refund_posting_batches', [
-            'posting_batch_id' => $voucherNo,
+        ->insert($schema . '.fss_refund_batches', [
             'voucher_no' => $voucherNo,
-            'refund_type' => 'CAUTION',
-            'request_count' => $count,
             'total_amount' => $amount,
             'posted_by' => 'AUTO-POST',
             'posted_at' => date('Y-m-d H:i:s'),
@@ -193,31 +188,40 @@ function postSide(\yii\db\Connection $db, string $schema, int $requestId, int $v
         ->where(['request_id' => $requestId])
         ->one($db);
 
-    $progress = refundAcademicProgress($db, $schema, (int)$request['student_prog_curriculum_id']);
-    $debitTransId = insertFeeTransaction($db, $schema, $progress, $amount, 'DR', 'Caution Money');
-    $creditTransId = insertFeeTransaction($db, $schema, $progress, $amount, 'CR', 'Caution Refund - ' . $voucherNo);
+    if (!$request) {
+        throw new \RuntimeException("Request {$requestId} was not found in {$schema}.");
+    }
 
-    $db->createCommand()
-        ->insert($schema . '.fss_refund_posting_items', [
-            'posting_item_id' => nextPostingItemId($db, $schema),
-            'posting_batch_id' => $voucherNo,
-            'request_id' => $requestId,
-            'registration_number' => $progress['registration_number'],
-            'amount_posted' => $amount,
-            'debit_trans_id' => $debitTransId,
-            'credit_trans_id' => $creditTransId,
-            'posted_by' => 'AUTO-POST',
-            'posted_at' => date('Y-m-d H:i:s'),
-            'posting_status' => 'POSTED',
-        ])
-        ->execute();
+    $progress = refundAcademicProgress($db, $schema, (int)$request['student_prog_curriculum_id']);
+    insertFeeTransaction($db, $schema, $progress, $amount, 'DR', ' CAUTION MONEY');
+    insertFeeTransaction($db, $schema, $progress, $amount, 'CR', 'CAUTION REFUND - ' . $voucherNo);
 
     $db->createCommand()
         ->update($schema . '.fss_refund_requests', [
-            'refund_status' => 'REFUNDED',
+            'approval_status' => 'APPROVED',
             'voucher_no' => $voucherNo,
             'amount_approved' => $amount,
         ], ['request_id' => $requestId])
+        ->execute();
+
+    updateCancelledVoucherRequestVoucher($db, $schema, $requestId, $voucherNo);
+}
+
+function updateCancelledVoucherRequestVoucher(\yii\db\Connection $db, string $schema, int $requestId, int $voucherNo): void
+{
+    $table = $db->getTableSchema($schema . '.fss_cancelled_vouchers', true);
+    if ($table === null || !in_array('request_id', $table->columnNames, true)) {
+        return;
+    }
+
+    $db->createCommand()
+        ->update($schema . '.fss_cancelled_vouchers', [
+            'voucher_no' => $voucherNo,
+        ], [
+            'and',
+            ['request_id' => $requestId],
+            ['voucher_no' => null],
+        ])
         ->execute();
 }
 
@@ -283,7 +287,24 @@ function nextTransId(\yii\db\Connection $db, string $schema): int
     return ((int)$db->createCommand("SELECT COALESCE(MAX(trans_id), 0) FROM {$schema}.fss_fee_transactions")->queryScalar()) + 1;
 }
 
-function nextPostingItemId(\yii\db\Connection $db, string $schema): int
+function tableExists(\yii\db\Connection $db, string $schema, string $table): bool
 {
-    return ((int)$db->createCommand("SELECT COALESCE(MAX(posting_item_id), 0) FROM {$schema}.fss_refund_posting_items")->queryScalar()) + 1;
+    return (bool)$db->createCommand(
+        'SELECT to_regclass(:table)',
+        [':table' => "{$schema}.{$table}"]
+    )->queryScalar();
+}
+
+function ownsTable(\yii\db\Connection $db, string $schema, string $table): bool
+{
+    return (bool)$db->createCommand(
+        <<<SQL
+SELECT pg_catalog.pg_get_userbyid(c.relowner) = current_user
+FROM pg_class c
+INNER JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = :schema
+  AND c.relname = :table
+SQL,
+        [':schema' => $schema, ':table' => $table]
+    )->queryScalar();
 }

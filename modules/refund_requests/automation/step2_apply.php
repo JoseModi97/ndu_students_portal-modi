@@ -87,7 +87,6 @@ $mobileNo = $student['primary_phone_no'] ?: '0700000000';
 $email = $student['primary_email'] ?: 'student@example.test';
 $passportId = $student['passport_no'] ?: ($student['national_id'] ?: 'N/A');
 $accountName = trim(($student['surname'] ?? '') . ' ' . ($student['other_names'] ?? '')) ?: $regNo;
-$voucherNo = $argv[2] ?? null;
 
 $row = [
     'request_id' => $requestId,
@@ -106,7 +105,7 @@ $row = [
     'approval_status' => 'PENDING',
     'refund_type' => $refundTypeId,
     'payment_method' => $paymentOption,
-    'voucher_no' => $voucherNo,
+    'voucher_no' => null,
     'sync_status' => 1,
     'last_synced_at' => date('Y-m-d H:i:s'),
 	];

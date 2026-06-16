@@ -26,6 +26,9 @@ $this->title = 'Refund Request Dashboard';
 $this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 $this->registerCssFile('@web/css/refund-requests.css');
 
+$request = $request ?? null;
+$approvals = $approvals ?? [];
+$allLevels = $allLevels ?? [];
 $totalLevels = count($allLevels);
 
 $studentInfoHtml = "<b>Name:</b> " . Html::encode($user->surname . ' ' . $user->other_names) . "<br><b>Reg No:</b> " . Html::encode($user->registration_number);
@@ -33,6 +36,22 @@ $helpHtml = "For technical issues with this portal, contact ICT Support. For app
 $secureHtml = "All refund disbursements are audited and verified to ensure funds are sent only to accounts registered in the student's name.";
 $hasRejectedRequests = !empty($previousRequests);
 $showMainRequestCard = $mode === 'status' || !$hasRejectedRequests;
+$approvedLevelIds = [];
+foreach ((array)$approvals as $approval) {
+    if (!$approval->approver || strtoupper((string)$approval->approval_status) !== 'APPROVED') {
+        continue;
+    }
+
+    $approvedLevelIds[(int)$approval->approver->approval_level_id] = true;
+}
+$isWorkflowApproved = $request && $totalLevels > 0;
+foreach ($allLevels as $level) {
+    if (!isset($approvedLevelIds[(int)$level->approval_level_id])) {
+        $isWorkflowApproved = false;
+        break;
+    }
+}
+$isRefunded = $request && strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED';
 
 // Initialize Popovers
 $this->registerJs("
@@ -226,8 +245,9 @@ $this->registerJs("
                             <?php 
                             $s = strtoupper($request->approval_status);
                             $isNotApproved = $s === 'NOT APPROVED';
-                            $b = $s === 'APPROVED' ? 'cr-badge--approved' : ($isNotApproved ? 'cr-badge--rejected' : 'cr-badge--pending');
-                            $statusLabel = $isNotApproved ? 'NOT APPROVED' : $s;
+                            $isApproved = $s === 'APPROVED' || $isWorkflowApproved || $isRefunded;
+                            $b = $isApproved ? 'cr-badge--approved' : ($isNotApproved ? 'cr-badge--rejected' : 'cr-badge--pending');
+                            $statusLabel = $isNotApproved ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $s);
                             ?>
                             <span class="cr-badge <?= $b ?>" style="font-size: 0.9rem; padding: 0.3rem 1rem;"><?= Html::encode($statusLabel) ?></span>
                         </span>
