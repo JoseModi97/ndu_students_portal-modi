@@ -45,6 +45,13 @@ if ($record) {
 
             echo "\n{$schema}.fss_refund_batches row:\n";
             print_r($batch ?: []);
+            if ($batch) {
+                echo "{$schema}.fss_refund_batches payment status: "
+                    . ($batch['status'] ?: 'NULL')
+                    . ', date_paid='
+                    . ($batch['date_paid'] ?: 'NULL')
+                    . "\n";
+            }
         } else {
             echo "\n{$schema}.fss_refund_batches: no voucher for this request\n";
         }

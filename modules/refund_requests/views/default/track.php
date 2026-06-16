@@ -17,7 +17,6 @@ use yii\helpers\Url;
 /** @var string|null $reason */
 
 $this->title = 'Full Process Tracking';
-$this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 $this->registerCssFile('@web/css/refund-requests.css');
 
 // Calculate current stage
@@ -41,9 +40,12 @@ foreach ($allLevels as $level) {
         break;
     }
 }
-$isRefunded = $request && strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED';
+$isRefunded = $request && (
+    strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED'
+    || strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED'
+);
 $isApproved = $requestStatus === 'APPROVED' || $isWorkflowApproved || $isRefunded;
-$requestStatusLabel = $isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus);
+$requestStatusLabel = $isRefunded ? 'REFUNDED' : ($isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus));
 $referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
 $formatNairobiDateTime = static function ($value): string {
     if (empty($value)) {
@@ -109,7 +111,13 @@ $progressPercent = min(100, max(0, $progressPercent));
                                 <?php
                                 $itemStatus = strtoupper((string)$item->approval_status);
                                 $itemIsRefunded = strtoupper((string)($item->refund_status ?? '')) === 'REFUNDED';
-                                $itemStatusLabel = $itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : ($itemIsRefunded ? 'APPROVED' : $itemStatus);
+                                $itemIsOfficialRefunded = $request
+                                    && $smisRequest
+                                    && (int)$request->request_id === (int)$item->request_id
+                                    && strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED';
+                                $itemStatusLabel = ($itemIsRefunded || $itemIsOfficialRefunded)
+                                    ? 'REFUNDED'
+                                    : ($itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : $itemStatus);
                                 $itemClass = $request && (int)$request->request_id === (int)$item->request_id ? 'cr-btn--primary' : 'cr-btn--secondary';
                                 ?>
                                 <?= Html::a(
@@ -131,8 +139,8 @@ $progressPercent = min(100, max(0, $progressPercent));
                         <span style="font-size: 0.8rem; font-weight: 800; color: var(--cr-blue-600); text-transform: uppercase; letter-spacing: 0.05em;">Lifecycle Completion</span>
                         <span style="font-size: 1rem; font-weight: 800; color: var(--cr-blue-800);"><?= round($progressPercent) ?>%</span>
                     </div>
-                    <div style="height: 12px; background: var(--cr-blue-50); border-radius: 999px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
-                        <div style="height: 100%; width: <?= $progressPercent ?>%; background: linear-gradient(90deg, var(--cr-blue-400), var(--cr-teal-400)); transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                    <div style="height: 12px; background: var(--cr-slate-200); border-radius: var(--cr-radius-sm); overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                        <div style="height: 100%; width: <?= $progressPercent ?>%; background: var(--cr-blue-600); transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                     </div>
                 </div>
 

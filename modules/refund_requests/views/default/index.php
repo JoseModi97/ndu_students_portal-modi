@@ -1,12 +1,14 @@
 <?php
 
 use yii\helpers\Html;
+use yii\helpers\Json;
 use yii\helpers\Url;
 
 /** @var yii\web\View $this */
 /** @var string $mode 'eligibility' | 'status' | 'not-eligible' */
 /** @var app\modules\refund_requests\models\User $user */
 /** @var app\modules\refund_requests\models\RefundRequest|null $request */
+/** @var app\modules\refund_requests\models\RefundRequestOfficial|null $smisRequest */
 /** @var app\modules\refund_requests\models\ApprovalProcess[]|null $approvals */
 /** @var app\modules\refund_requests\models\ApprovalLevel[] $allLevels */
 /** @var app\modules\refund_requests\models\RefundType[] $refundTypes */
@@ -20,15 +22,20 @@ use yii\helpers\Url;
 /** @var float|null $cautionRemainingAmount */
 /** @var bool $overrideEligibility */
 /** @var app\modules\refund_requests\models\RefundRequest[] $previousRequests */
+/** @var array $refundedRequests */
+/** @var array $activeRequests */
 
 $this->title = 'Refund Request Dashboard';
 
-$this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 $this->registerCssFile('@web/css/refund-requests.css');
 
 $request = $request ?? null;
 $approvals = $approvals ?? [];
 $allLevels = $allLevels ?? [];
+$refundedRequests = $refundedRequests ?? [];
+$activeRequests = $activeRequests ?? [];
+$refundedTypeIdsJson = Json::htmlEncode(array_fill_keys(array_map('strval', array_keys($refundedRequests)), true));
+$activeTypeIdsJson = Json::htmlEncode(array_fill_keys(array_map('strval', array_keys($activeRequests)), true));
 $totalLevels = count($allLevels);
 
 $studentInfoHtml = "<b>Name:</b> " . Html::encode($user->surname . ' ' . $user->other_names) . "<br><b>Reg No:</b> " . Html::encode($user->registration_number);
@@ -36,6 +43,7 @@ $helpHtml = "For technical issues with this portal, contact ICT Support. For app
 $secureHtml = "All refund disbursements are audited and verified to ensure funds are sent only to accounts registered in the student's name.";
 $hasRejectedRequests = !empty($previousRequests);
 $showMainRequestCard = $mode === 'status' || !$hasRejectedRequests;
+$officialRequest = $smisRequest ?? null;
 $approvedLevelIds = [];
 foreach ((array)$approvals as $approval) {
     if (!$approval->approver || strtoupper((string)$approval->approval_status) !== 'APPROVED') {
@@ -51,10 +59,17 @@ foreach ($allLevels as $level) {
         break;
     }
 }
-$isRefunded = $request && strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED';
+$isRefunded = $request && (
+    strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED'
+    || strtoupper((string)($officialRequest->refund_status ?? '')) === 'REFUNDED'
+);
+$headerSub = $mode === 'status' ? 'Application Tracking' : 'Eligibility & Application';
 
 // Initialize Popovers
 $this->registerJs("
+    var refundedRequestTypeIds = {$refundedTypeIdsJson};
+    var activeRequestTypeIds = {$activeTypeIdsJson};
+
     var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"popover\"]'))
     var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
       return new bootstrap.Popover(popoverTriggerEl, {
@@ -82,6 +97,12 @@ $this->registerJs("
         selectField.css('border-color', 'var(--cr-blue-100)');
 
         if (typeId) {
+            if (refundedRequestTypeIds[typeId] || activeRequestTypeIds[typeId]) {
+                applyBtn.css({'opacity': '1'});
+                errorMsg.hide();
+                return;
+            }
+
             // Logic for Caution Refund
             if (typeText.includes('CAUTION')) {
                 var displayAmount = cautionRemainingAmount;
@@ -138,8 +159,14 @@ $this->registerJs("
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
             $('#type-error-msg').text('Please select a refund type to proceed').show();
             return;
-        } 
-        
+        }
+
+        if (refundedRequestTypeIds[typeId] || activeRequestTypeIds[typeId]) {
+            $('#apply-post-type').val(typeId);
+            $('#apply-post-form').submit();
+            return;
+        }
+
         if (typeText.includes('CAUTION')) {
             var displayAmount = cautionRemainingAmount;
             if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
@@ -177,14 +204,14 @@ $this->registerJs("
             <span class="cr-header__badge">National Defence University of Kenya</span>
             <h1 class="cr-header__title">Refund Request</h1>
             <p class="cr-header__sub">
-                <?= $mode === 'status' ? 'Application Tracking' : 'Eligibility & Application' ?>
+                <?= Html::encode($headerSub) ?>
             </p>
         </div>
 
         <?php if ($mode === 'status'): ?>
             <!-- Mode: ALREADY APPLIED -->
-            <div class="cr-notice" style="background: var(--cr-blue-50); border-color: var(--cr-blue-400); margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem;">
-                <div style="font-size: 1.5rem;">ℹ️</div>
+            <div class="cr-notice" style="margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem;">
+                <div class="cr-card__header-icon"><i class="fas fa-info" style="color: #fff;"></i></div>
                 <div>
                     <p class="cr-notice__title" style="margin:0;">Active Application Found</p>
                     <p style="font-size: 0.85rem; margin:0; color: var(--cr-slate-700);">You have an active refund request submitted on <?= Yii::$app->formatter->asDate($request->application_date) ?>.</p>
@@ -287,6 +314,7 @@ $this->registerJs("
                         <?= Html::a('View Application Details', ['track', 'request_id' => $request->request_id], ['class' => 'cr-btn cr-btn--primary']) ?>
                     </div>
                 <?php else: ?>
+                    <?php if (false): // Requirements checklist rows hidden per UI request. ?>
                     <div class="cr-status-row">
                         <span class="cr-status-row__label">University Clearance</span>
                         <span class="cr-status-row__value">
@@ -334,6 +362,7 @@ $this->registerJs("
                             <span class="cr-badge <?= $cpBadge ?>"><?= $cpLabel ?></span>
                         </span>
                     </div>
+                    <?php endif; ?>
 
                     <div class="cr-section">
                         <?php if ($mode === 'eligibility'): ?>

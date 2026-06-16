@@ -1,4 +1,4 @@
-<?php
+	<?php
 
 use yii\helpers\Html;
 use yii\bootstrap5\ActiveForm;
@@ -14,9 +14,10 @@ use kartik\select2\Select2;
 /** @var app\modules\refund_requests\models\RefundRequest|null $rejectedRequest */
 /** @var app\modules\refund_requests\models\ApprovalProcess|null $latestRejection */
 /** @var bool $isPostingRejection */
+/** @var array|null $refundedRequestDetails */
+/** @var array|null $activeRequestDetails */
 
 $this->title = 'Apply for Refund Request';
-$this->registerCssFile('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 $this->registerCssFile('@web/css/refund-requests.css');
 
 $fieldConfig = [
@@ -26,6 +27,8 @@ $fieldConfig = [
     'errorOptions' => ['class' => 'cr-error'],
 ];
 
+$refundedRequestDetails = $refundedRequestDetails ?? null;
+$activeRequestDetails = $activeRequestDetails ?? null;
 $selectedRefundTypeLabel = 'N/A';
 foreach ($refundTypes as $type) {
     if ((string)$type->refund_type_id === (string)$model->refund_type) {
@@ -38,6 +41,15 @@ if ($model->branch_id && $model->branch) {
     $selectedBranchData = [$model->branch_id => $model->branch->branch_name];
 }
 $reinstatementLevelLabel = !empty($isPostingRejection) ? 'posting' : 'Level 1 approval';
+$hasRefundedDetails = !empty($refundedRequestDetails);
+$hasActiveRequestDetails = !empty($activeRequestDetails);
+$headerSub = $hasRefundedDetails
+    ? 'Refund Completed'
+    : ($hasActiveRequestDetails ? 'Application Tracking' : 'Please provide your disbursement details below');
+$breadcrumbActionLabel = $rejectedRequest
+    ? 'Update Request'
+    : ($hasRefundedDetails ? 'Refund Completed' : ($hasActiveRequestDetails ? 'Application Summary' : 'Apply'));
+$breadcrumbTypeLabel = $selectedRefundTypeLabel !== 'N/A' ? $selectedRefundTypeLabel : 'Refund Type';
 ?>
 
 <div class="cr-page">
@@ -45,18 +57,142 @@ $reinstatementLevelLabel = !empty($isPostingRejection) ? 'posting' : 'Level 1 ap
         <nav class="cr-breadcrumb" aria-label="Breadcrumb">
             <?= Html::a('Refund Requests', ['index']) ?>
             <span class="cr-breadcrumb__separator">/</span>
-            <span class="cr-breadcrumb__current"><?= $rejectedRequest ? 'Update Request' : 'Apply' ?></span>
+            <span class="cr-breadcrumb__item"><?= Html::encode($breadcrumbTypeLabel) ?></span>
+            <span class="cr-breadcrumb__separator">/</span>
+            <span class="cr-breadcrumb__current"><?= Html::encode($breadcrumbActionLabel) ?></span>
         </nav>
         
         <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
             <h1 class="cr-header__title">Refund Application</h1>
-            <p class="cr-header__sub">Please provide your disbursement details below</p>
+            <p class="cr-header__sub">
+                <?= Html::encode($headerSub) ?>
+            </p>
             <div class="cr-header__meta">
                 <span>Payment Refund Type</span>
                 <strong><?= Html::encode($selectedRefundTypeLabel) ?></strong>
             </div>
-        </div>
+	    </div>
+	
+        <?php if ($hasRefundedDetails): ?>
+            <div class="cr-card" style="margin-bottom: 2rem; border-color: var(--cr-teal-400);">
+                <div class="cr-card__header" style="display: flex; align-items: center;">
+                    <div class="cr-card__header-icon" style="background: var(--cr-teal-400);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 6L9 17l-5-5"/><path d="M21 12a9 9 0 1 1-3.2-6.9"/>
+                        </svg>
+                    </div>
+                    <h2 class="cr-card__title" style="color: var(--cr-teal-800);">Refund Completed</h2>
+                </div>
+                <div class="cr-card__body">
+                    <div class="cr-notice" style="background: var(--cr-teal-50); border-color: var(--cr-teal-400); margin-bottom: 1.5rem;">
+                        <p class="cr-notice__title" style="color: var(--cr-teal-800);">You have been refunded.</p>
+                        <p style="font-size:0.9rem; color:var(--cr-slate-700); margin: 0;">
+                            Your <?= Html::encode($refundedRequestDetails['refundType'] ?? $selectedRefundTypeLabel) ?> request has been processed and marked as refunded by Finance.
+                        </p>
+                    </div>
+
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Current Status</span>
+                        <span class="cr-status-row__value"><span class="cr-badge cr-badge--approved">REFUNDED</span></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Reference No</span>
+                        <span class="cr-status-row__value"><?= Html::encode($refundedRequestDetails['referenceNo'] ?? '') ?></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Refund Type</span>
+                        <span class="cr-status-row__value"><span class="badge bg-info text-dark" style="font-weight: 700;"><?= Html::encode($refundedRequestDetails['refundType'] ?? $selectedRefundTypeLabel) ?></span></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Amount Refunded</span>
+                        <span class="cr-status-row__value"><strong><?= Yii::$app->formatter->asCurrency((float)($refundedRequestDetails['amount'] ?? 0)) ?></strong></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Voucher No</span>
+                        <span class="cr-status-row__value"><?= Html::encode($refundedRequestDetails['voucherNo'] ?? 'Not recorded') ?></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Payment Mode</span>
+                        <span class="cr-status-row__value">
+                            <span class="badge bg-success mb-1"><?= Html::encode($refundedRequestDetails['paymentLabel'] ?? 'Payment Method') ?></span>
+                            <?php if (!empty($refundedRequestDetails['paymentDetail'])): ?>
+                                <br><span style="font-size: 0.85rem; color: var(--cr-slate-400);"><?= Html::encode($refundedRequestDetails['paymentDetail']) ?></span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <div style="display:flex; gap:1rem; align-items:center; justify-content:center; margin-top:2rem;">
+                        <?= Html::a('Back to Refund Requests', ['index'], ['class' => 'cr-btn cr-btn--secondary']) ?>
+                        <?= Html::a('View Refund Details', ['track', 'request_id' => (int)($refundedRequestDetails['requestId'] ?? 0)], ['class' => 'cr-btn cr-btn--primary']) ?>
+                    </div>
+                </div>
+            </div>
+        <?php elseif ($hasActiveRequestDetails): ?>
+            <?php
+            $activeStatus = strtoupper((string)($activeRequestDetails['statusLabel'] ?? 'PENDING'));
+            $activeBadgeClass = $activeStatus === 'APPROVED' ? 'cr-badge--approved' : 'cr-badge--pending';
+            ?>
+            <div class="cr-card" style="margin-bottom: 2rem;">
+                <div class="cr-card__header" style="display: flex; align-items: center;">
+                    <div class="cr-card__header-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <h2 class="cr-card__title">Application Summary</h2>
+                </div>
+                <div class="cr-card__body">
+                    <div class="cr-notice" style="background: var(--cr-blue-50); border-color: var(--cr-blue-400); margin-bottom: 1.5rem;">
+                        <p class="cr-notice__title">Active Application Found</p>
+                        <p style="font-size:0.9rem; color:var(--cr-slate-700); margin: 0;">
+                            Your <?= Html::encode($activeRequestDetails['refundType'] ?? $selectedRefundTypeLabel) ?> request has already been submitted and is being processed.
+                        </p>
+                    </div>
+
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Current Status</span>
+                        <span class="cr-status-row__value"><span class="cr-badge <?= $activeBadgeClass ?>"><?= Html::encode($activeStatus) ?></span></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Refund Type</span>
+                        <span class="cr-status-row__value"><span class="badge bg-info text-dark" style="font-weight: 700;"><?= Html::encode($activeRequestDetails['refundType'] ?? $selectedRefundTypeLabel) ?></span></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Reference No</span>
+                        <span class="cr-status-row__value"><?= Html::encode($activeRequestDetails['referenceNo'] ?? '') ?></span>
+                    </div>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label"><?= Html::encode($activeRequestDetails['amountLabel'] ?? 'Requested Amount') ?></span>
+                        <span class="cr-status-row__value"><strong><?= Yii::$app->formatter->asCurrency((float)($activeRequestDetails['amount'] ?? 0)) ?></strong></span>
+                    </div>
+                    <?php if (!empty($activeRequestDetails['voucherNo'])): ?>
+                        <div class="cr-status-row">
+                            <span class="cr-status-row__label">Voucher No</span>
+                            <span class="cr-status-row__value"><?= Html::encode($activeRequestDetails['voucherNo']) ?></span>
+                        </div>
+                    <?php endif; ?>
+                    <div class="cr-status-row">
+                        <span class="cr-status-row__label">Payment Mode</span>
+                        <span class="cr-status-row__value">
+                            <span class="badge bg-secondary mb-1"><?= Html::encode($activeRequestDetails['paymentLabel'] ?? 'Payment Method') ?></span>
+                            <?php if (!empty($activeRequestDetails['paymentDetail'])): ?>
+                                <br><span style="font-size: 0.85rem; color: var(--cr-slate-400);"><?= Html::encode($activeRequestDetails['paymentDetail']) ?></span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <?php if (!empty($activeRequestDetails['applicationDate'])): ?>
+                        <div class="cr-status-row">
+                            <span class="cr-status-row__label">Application Date</span>
+                            <span class="cr-status-row__value"><?= Yii::$app->formatter->asDate($activeRequestDetails['applicationDate']) ?></span>
+                        </div>
+                    <?php endif; ?>
+                    <div style="display:flex; gap:1rem; align-items:center; justify-content:center; margin-top:2rem;">
+                        <?= Html::a('Back to Refund Requests', ['index'], ['class' => 'cr-btn cr-btn--secondary']) ?>
+                        <?= Html::a('View Application Details', ['track', 'request_id' => (int)($activeRequestDetails['requestId'] ?? 0)], ['class' => 'cr-btn cr-btn--primary']) ?>
+                    </div>
+                </div>
+            </div>
+        <?php else: ?>
 
         <?php $form = ActiveForm::begin([
             'id' => 'refund-requests-form',
@@ -214,11 +350,13 @@ $reinstatementLevelLabel = !empty($isPostingRejection) ? 'posting' : 'Level 1 ap
         </div>
 
         <?php ActiveForm::end(); ?>
+        <?php endif; ?>
     </div>
 </div>
 
-<?php
-$branchUrl = Url::to(['branches']);
+	<?php if (!$hasRefundedDetails && !$hasActiveRequestDetails): ?>
+	<?php
+	$branchUrl = Url::to(['branches']);
 $studentProgCurriculumId = (int)$model->student_prog_curriculum_id;
 $refundTypeId = (int)$model->refund_type;
 $defaultEmail = \yii\helpers\Json::htmlEncode($model->email);
@@ -434,5 +572,6 @@ $('#refund-requests-form').on('afterValidate', function (event, messages, errorA
     }
 });
 JS;
-$this->registerJs($js);
-?>
+	$this->registerJs($js);
+	?>
+    <?php endif; ?>

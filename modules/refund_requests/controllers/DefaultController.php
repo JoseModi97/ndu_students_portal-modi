@@ -214,6 +214,240 @@ class DefaultController extends BaseController
         return array_sum($rows);
     }
 
+    private function refundedRequestsByType(int $studentProgCurriculumId): array
+    {
+        $smisRequests = \app\modules\refund_requests\models\RefundRequestOfficial::find()
+            ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+            ->andWhere('UPPER(refund_status) = :refunded', [':refunded' => 'REFUNDED'])
+            ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
+            ->all();
+
+        if (!$smisRequests) {
+            return [];
+        }
+
+        $refundTypes = \app\modules\refund_requests\models\RefundType::find()
+            ->indexBy('refund_type_id')
+            ->all();
+        $refundedRequests = [];
+
+        foreach ($smisRequests as $smisRequest) {
+            $refundTypeId = (int)$smisRequest->refund_type;
+            if (isset($refundedRequests[$refundTypeId])) {
+                continue;
+            }
+
+            $portalRequest = RefundRequest::find()
+                ->where(['request_id' => $smisRequest->request_id])
+                ->with(['refundType', 'bank'])
+                ->one();
+            $refundType = $portalRequest ? ($portalRequest->refundType ?? null) : null;
+            $refundType = $refundType ?? ($refundTypes[$refundTypeId] ?? null);
+            $paymentMethod = strtoupper((string)($portalRequest ? $portalRequest->payment_method : ''));
+            $paymentLabel = $paymentMethod === 'MPESA'
+                ? 'M-PESA'
+                : ($paymentMethod === 'BANK' ? 'Bank Transfer' : 'Payment Method');
+            $paymentDetail = '';
+
+            if ($paymentMethod === 'MPESA') {
+                $paymentDetail = 'Mobile: ' . (($portalRequest ? $portalRequest->mobile_no : null) ?: $smisRequest->mobile_no);
+            } elseif ($paymentMethod === 'BANK') {
+                $bankName = ($portalRequest && $portalRequest->bank) ? $portalRequest->bank->bank_name : 'Bank account';
+                $paymentDetail = $bankName . ' (Acc: ' . (($portalRequest ? $portalRequest->account_no : null) ?: $smisRequest->account_no) . ')';
+            }
+
+            $refundedRequests[$refundTypeId] = [
+                'requestId' => (int)$smisRequest->request_id,
+                'referenceNo' => '#REF-' . str_pad((string)$smisRequest->request_id, 5, '0', STR_PAD_LEFT),
+                'refundType' => $refundType->displayName ?? $refundType->refund_type_name ?? 'Refund',
+                'amount' => (float)($smisRequest->amount_approved ?: $smisRequest->amount_requested),
+                'voucherNo' => $smisRequest->voucher_no,
+                'paymentLabel' => $paymentLabel,
+                'paymentDetail' => $paymentDetail,
+            ];
+        }
+
+        return $refundedRequests;
+    }
+
+    private function hasActiveNonRefundedRequest(int $studentProgCurriculumId, array $refundedRequests): bool
+    {
+        $refundedRequestIds = array_values(array_filter(array_map(
+            static fn(array $request): int => (int)($request['requestId'] ?? 0),
+            $refundedRequests
+        )));
+
+        $sources = [
+            [Yii::$app->db, 'smisportal.fss_refund_requests'],
+            [Yii::$app->smisDb, 'smis.fss_refund_requests'],
+        ];
+
+        foreach ($sources as [$db, $table]) {
+            $query = (new \yii\db\Query())
+                ->from($table)
+                ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+                ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
+                ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED']);
+
+            if ($refundedRequestIds) {
+                $query->andWhere(['not in', 'request_id', $refundedRequestIds]);
+            }
+
+            if ($query->exists($db)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function activeRequestsByType(int $studentProgCurriculumId, array $refundedRequests): array
+    {
+        $refundedRequestIds = array_flip(array_map(
+            static fn(array $request): int => (int)($request['requestId'] ?? 0),
+            $refundedRequests
+        ));
+        $requests = RefundRequest::find()
+            ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+            ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
+            ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED'])
+            ->with(['refundType', 'bank'])
+            ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
+            ->all();
+        $smisRequests = \app\modules\refund_requests\models\RefundRequestOfficial::find()
+            ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+            ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
+            ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED'])
+            ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
+            ->all();
+        $refundTypes = \app\modules\refund_requests\models\RefundType::find()
+            ->indexBy('refund_type_id')
+            ->all();
+
+        $allLevels = ApprovalLevel::find()->orderBy(['approval_order' => SORT_ASC])->all();
+        $totalLevels = count($allLevels);
+        $activeRequests = [];
+
+        foreach ($requests as $request) {
+            if (isset($refundedRequestIds[(int)$request->request_id])) {
+                continue;
+            }
+
+            $refundTypeId = (int)$request->refund_type;
+            if (isset($activeRequests[$refundTypeId])) {
+                continue;
+            }
+
+            $approvals = ApprovalProcess::find()
+                ->where(['request_id' => $request->request_id])
+                ->andWhere('approval_date >= :application_date', [':application_date' => $request->application_date])
+                ->all();
+            $approvedLevelIds = [];
+            foreach ($approvals as $approval) {
+                if (!$approval->approver || strtoupper((string)$approval->approval_status) !== 'APPROVED') {
+                    continue;
+                }
+                $approvedLevelIds[(int)$approval->approver->approval_level_id] = true;
+            }
+
+            $isWorkflowApproved = $totalLevels > 0;
+            foreach ($allLevels as $level) {
+                if (!isset($approvedLevelIds[(int)$level->approval_level_id])) {
+                    $isWorkflowApproved = false;
+                    break;
+                }
+            }
+
+            $status = strtoupper((string)$request->approval_status);
+            $statusLabel = $isWorkflowApproved || $status === 'APPROVED' ? 'APPROVED' : $status;
+            $paymentMethod = strtoupper((string)$request->payment_method);
+            $paymentLabel = $paymentMethod === 'MPESA'
+                ? 'M-PESA'
+                : ($paymentMethod === 'BANK' ? 'Bank Transfer' : 'Payment Method');
+            $paymentDetail = '';
+            if ($paymentMethod === 'MPESA') {
+                $paymentDetail = 'Mobile: ' . $request->mobile_no;
+            } elseif ($paymentMethod === 'BANK') {
+                $paymentDetail = ($request->bank->bank_name ?? 'Bank account') . ' (Acc: ' . $request->account_no . ')';
+            }
+
+            $activeRequests[$refundTypeId] = [
+                'requestId' => (int)$request->request_id,
+                'referenceNo' => '#REF-' . str_pad((string)$request->request_id, 5, '0', STR_PAD_LEFT),
+                'refundType' => $request->refundType->displayName ?? $request->refundType->refund_type_name ?? 'Refund',
+                'amount' => (float)($request->amount_approved ?: $request->amount_requested),
+                'amountLabel' => isset($request->refundType) && strtoupper((string)$request->refundType->refund_type_name) === 'CAUTION'
+                    ? 'Caution Amount'
+                    : 'Requested Amount',
+                'applicationDate' => $request->application_date,
+                'statusLabel' => $statusLabel,
+                'voucherNo' => $request->voucher_no,
+                'paymentLabel' => $paymentLabel,
+                'paymentDetail' => $paymentDetail,
+            ];
+        }
+
+        foreach ($smisRequests as $smisRequest) {
+            if (isset($refundedRequestIds[(int)$smisRequest->request_id])) {
+                continue;
+            }
+
+            $refundTypeId = (int)$smisRequest->refund_type;
+            $portalRequest = null;
+            foreach ($requests as $request) {
+                if ((int)$request->request_id === (int)$smisRequest->request_id) {
+                    $portalRequest = $request;
+                    break;
+                }
+            }
+
+            $existing = $activeRequests[$refundTypeId] ?? null;
+            if ($existing !== null && (int)$existing['requestId'] !== (int)$smisRequest->request_id) {
+                $existingTime = strtotime((string)($existing['applicationDate'] ?? '')) ?: 0;
+                $smisTime = strtotime((string)$smisRequest->application_date) ?: 0;
+                if ($existingTime > $smisTime) {
+                    continue;
+                }
+            }
+
+            $refundType = $portalRequest ? ($portalRequest->refundType ?? null) : null;
+            $refundType = $refundType ?? ($refundTypes[$refundTypeId] ?? null);
+            $paymentMethod = strtoupper((string)($portalRequest ? $portalRequest->payment_method : ''));
+            $paymentLabel = $paymentMethod === 'MPESA'
+                ? 'M-PESA'
+                : ($paymentMethod === 'BANK' ? 'Bank Transfer' : 'Payment Method');
+            $paymentDetail = '';
+
+            if ($paymentMethod === 'MPESA') {
+                $paymentDetail = 'Mobile: ' . (($portalRequest ? $portalRequest->mobile_no : null) ?: $smisRequest->mobile_no);
+            } elseif ($paymentMethod === 'BANK') {
+                $bank = ($portalRequest && $portalRequest->bank) ? $portalRequest->bank : null;
+                if ($bank === null && $smisRequest->bank_id) {
+                    $bank = Bank::findOne((int)$smisRequest->bank_id);
+                }
+                $bankName = $bank ? $bank->bank_name : 'Bank account';
+                $paymentDetail = $bankName . ' (Acc: ' . (($portalRequest ? $portalRequest->account_no : null) ?: $smisRequest->account_no) . ')';
+            }
+
+            $activeRequests[$refundTypeId] = [
+                'requestId' => (int)$smisRequest->request_id,
+                'referenceNo' => '#REF-' . str_pad((string)$smisRequest->request_id, 5, '0', STR_PAD_LEFT),
+                'refundType' => $refundType->displayName ?? $refundType->refund_type_name ?? 'Refund',
+                'amount' => (float)($smisRequest->amount_approved ?: $smisRequest->amount_requested),
+                'amountLabel' => $refundType && strtoupper((string)$refundType->refund_type_name) === 'CAUTION'
+                    ? 'Caution Amount'
+                    : 'Requested Amount',
+                'applicationDate' => $smisRequest->application_date,
+                'statusLabel' => strtoupper((string)$smisRequest->approval_status),
+                'voucherNo' => $smisRequest->voucher_no,
+                'paymentLabel' => $paymentLabel,
+                'paymentDetail' => $paymentDetail,
+            ];
+        }
+
+        return $activeRequests;
+    }
+
     /**
      * Calculate expected caution fee for a student from their transactions
      * @param string $regNumber Registration number (normalized)
@@ -301,6 +535,8 @@ class DefaultController extends BaseController
         $existingRequest = null;
         $smisRequest = null;
         $previousRequests = [];
+        $refundedRequests = [];
+        $activeRequests = [];
         if ($check['student_prog_curriculum_id']) {
             $existingRequest = RefundRequest::find()
                 ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
@@ -330,33 +566,23 @@ class DefaultController extends BaseController
                 ])
                 ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
                 ->all();
+            $refundedRequests = $this->refundedRequestsByType((int)$check['student_prog_curriculum_id']);
+
+            $refundedRequestIds = array_flip(array_map(
+                static fn(array $request): int => (int)($request['requestId'] ?? 0),
+                $refundedRequests
+            ));
+
+            if ($existingRequest && isset($refundedRequestIds[(int)$existingRequest->request_id])) {
+                $existingRequest = null;
+            }
+            $activeRequests = $this->activeRequestsByType((int)$check['student_prog_curriculum_id'], $refundedRequests);
         }
 
-        // Mode: STATUS (an application is still pending/in progress)
-        if ($existingRequest) {
-            $approvals = ApprovalProcess::find()
-                ->where(['request_id' => $existingRequest->request_id])
-                ->andWhere('approval_date >= :application_date', [':application_date' => $existingRequest->application_date])
-                ->all();
-
-            return $this->render('index', [
-                'mode' => 'status',
-                'user' => $user,
-                'request' => $existingRequest,
-                'smisRequest' => $smisRequest,
-                'approvals' => $approvals,
-                'allLevels' => $allLevels,
-                'academicStatus' => $academicStatus,
-                'cautionFeePaid' => $check['cautionFeePaid'],
-                'expectedCautionFee' => $expectedCautionFee,
-                'cautionReservedAmount' => $check['cautionReservedAmount'],
-                'cautionRemainingAmount' => $check['cautionRemainingAmount'],
-                'overrideEligibility' => $this->module->overrideEligibility,
-                'previousRequests' => $previousRequests,
-            ]);
-        }
-
-        $hasExternalActiveRequest = $check['hasExistingRequest'] && !$existingRequest;
+        $hasExternalActiveRequest = $check['hasExistingRequest']
+            && !$activeRequests
+            && !empty($check['student_prog_curriculum_id'])
+            && $this->hasActiveNonRefundedRequest((int)$check['student_prog_curriculum_id'], $refundedRequests);
 
         return $this->render('index', [
             'mode' => ($check['eligible'] && !$hasExternalActiveRequest) ? 'eligibility' : 'not-eligible',
@@ -375,6 +601,8 @@ class DefaultController extends BaseController
             'refundTypes' => $refundTypes,
             'academicStatus' => $academicStatus,
             'previousRequests' => $previousRequests,
+            'refundedRequests' => $refundedRequests,
+            'activeRequests' => $activeRequests,
         ]);
     }
 
@@ -420,11 +648,6 @@ class DefaultController extends BaseController
         $check = $this->checkEligibility($user);
         if (!$check['student_prog_curriculum_id']) {
             $this->setFlash('danger', 'Error', 'Could not resolve your curriculum record. Please contact the administrator.');
-            return $this->redirect(['index']);
-        }
-
-        if ($check['hasExistingRequest']) {
-            $this->setFlash('info', 'Active Application Found', 'You can make another refund request only after the current request has been approved through all approval levels or not approved.');
             return $this->redirect(['index']);
         }
 
@@ -474,18 +697,33 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
+        $refundedRequests = $this->refundedRequestsByType((int)$check['student_prog_curriculum_id']);
+        $refundedRequestDetails = $refundedRequests[(int)$typeId] ?? null;
+        $activeRequests = $this->activeRequestsByType((int)$check['student_prog_curriculum_id'], $refundedRequests);
+        $activeRequestDetails = $activeRequests[(int)$typeId] ?? null;
+        $isReadOnlyExistingRequest = $refundedRequestDetails !== null || $activeRequestDetails !== null;
+
+        if ($check['hasExistingRequest'] && !$isReadOnlyExistingRequest) {
+            $this->setFlash('info', 'Active Application Found', 'You can make another refund request only after the current request has been approved through all approval levels or not approved.');
+            return $this->redirect(['index']);
+        }
+
         $passedAmount = $this->request->post('amount', $this->request->get('amount'));
 
         $refundableAmount = 0;
+        if ($refundedRequestDetails !== null) {
+            $refundableAmount = (float)$refundedRequestDetails['amount'];
+        } elseif ($activeRequestDetails !== null) {
+            $refundableAmount = (float)$activeRequestDetails['amount'];
         // Validation for CAUTION refund type
-        if ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
+        } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
             /** @var \app\modules\refund_requests\Module $module */
             $module = $this->module;
             if ($check['cautionFeePaid'] < $check['expectedCaution'] && !$module->overrideEligibility) {
                 $this->setFlash('danger', 'Requirement Not Met', 'You have not fully paid the CAUTION FEE required for this refund type.');
                 return $this->redirect(['index']);
             }
-            
+
             $refundableAmount = (float)$check['cautionRemainingAmount'];
             if ($refundableAmount <= 0) {
                 $this->setFlash('danger', 'Requirement Not Met', 'Your available Caution Refund balance has already been requested or approved.');
@@ -520,6 +758,14 @@ class DefaultController extends BaseController
             if ($standardType) {
                 $model->refund_type = $standardType->refund_type_id;
             }
+        }
+
+        if ($refundedRequestDetails !== null) {
+            $model->max_amount = (float)$refundedRequestDetails['amount'];
+            $model->amount_requested = (float)$refundedRequestDetails['amount'];
+        } elseif ($activeRequestDetails !== null) {
+            $model->max_amount = (float)$activeRequestDetails['amount'];
+            $model->amount_requested = (float)$activeRequestDetails['amount'];
         }
 
         if ($rejectedRequest === null) {
@@ -588,6 +834,8 @@ class DefaultController extends BaseController
             'rejectedRequest' => $rejectedRequest,
             'latestRejection' => $latestRejection,
             'isPostingRejection' => $isPostingRejection,
+            'refundedRequestDetails' => $refundedRequestDetails,
+            'activeRequestDetails' => $activeRequestDetails,
         ]);
     }
 

@@ -85,7 +85,7 @@ php modules\refund_requests\automation\step4_finalize.php
 
 ### 7. `step5_post_caution_refund.php`
 
-Posts the latest fully approved, unposted `CAUTION` request for the target student on SMIS only. This creates one `smis.fss_refund_batches` row with `status` and `date_paid` left empty, creates the caution DR/CR fee transactions in `smis.fss_fee_transactions`, updates prior `smis.fss_cancelled_vouchers` rows for the same `request_id` to the final voucher number when that column exists, and updates only `smis.fss_refund_requests.approval_status`, `voucher_no`, and `amount_approved`. Posting does not set `refund_status = REFUNDED`; `voucher_no` is the posted marker.
+Posts the latest fully approved, unposted `CAUTION` request for the target student on SMIS only. This creates one `smis.fss_refund_batches` row with `posted_by` and `posted_at` set while `status` and `date_paid` are left empty for the payment interface, creates the caution DR/CR fee transactions in `smis.fss_fee_transactions`, updates prior `smis.fss_cancelled_vouchers` rows for the same `request_id` to the final voucher number when that column exists, and updates only `smis.fss_refund_requests.approval_status`, `voucher_no`, and `amount_approved`. Posting does not set `refund_status = REFUNDED`; `voucher_no` is the posted marker.
 
 Usage:
 
@@ -93,11 +93,31 @@ Usage:
 php modules\refund_requests\automation\step5_post_caution_refund.php
 ```
 
+### 8. `step6_save_paid_refund_voucher.php`
+
+Mirrors the SMIS `Update Paid Refund Vouchers` save action for the latest posted `CAUTION` refund batch for the target student. It only works on posted batches where `posted_at IS NOT NULL` and `date_paid IS NULL`.
+
+This step updates `smis.fss_refund_batches`:
+
+- `status = PAID`
+- `date_paid = current timestamp`
+
+It also updates linked `smis.fss_refund_requests` rows:
+
+- `approval_status = APPROVED`
+- `refund_status = REFUNDED`
+
+Usage:
+
+```powershell
+php modules\refund_requests\automation\step6_save_paid_refund_voucher.php
+```
+
 ## Utility Scripts
 
 ### `debug_record.php`
 
-Prints the latest FSS refund request for the target student, including refund type, bank/branch labels, refund batch rows, cancelled voucher rows, SMIS posting fee transactions, and any matching disapproved-request rows when available.
+Prints the latest FSS refund request for the target student, including refund type, bank/branch labels, refund batch rows and payment status, cancelled voucher rows, SMIS posting fee transactions, and any matching disapproved-request rows when available.
 
 ### `verify_accuracy.php`
 
@@ -105,7 +125,7 @@ Prints the SMIS fee balance, caution posting fee transactions, SMIS academic sta
 
 ### `check_status.php`
 
-Prints a quick clearance-status summary and latest refund request approval/refund/voucher status for the target student.
+Prints a quick clearance-status summary and latest refund request approval/refund/voucher status for the target student, including batch `status` and `date_paid` when a voucher exists.
 
 ### `check_bank_reference_data.php`
 

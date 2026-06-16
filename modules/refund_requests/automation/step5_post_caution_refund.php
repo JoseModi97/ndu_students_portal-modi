@@ -171,12 +171,14 @@ function nextVoucherNo(\yii\db\Connection $db, string $schema): int
 
 function insertRefundBatch(\yii\db\Connection $db, string $schema, int $voucherNo, float $amount): void
 {
+    $postedAt = date('Y-m-d H:i:s');
+
     $db->createCommand()
         ->insert($schema . '.fss_refund_batches', [
             'voucher_no' => $voucherNo,
             'total_amount' => $amount,
             'posted_by' => 'AUTO-POST',
-            'posted_at' => date('Y-m-d H:i:s'),
+            'posted_at' => $postedAt,
         ])
         ->execute();
 }

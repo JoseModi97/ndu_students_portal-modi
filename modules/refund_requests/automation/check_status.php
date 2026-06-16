@@ -37,6 +37,19 @@ foreach ([[Yii::$app->db, 'smisportal', 'Portal'], [Yii::$app->smisDb, 'smis', '
         echo "Voucher No: " . ($request['voucher_no'] ?: 'NULL') . "\n";
         echo "Amount Requested: {$request['amount_requested']}\n";
         echo "Amount Approved: " . ($request['amount_approved'] ?: 'NULL') . "\n";
+
+        if (!empty($request['voucher_no']) && $db->getTableSchema($schema . '.fss_refund_batches', true) !== null) {
+            $batch = (new \yii\db\Query())
+                ->select(['voucher_no', 'posted_by', 'posted_at', 'status', 'date_paid'])
+                ->from($schema . '.fss_refund_batches')
+                ->where(['voucher_no' => $request['voucher_no']])
+                ->one($db);
+
+            if ($batch) {
+                echo "Batch Status: " . ($batch['status'] ?: 'NULL') . "\n";
+                echo "Date Paid: " . ($batch['date_paid'] ?: 'NULL') . "\n";
+            }
+        }
     } else {
         echo "\n{$label} latest refund request: NOT FOUND\n";
     }
