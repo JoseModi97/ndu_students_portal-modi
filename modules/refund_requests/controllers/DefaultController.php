@@ -455,17 +455,15 @@ class DefaultController extends BaseController
      */
     private function calculateExpectedCautionFee(string $regNumber): float
     {
+        $normalizedRegNo = str_replace('-', '/', $regNumber);
         return (float)(new \yii\db\Query())
-            ->from('smis.fss_fee_transactions ft')
-            ->innerJoin('smis.fss_fee_items fi', 'ft.trans_desc = fi.fee_description')
-            ->where(['LIKE', 'ft.progress_code', $regNumber . '%', false])
+            ->from('smis.fss_fee_transactions')
+            ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
             ->andWhere([
-                'fi.fee_description' => 'CAUTION MONEY',
-                'fi.fee_type' => 'OTHER',
-                'fi.priority' => 1,
-                'ft.trans_type' => 'DR'
+                'trans_desc' => 'CAUTION MONEY',
+                'trans_type' => 'DR'
             ])
-            ->sum('ft.trans_amount', Yii::$app->smisDb);
+            ->sum('trans_amount', Yii::$app->smisDb);
     }
 
     /**
@@ -478,19 +476,32 @@ class DefaultController extends BaseController
         // Normalize registration number: convert dashes to slashes for DB consistency with SMIS
         $normalizedRegNo = str_replace('-', '/', $regNumber);
 
-        // Use normalized registration number logic from QueryController.php
-        // We use DR because in this context CAUTION MONEY is recorded as DR transactions in SMIS
-        return (float)(new \yii\db\Query())
-            ->from('smis.fss_fee_transactions ft')
-            ->innerJoin('smis.fss_fee_items fi', 'ft.trans_desc = fi.fee_description')
-            ->where(['LIKE', 'ft.progress_code', $normalizedRegNo . '%', false])
+        // First try explicit CAUTION MONEY CR transactions in SMIS
+        $totalPaid = (float)(new \yii\db\Query())
+            ->from('smis.fss_fee_transactions')
+            ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
             ->andWhere([
-                'fi.fee_description' => 'CAUTION MONEY',
-                'fi.fee_type' => 'OTHER',
-                'fi.priority' => 1,
-                'ft.trans_type' => 'CR'
+                'trans_desc' => 'CAUTION MONEY',
+                'trans_type' => 'CR'
             ])
-            ->sum('ft.trans_amount', Yii::$app->smisDb);
+            ->sum('trans_amount', Yii::$app->smisDb);
+
+        // If no explicit caution payment found, check total credits in SMIS as fallback
+        // because Caution Money is a priority 1 fee and is covered by any general payment
+        if ($totalPaid <= 0) {
+            $totalCredits = (float)(new \yii\db\Query())
+                ->from('smis.fss_fee_transactions')
+                ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
+                ->andWhere(['trans_type' => 'CR'])
+                ->sum('trans_amount', Yii::$app->smisDb);
+
+            if ($totalCredits > 0) {
+                $expected = $this->calculateExpectedCautionFee($regNumber);
+                $totalPaid = min($expected, $totalCredits);
+            }
+        }
+
+        return $totalPaid;
     }
 
 
@@ -626,8 +637,7 @@ class DefaultController extends BaseController
         foreach ($transactions as $transaction) {
             if ($transaction['trans_type'] === 'CR') {
                 $credits += $transaction['trans_amount'];
-            }
-            if ($transaction['trans_type'] === 'DR') {
+            } elseif ($transaction['trans_type'] === 'DR') {
                 $debits += $transaction['trans_amount'];
             }
         }
@@ -701,6 +711,7 @@ class DefaultController extends BaseController
         $refundedRequestDetails = $refundedRequests[(int)$typeId] ?? null;
         $activeRequests = $this->activeRequestsByType((int)$check['student_prog_curriculum_id'], $refundedRequests);
         $activeRequestDetails = $activeRequests[(int)$typeId] ?? null;
+
         $isReadOnlyExistingRequest = $refundedRequestDetails !== null || $activeRequestDetails !== null;
 
         if ($check['hasExistingRequest'] && !$isReadOnlyExistingRequest) {
@@ -788,6 +799,7 @@ class DefaultController extends BaseController
 
             if ($model->load($post)) {
                 $model->payment_method = $post['RefundRequest']['payment_method'] ?? 'bank';
+                $model->amount_requested = (float)$refundableAmount;
                 $model->voucher_no = null;
 
                 if ($rejectedRequest === null) {

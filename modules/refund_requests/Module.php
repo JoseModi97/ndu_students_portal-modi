@@ -12,7 +12,7 @@ class Module extends BaseModule
     /**
      * @var bool Whether to override/bypass the caution fee and fee balance requirements.
      */
-    public $overrideEligibility = true;
+    public $overrideEligibility = false;
 
     /**
      * {@inheritdoc}

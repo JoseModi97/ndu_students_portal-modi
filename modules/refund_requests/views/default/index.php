@@ -42,7 +42,7 @@ $studentInfoHtml = "<b>Name:</b> " . Html::encode($user->surname . ' ' . $user->
 $helpHtml = "For technical issues with this portal, contact ICT Support. For application status inquiries after 14 days, visit the Finance Office.";
 $secureHtml = "All refund disbursements are audited and verified to ensure funds are sent only to accounts registered in the student's name.";
 $hasRejectedRequests = !empty($previousRequests);
-$showMainRequestCard = $mode === 'status' || !$hasRejectedRequests;
+$showMainRequestCard = true;
 $officialRequest = $smisRequest ?? null;
 $approvedLevelIds = [];
 foreach ((array)$approvals as $approval) {
@@ -200,13 +200,13 @@ $this->registerJs("
             <div class="cr-flash"><?= Html::encode(Yii::$app->session->getFlash('info')) ?></div>
         <?php endif; ?>
 
-        <div class="cr-header">
+        <!-- <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
             <h1 class="cr-header__title">Refund Request</h1>
             <p class="cr-header__sub">
-                <?= Html::encode($headerSub) ?>
+                <?php Html::encode($headerSub) ?>
             </p>
-        </div>
+        </div> -->
 
         <?php if ($mode === 'status'): ?>
             <!-- Mode: ALREADY APPLIED -->

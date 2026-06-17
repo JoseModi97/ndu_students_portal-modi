@@ -215,7 +215,6 @@ function deletePostingFeeTransactions(\yii\db\Connection $db, string $schema, ar
     $refundDescriptions = array_map(static fn(int|string $voucherNo): string => 'CAUTION REFUND - ' . $voucherNo, $voucherNos);
     $postingDescriptionCondition = [
         'or',
-        ['trans_desc' => ' CAUTION MONEY'],
         ['and', ['user_id' => 'AUTO-POST'], ['trans_desc' => 'CAUTION MONEY']],
     ];
 

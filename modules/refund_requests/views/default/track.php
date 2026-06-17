@@ -45,8 +45,20 @@ $isRefunded = $request && (
     || strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED'
 );
 $isApproved = $requestStatus === 'APPROVED' || $isWorkflowApproved || $isRefunded;
-$requestStatusLabel = $isRefunded ? 'REFUNDED' : ($isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus));
+$requestStatusLabel = $isRefunded ? 'PAID' : ($isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus));
 $referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
+$requestRefundAmount = 0.0;
+if ($request) {
+    $requestRefundAmount = (float)(
+        ($smisRequest->amount_approved ?? null)
+        ?: ($request->amount_approved ?? null)
+        ?: ($smisRequest->amount_requested ?? null)
+        ?: ($request->amount_requested ?? 0)
+    );
+}
+$cautionPaidAmount = $isRefunded && $requestRefundAmount > 0
+    ? $requestRefundAmount
+    : (float)$cautionFeePaid;
 $formatNairobiDateTime = static function ($value): string {
     if (empty($value)) {
         return 'Not recorded';
@@ -116,7 +128,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                                     && (int)$request->request_id === (int)$item->request_id
                                     && strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED';
                                 $itemStatusLabel = ($itemIsRefunded || $itemIsOfficialRefunded)
-                                    ? 'REFUNDED'
+                                    ? 'PAID'
                                     : ($itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : $itemStatus);
                                 $itemClass = $request && (int)$request->request_id === (int)$item->request_id ? 'cr-btn--primary' : 'cr-btn--secondary';
                                 ?>
@@ -256,6 +268,12 @@ $progressPercent = min(100, max(0, $progressPercent));
                                         <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--cr-red);">Request Closed: Not Approved</h4>
                                         <p style="font-size: 0.85rem; color: var(--cr-slate-400);">This request is no longer active. Use the request selector above to track another application.</p>
                                     </div>
+                                <?php elseif ($isRefunded): ?>
+                                    <div class="cr-timeline-item">
+                                        <div class="cr-timeline-dot" style="border-color: var(--cr-teal-400);"></div>
+                                        <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--cr-teal-600);">Refund Paid</h4>
+                                        <p style="font-size: 0.85rem; color: var(--cr-slate-400);">Finance has marked this refund request as paid.</p>
+                                    </div>
                                 <?php elseif ($isApproved): ?>
                                     <div class="cr-timeline-item">
                                         <div class="cr-timeline-dot" style="border-color: var(--cr-teal-400);"></div>
@@ -312,10 +330,10 @@ $progressPercent = min(100, max(0, $progressPercent));
                     <div class="cr-card__body" style="padding: 1.25rem;">
                         <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--cr-slate-100);">
                             <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase; display: block; margin-bottom: 0.4rem;">
-                                <?= $request ? 'Approved Refund Amount' : 'Total Fee Balance' ?>
+                                <?= $request ? ($isRefunded ? 'Paid Refund Amount' : 'Approved Refund Amount') : 'Total Fee Balance' ?>
                             </span>
                             <span style="font-size: 1.1rem; font-weight: 800; color: <?= (!$request && $balance > 0) ? 'var(--cr-red)' : 'var(--cr-teal-600)' ?>;">
-                                <?= $request ? Yii::$app->formatter->asCurrency($request->amount_requested) : Yii::$app->formatter->asCurrency($balance) ?>
+                                <?= $request ? Yii::$app->formatter->asCurrency($requestRefundAmount) : Yii::$app->formatter->asCurrency($balance) ?>
                             </span>
                         </div>
 
@@ -324,7 +342,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                                 <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase; display: block; margin-bottom: 0.4rem;">Caution Money Details</span>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.25rem;">
                                     <span style="color: var(--cr-slate-600);">Paid:</span>
-                                    <span style="font-weight: 700; color: var(--cr-slate-800);"><?= Yii::$app->formatter->asCurrency($cautionFeePaid) ?></span>
+                                    <span style="font-weight: 700; color: var(--cr-slate-800);"><?= Yii::$app->formatter->asCurrency($cautionPaidAmount) ?></span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
                                     <span style="color: var(--cr-slate-600);">Required:</span>
