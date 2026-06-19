@@ -327,7 +327,8 @@ final class PaymentController extends BaseController
 
     private function normalizeInvoices(array $invoices): array
     {
-        $normalized = array_map(static function (array $invoice): array {
+        $catalog = $this->payments->serviceCatalog();
+        $normalized = array_map(static function (array $invoice) use ($catalog): array {
             $invoice['reference'] = (string) ($invoice['source_reference'] ?: $invoice['trans_reference']);
             $invoice['transaction_date'] = $invoice['last_update'] ?? $invoice['deposit_date'] ?? null;
             $invoice['post_status'] = (string) ($invoice['post_status'] ?: 'PENDING');
@@ -339,6 +340,13 @@ final class PaymentController extends BaseController
                 !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true) => 'Credited',
                 default => 'Pending action',
             };
+
+            $paymentTypeId = $invoice['payment_type_id'] ?? $invoice['deposit_type'] ?? null;
+            if (empty($paymentTypeId) && !empty($invoice['response'])) {
+                $metadata = json_decode((string) $invoice['response'], true);
+                $paymentTypeId = is_array($metadata) ? ($metadata['payment_type_id'] ?? null) : null;
+            }
+            $invoice['has_service_id'] = !empty($paymentTypeId) && isset($catalog[(int) $paymentTypeId]);
 
             return $invoice;
         }, $invoices);
@@ -440,6 +448,13 @@ final class PaymentController extends BaseController
         if (empty($paymentTypeId)) {
             throw new BadRequestHttpException('This invoice has no payment type service ID.');
         }
+
+        $catalog = $this->payments->serviceCatalog();
+        if (!isset($catalog[(int) $paymentTypeId])) {
+            $this->setFlash('danger', 'Invalid configuration', 'The selected payment type has no service ID.');
+            return $this->redirect(['invoices']);
+        }
+
         $serviceId = $this->payments->serviceIdForPaymentType((int) $paymentTypeId);
         $payload = $this->payments->buildGatewayPayload(
             $studentContext,
