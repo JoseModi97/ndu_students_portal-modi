@@ -124,7 +124,7 @@ class PaymentService
     {
         $catalog = $this->serviceCatalog();
         if (!isset($catalog[$paymentTypeId])) {
-            throw new InvalidConfigException('The selected payment type has no service ID in NDU SERVICE CODES.xlsx.');
+            throw new InvalidConfigException('This transaction may be managed under a separate eCitizen account.');
         }
 
         return (string) $paymentTypeId;

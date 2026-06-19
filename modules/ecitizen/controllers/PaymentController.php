@@ -412,51 +412,65 @@ final class PaymentController extends BaseController
         ]);
     }
 
-    public function actionInvoice(int $trans_id): string|Response
+    public function actionInvoice(int $trans_id): string|Response|array
     {
-        $studentContext = $this->payments->resolveLoggedInStudent();
-        $invoice = $this->payments->findInvoiceRequest($trans_id, $studentContext['registrationNumber']);
-        if (!$invoice) {
-            throw new \yii\web\NotFoundHttpException('The selected eCitizen invoice could not be found.');
-        }
+        try {
+            $studentContext = $this->payments->resolveLoggedInStudent();
+            $invoice = $this->payments->findInvoiceRequest($trans_id, $studentContext['registrationNumber']);
+            if (!$invoice) {
+                throw new \yii\web\NotFoundHttpException('The selected eCitizen invoice could not be found.');
+            }
 
-        $postStatus = strtoupper((string) $invoice['post_status']);
-        if ($postStatus === 'POSTED' || $postStatus === 'SETTLED') {
-            $this->setFlash('danger', 'Already posted', 'This invoice has already been posted and cannot be relaunched.');
+            $postStatus = strtoupper((string) $invoice['post_status']);
+            if ($postStatus === 'POSTED' || $postStatus === 'SETTLED') {
+                $this->setFlash('danger', 'Already posted', 'This invoice has already been posted and cannot be relaunched.');
+                return $this->redirect(['invoices']);
+            }
+
+            if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
+                $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your fee statement and is queued for SMIS sync.');
+                return $this->redirect(['invoices']);
+            }
+
+            $reference = (string) ($invoice['source_reference'] ?: $invoice['trans_reference']);
+            $paymentTypeId = $invoice['payment_type_id'] ?? $invoice['deposit_type'] ?? null;
+            if (empty($paymentTypeId) && !empty($invoice['response'])) {
+                $metadata = json_decode((string) $invoice['response'], true);
+                $paymentTypeId = is_array($metadata) ? ($metadata['payment_type_id'] ?? null) : null;
+            }
+            if (empty($paymentTypeId)) {
+                throw new BadRequestHttpException('This invoice has no payment type service ID.');
+            }
+            $serviceId = $this->payments->serviceIdForPaymentType((int) $paymentTypeId);
+            $payload = $this->payments->buildGatewayPayload(
+                $studentContext,
+                (float) $invoice['deposit_amount'],
+                $reference,
+                $invoice['post_comment'] ?: 'eCitizen student fee payment',
+                $serviceId
+            );
+
+            return $this->render('checkout', [
+                'title' => $this->createPageTitle('Pay eCitizen invoice'),
+                'gatewayUrl' => $this->ecitizenParams()['url'],
+                'payload' => $payload,
+                'reference' => $reference,
+                'amount' => (float) $invoice['deposit_amount'],
+                'description' => $invoice['post_comment'] ?: 'eCitizen student fee payment',
+            ]);
+        } catch (\Throwable $exception) {
+            if (Yii::$app->request->isAjax) {
+                Yii::$app->response->statusCode = 400;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+
+            $this->setFlash('danger', 'Error launching payment', $exception->getMessage());
             return $this->redirect(['invoices']);
         }
-
-        if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
-            $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your fee statement and is queued for SMIS sync.');
-            return $this->redirect(['invoices']);
-        }
-
-        $reference = (string) ($invoice['source_reference'] ?: $invoice['trans_reference']);
-        $paymentTypeId = $invoice['payment_type_id'] ?? $invoice['deposit_type'] ?? null;
-        if (empty($paymentTypeId) && !empty($invoice['response'])) {
-            $metadata = json_decode((string) $invoice['response'], true);
-            $paymentTypeId = is_array($metadata) ? ($metadata['payment_type_id'] ?? null) : null;
-        }
-        if (empty($paymentTypeId)) {
-            throw new BadRequestHttpException('This invoice has no payment type service ID.');
-        }
-        $serviceId = $this->payments->serviceIdForPaymentType((int) $paymentTypeId);
-        $payload = $this->payments->buildGatewayPayload(
-            $studentContext,
-            (float) $invoice['deposit_amount'],
-            $reference,
-            $invoice['post_comment'] ?: 'eCitizen student fee payment',
-            $serviceId
-        );
-
-        return $this->render('checkout', [
-            'title' => $this->createPageTitle('Pay eCitizen invoice'),
-            'gatewayUrl' => $this->ecitizenParams()['url'],
-            'payload' => $payload,
-            'reference' => $reference,
-            'amount' => (float) $invoice['deposit_amount'],
-            'description' => $invoice['post_comment'] ?: 'eCitizen student fee payment',
-        ]);
     }
 
     public function actionCompletePayment(int $trans_id): Response

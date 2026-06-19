@@ -19,6 +19,9 @@ use yii\bootstrap5\Html;
         <div class="alert alert-info">
             Complete your payment on the embedded eCitizen screen below. Reference:
             <strong><?= Html::encode($reference) ?></strong>
+            <?php if (!empty($payload['serviceID'])): ?>
+                | Service ID: <strong><?= Html::encode($payload['serviceID']) ?></strong>
+            <?php endif; ?>
         </div>
 
         <form id="ecitizen-checkout-form" method="post" action="<?= Html::encode($gatewayUrl) ?>" target="ecitizen-checkout-frame">
