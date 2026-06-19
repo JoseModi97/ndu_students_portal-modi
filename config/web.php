@@ -154,6 +154,7 @@ $config = [
     'params' => $params,
     'modules' => [
         'gridview' => ['class' => 'kartik\grid\Module'],
+        'ecitizen' => require __DIR__ . '/../modules/ecitizen/config/module.php',
 	'refund-requests' => ['class' => 'app\modules\refund_requests\Module'],
     ],
 ];

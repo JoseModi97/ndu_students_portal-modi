@@ -179,6 +179,7 @@ function insertRefundBatch(\yii\db\Connection $db, string $schema, int $voucherN
             'total_amount' => $amount,
             'posted_by' => 'AUTO-POST',
             'posted_at' => $postedAt,
+            'status' => 'PENDING',
         ])
         ->execute();
 }
@@ -201,6 +202,7 @@ function postSide(\yii\db\Connection $db, string $schema, int $requestId, int $v
     $db->createCommand()
         ->update($schema . '.fss_refund_requests', [
             'approval_status' => 'APPROVED',
+            'refund_status' => 'REFUNDED',
             'voucher_no' => $voucherNo,
             'amount_approved' => $amount,
         ], ['request_id' => $requestId])

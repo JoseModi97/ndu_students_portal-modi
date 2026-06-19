@@ -98,12 +98,15 @@ class DefaultController extends BaseController
             ->one(Yii::$app->smisDb);
 
         $academicStatus = $smisStudentData['status'] ?? 'UNKNOWN';
+        $studentProgCurriculumId = !empty($smisStudentData['student_prog_curriculum_id'])
+            ? (int)$smisStudentData['student_prog_curriculum_id']
+            : null;
         $balance = $this->calculateFeeBalance($normalizedRegNo);
-        $cautionFeePaid = $this->calculateCautionFeePaid($normalizedRegNo);
-        $expectedCaution = $this->calculateExpectedCautionFee($normalizedRegNo);
+        $cautionFeePaid = $this->calculateCautionFeePaid($normalizedRegNo, $studentProgCurriculumId);
+        $expectedCaution = $this->calculateExpectedCautionFee($normalizedRegNo, $studentProgCurriculumId);
         $cautionTypeId = $this->refundTypeId('CAUTION');
-        $cautionReservedAmount = (!empty($smisStudentData['student_prog_curriculum_id']) && $cautionTypeId !== null)
-            ? $this->reservedRefundAmount((int)$smisStudentData['student_prog_curriculum_id'], $cautionTypeId)
+        $cautionReservedAmount = ($studentProgCurriculumId !== null && $cautionTypeId !== null)
+            ? $this->reservedRefundAmount($studentProgCurriculumId, $cautionTypeId)
             : 0;
         $cautionBaseAmount = ($cautionFeePaid >= $expectedCaution) ? $cautionFeePaid : ($this->module->overrideEligibility ? $expectedCaution : 0);
         $cautionRemainingAmount = max(0, $cautionBaseAmount - $cautionReservedAmount);
@@ -144,12 +147,7 @@ class DefaultController extends BaseController
             $eligible = false;
             $reason = 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' . $academicStatus;
         } elseif (!$module->overrideEligibility) {
-            if ($cautionFeePaid < $expectedCaution) {
-                $eligible = false;
-                $maxStr = Yii::$app->formatter->asCurrency($expectedCaution);
-                $paidStr = Yii::$app->formatter->asCurrency($cautionFeePaid);
-                $reason = "You have not fully paid the required CAUTION FEE. (Required: {$maxStr}, Paid: {$paidStr})";
-            } elseif ($balance > 0) {
+            if ($balance > 0) {
                 $eligible = false;
                 $balStr = Yii::$app->formatter->asCurrency($balance);
                 $reason = "You have an outstanding fee balance of {$balStr}. All balances must be cleared to apply.";
@@ -453,17 +451,9 @@ class DefaultController extends BaseController
      * @param string $regNumber Registration number (normalized)
      * @return float
      */
-    private function calculateExpectedCautionFee(string $regNumber): float
+    private function calculateExpectedCautionFee(string $regNumber, ?int $studentProgCurriculumId = null): float
     {
-        $normalizedRegNo = str_replace('-', '/', $regNumber);
-        return (float)(new \yii\db\Query())
-            ->from('smis.fss_fee_transactions')
-            ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
-            ->andWhere([
-                'trans_desc' => 'CAUTION MONEY',
-                'trans_type' => 'DR'
-            ])
-            ->sum('trans_amount', Yii::$app->smisDb);
+        return $this->sumCautionTransactions($regNumber, 'DR', $studentProgCurriculumId);
     }
 
     /**
@@ -471,37 +461,59 @@ class DefaultController extends BaseController
      * @param string $regNumber Registration number (can be with dashes or slashes)
      * @return float
      */
-    private function calculateCautionFeePaid(string $regNumber): float
+    private function calculateCautionFeePaid(string $regNumber, ?int $studentProgCurriculumId = null): float
     {
-        // Normalize registration number: convert dashes to slashes for DB consistency with SMIS
-        $normalizedRegNo = str_replace('-', '/', $regNumber);
+        return $this->sumCautionTransactions($regNumber, 'CR', $studentProgCurriculumId);
+    }
 
-        // First try explicit CAUTION MONEY CR transactions in SMIS
-        $totalPaid = (float)(new \yii\db\Query())
-            ->from('smis.fss_fee_transactions')
-            ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
-            ->andWhere([
-                'trans_desc' => 'CAUTION MONEY',
-                'trans_type' => 'CR'
-            ])
-            ->sum('trans_amount', Yii::$app->smisDb);
+    private function sumCautionTransactions(string $regNumber, string $transactionType, ?int $studentProgCurriculumId = null): float
+    {
+        $studentFilter = ['or'];
+        $academicProgressIds = $studentProgCurriculumId !== null
+            ? $this->academicProgressIds($studentProgCurriculumId)
+            : [];
 
-        // If no explicit caution payment found, check total credits in SMIS as fallback
-        // because Caution Money is a priority 1 fee and is covered by any general payment
-        if ($totalPaid <= 0) {
-            $totalCredits = (float)(new \yii\db\Query())
-                ->from('smis.fss_fee_transactions')
-                ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
-                ->andWhere(['trans_type' => 'CR'])
-                ->sum('trans_amount', Yii::$app->smisDb);
-
-            if ($totalCredits > 0) {
-                $expected = $this->calculateExpectedCautionFee($regNumber);
-                $totalPaid = min($expected, $totalCredits);
-            }
+        if (!empty($academicProgressIds)) {
+            $studentFilter[] = ['ft.academic_progress_id' => $academicProgressIds];
         }
 
-        return $totalPaid;
+        foreach ($this->registrationNumberVariants($regNumber) as $variant) {
+            $studentFilter[] = ['LIKE', 'ft.progress_code', $variant . '%', false];
+        }
+
+        if (count($studentFilter) === 1) {
+            return 0.0;
+        }
+
+        $sum = (new \yii\db\Query())
+            ->from('smis.fss_fee_transactions ft')
+            ->where(['ft.trans_type' => $transactionType])
+            ->andWhere($studentFilter)
+            ->andWhere(new \yii\db\Expression('TRIM(ft.trans_desc) = :cautionDescription'))
+            ->addParams([':cautionDescription' => 'CAUTION MONEY'])
+            ->sum('ft.trans_amount', Yii::$app->smisDb);
+
+        return (float)$sum;
+    }
+
+    private function academicProgressIds(int $studentProgCurriculumId): array
+    {
+        return array_map('intval', (new \yii\db\Query())
+            ->select('academic_progress_id')
+            ->from('smis.sm_academic_progress')
+            ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+            ->column(Yii::$app->smisDb));
+    }
+
+    private function registrationNumberVariants(string $regNumber): array
+    {
+        $regNumber = trim($regNumber);
+
+        return array_values(array_unique(array_filter([
+            $regNumber,
+            str_replace('-', '/', $regNumber),
+            str_replace('/', '-', $regNumber),
+        ])));
     }
 
 
@@ -596,7 +608,7 @@ class DefaultController extends BaseController
             && $this->hasActiveNonRefundedRequest((int)$check['student_prog_curriculum_id'], $refundedRequests);
 
         return $this->render('index', [
-            'mode' => ($check['eligible'] && !$hasExternalActiveRequest) ? 'eligibility' : 'not-eligible',
+            'mode' => $hasExternalActiveRequest ? 'not-eligible' : 'eligibility',
             'user' => $user,
             'eligible' => $check['eligible'] && !$hasExternalActiveRequest,
             'reason' => $hasExternalActiveRequest
@@ -637,7 +649,8 @@ class DefaultController extends BaseController
         foreach ($transactions as $transaction) {
             if ($transaction['trans_type'] === 'CR') {
                 $credits += $transaction['trans_amount'];
-            } elseif ($transaction['trans_type'] === 'DR') {
+            }
+            if ($transaction['trans_type'] === 'DR') {
                 $debits += $transaction['trans_amount'];
             }
         }

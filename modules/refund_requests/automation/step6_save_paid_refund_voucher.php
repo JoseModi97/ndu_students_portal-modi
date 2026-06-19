@@ -38,8 +38,7 @@ try {
     $transaction->commit();
 
     echo "SUCCESS: Voucher #{$voucherNo} was marked PAID.\n";
-    echo "Updated {$result['batches']} batch row(s) and {$result['requests']} refund request row(s).\n";
-    echo "Request {$requestId} refund_status is now REFUNDED.\n";
+    echo "Updated {$result['batches']} batch row(s).\n";
 } catch (\Throwable $e) {
     $transaction->rollBack();
     echo "ERROR: " . $e->getMessage() . "\n";
@@ -91,27 +90,7 @@ function savePaidRefundVoucherBatch(\yii\db\Connection $db, string $schema, arra
         ])
         ->execute();
 
-    $updatedRequests = $db->createCommand()
-        ->update($schema . '.fss_refund_requests', [
-            'approval_status' => 'APPROVED',
-            'refund_status' => 'REFUNDED',
-        ], [
-            'and',
-            ['voucher_no' => $eligibleVoucherNos],
-            [
-                'or',
-                ['refund_status' => null],
-                ['<>', 'refund_status', 'REFUNDED'],
-            ],
-        ])
-        ->execute();
-
-    if ($updatedRequests < 1) {
-        throw new \RuntimeException('No unpaid refund request rows were found for the selected batch.');
-    }
-
     return [
         'batches' => $updatedBatches,
-        'requests' => $updatedRequests,
     ];
 }

@@ -64,6 +64,8 @@ $isRefunded = $request && (
     || strtoupper((string)($officialRequest->refund_status ?? '')) === 'REFUNDED'
 );
 $headerSub = $mode === 'status' ? 'Application Tracking' : 'Eligibility & Application';
+$clearanceStatusJson = Json::htmlEncode(strtoupper((string)($user->clearance_status ?: 'PENDING')));
+$academicStatusJson = Json::htmlEncode(strtoupper((string)$academicStatus));
 
 // Initialize Popovers
 $this->registerJs("
@@ -90,11 +92,58 @@ $this->registerJs("
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
         var cautionReservedAmount = " . (float)$cautionReservedAmount . ";
         var cautionRemainingAmount = " . (float)$cautionRemainingAmount . ";
+        var feeBalance = " . (float)$balance . ";
         var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
+        var clearanceStatus = {$clearanceStatusJson};
+        var academicStatus = {$academicStatusJson};
         
         cautionSummary.hide();
         errorMsg.hide();
         selectField.css('border-color', 'var(--cr-blue-100)');
+
+        var currencyFormatter = new Intl.NumberFormat('en-KE', {
+            style: 'currency',
+            currency: 'KES',
+            minimumFractionDigits: 2
+        });
+
+        var appendWarning = function(errorMsg, warning) {
+            var source = warning.source || '';
+            var badgeColor = source === 'smisportal' ? '#0f766e' : (source === 'smis' ? '#1d4ed8' : '#7c3aed');
+            var line = $('<span>').css('display', 'block');
+            line.text(warning.message + ' ');
+            /*
+            if (source) {
+                $('<span>')
+                    .text(source)
+                    .css({
+                        'display': 'inline-block',
+                        'margin-left': '0.35rem',
+                        'padding': '0.1rem 0.4rem',
+                        'border-radius': '999px',
+                        'background': badgeColor,
+                        'color': '#fff',
+                        'font-size': '0.68rem',
+                        'font-weight': '800',
+                        'text-transform': 'uppercase'
+                    })
+                    .appendTo(line);
+            }
+            */
+            line.appendTo(errorMsg);
+        };
+
+        var disableSelection = function(messages) {
+            messages = Array.isArray(messages) ? messages : [messages];
+            applyBtn.attr('href', '#');
+            applyBtn.css({'opacity': '0.7'});
+            selectField.css('border-color', 'var(--cr-red)');
+            errorMsg.empty();
+            messages.forEach(function(message) {
+                appendWarning(errorMsg, message);
+            });
+            errorMsg.show();
+        };
 
         if (typeId) {
             if (refundedRequestTypeIds[typeId] || activeRequestTypeIds[typeId]) {
@@ -103,37 +152,58 @@ $this->registerJs("
                 return;
             }
 
+            var warnings = [];
+            if (clearanceStatus !== 'CLEARED') {
+                warnings.push({
+                    message: 'You must be CLEARED to apply for this refund type. Current status: ' + clearanceStatus + '.',
+                    source: 'smisportal'
+                });
+            }
+
+            if (academicStatus !== 'GRADUATED' && academicStatus !== 'COMPLETED') {
+                warnings.push({
+                    message: 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' + academicStatus + '.',
+                    source: 'smis'
+                });
+            }
+
+            if (feeBalance > 0 && !overrideEligibility) {
+                warnings.push({
+                    message: 'You have an outstanding fee balance of ' + currencyFormatter.format(feeBalance) + '. All balances must be cleared to apply.',
+                    source: 'smis'
+                });
+            }
+
             // Logic for Caution Refund
             if (typeText.includes('CAUTION')) {
                 var displayAmount = cautionRemainingAmount;
                 
                 if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
-                    applyBtn.attr('href', '#');
-                    applyBtn.css({'opacity': '0.7'});
-                    selectField.css('border-color', 'var(--cr-red)');
-                    errorMsg.text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
-                    return;
+                    warnings.push({
+                        message: 'You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.',
+                        source: 'smis'
+                    });
                 }
 
                 if (displayAmount <= 0) {
-                    applyBtn.attr('href', '#');
-                    applyBtn.css({'opacity': '0.7'});
-                    selectField.css('border-color', 'var(--cr-red)');
-                    errorMsg.text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
-                    return;
+                    warnings.push({
+                        message: 'You cannot apply for a Caution Refund because the refundable amount is zero.',
+                        source: 'smis/smisportal'
+                    });
                 }
-                
+            }
+
+            if (warnings.length > 0) {
+                disableSelection(warnings);
+                return;
+            }
+
+            if (typeText.includes('CAUTION')) {
+                var displayAmount = cautionRemainingAmount;
+
                 // Show dynamic summary for caution
-                $('#caution-amount-display').text(new Intl.NumberFormat('en-KE', { 
-                    style: 'currency', 
-                    currency: 'KES',
-                    minimumFractionDigits: 2
-                }).format(displayAmount));
-                $('#caution-reserved-display').text(new Intl.NumberFormat('en-KE', {
-                    style: 'currency',
-                    currency: 'KES',
-                    minimumFractionDigits: 2
-                }).format(cautionReservedAmount));
+                $('#caution-amount-display').text(currencyFormatter.format(displayAmount));
+                $('#caution-reserved-display').text(currencyFormatter.format(cautionReservedAmount));
                 
                 cautionSummary.fadeIn();
             }
@@ -153,7 +223,48 @@ $this->registerJs("
         var cautionFeePaid = " . (float)$cautionFeePaid . ";
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
         var cautionRemainingAmount = " . (float)$cautionRemainingAmount . ";
+        var feeBalance = " . (float)$balance . ";
         var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
+        var clearanceStatus = {$clearanceStatusJson};
+        var academicStatus = {$academicStatusJson};
+        var currencyFormatter = new Intl.NumberFormat('en-KE', {
+            style: 'currency',
+            currency: 'KES',
+            minimumFractionDigits: 2
+        });
+        var appendWarning = function(errorMsg, warning) {
+            var source = warning.source || '';
+            var badgeColor = source === 'smisportal' ? '#0f766e' : (source === 'smis' ? '#1d4ed8' : '#7c3aed');
+            var line = $('<span>').css('display', 'block');
+            line.text(warning.message + ' ');
+            /*
+            if (source) {
+                $('<span>')
+                    .text(source)
+                    .css({
+                        'display': 'inline-block',
+                        'margin-left': '0.35rem',
+                        'padding': '0.1rem 0.4rem',
+                        'border-radius': '999px',
+                        'background': badgeColor,
+                        'color': '#fff',
+                        'font-size': '0.68rem',
+                        'font-weight': '800',
+                        'text-transform': 'uppercase'
+                    })
+                    .appendTo(line);
+            }
+            */
+            line.appendTo(errorMsg);
+        };
+        var showWarnings = function(messages) {
+            var errorMsg = $('#type-error-msg');
+            errorMsg.empty();
+            messages.forEach(function(message) {
+                appendWarning(errorMsg, message);
+            });
+            errorMsg.show();
+        };
 
         if (!typeId) {
             $('.dash-refund-type').css('border-color', 'var(--cr-red)').focus();
@@ -167,17 +278,50 @@ $this->registerJs("
             return;
         }
 
+        var warnings = [];
+        if (clearanceStatus !== 'CLEARED') {
+            warnings.push({
+                message: 'You must be CLEARED to apply for this refund type. Current status: ' + clearanceStatus + '.',
+                source: 'smisportal'
+            });
+        }
+
+        if (academicStatus !== 'GRADUATED' && academicStatus !== 'COMPLETED') {
+            warnings.push({
+                message: 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' + academicStatus + '.',
+                source: 'smis'
+            });
+        }
+
+        if (feeBalance > 0 && !overrideEligibility) {
+            warnings.push({
+                message: 'You have an outstanding fee balance of ' + currencyFormatter.format(feeBalance) + '. All balances must be cleared to apply.',
+                source: 'smis'
+            });
+        }
+
         if (typeText.includes('CAUTION')) {
             var displayAmount = cautionRemainingAmount;
             if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
-                $('#type-error-msg').text('You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.').show();
-                return;
-            } else if (displayAmount <= 0) {
-                $('#type-error-msg').text('You cannot apply for a Caution Refund because the refundable amount is zero.').show();
-                return;
+                warnings.push({
+                    message: 'You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.',
+                    source: 'smis'
+                });
+            }
+            if (displayAmount <= 0) {
+                warnings.push({
+                    message: 'You cannot apply for a Caution Refund because the refundable amount is zero.',
+                    source: 'smis/smisportal'
+                });
             }
             $('#apply-post-amount').val(displayAmount);
         }
+
+        if (warnings.length > 0) {
+            showWarnings(warnings);
+            return;
+        }
+
         $('#apply-post-type').val(typeId);
         $('#apply-post-form').submit();
     });
@@ -367,8 +511,8 @@ $this->registerJs("
                     <div class="cr-section">
                         <?php if ($mode === 'eligibility'): ?>
                             <div class="cr-notice">
-                                <p class="cr-notice__title">Congratulations!</p>
-                                <p style="font-size:0.9rem; color:var(--cr-slate-700);">You meet all the requirements for a refund request. You can now proceed to fill out the application form.</p>
+                                <p class="cr-notice__title">Select Refund Type</p>
+                                <p style="font-size:0.9rem; color:var(--cr-slate-700);">Choose a refund type to check the applicable requirements before proceeding.</p>
                             </div>
 
                             <div style="margin-top: 2rem; border-top: 1px solid var(--cr-blue-50); padding-top: 1.5rem;">

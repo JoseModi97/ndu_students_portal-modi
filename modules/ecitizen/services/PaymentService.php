@@ -13,6 +13,10 @@ use yii\web\ServerErrorHttpException;
 class PaymentService
 {
     public const PAYMENT_MODE_ID = 12;
+    public const SYNC_PENDING = 0;
+    public const SYNC_DONE = 1;
+    public const SYNC_FAILED = 2;
+    private const PORTAL_ECITIZEN_TRANS_ID_OFFSET = 900000000000;
 
     private Connection $db;
 
@@ -95,9 +99,119 @@ class PaymentService
 
     public function paymentTypes(): array
     {
+        $serviceCodes = array_keys($this->serviceCatalog());
+        $placeholders = [];
+        $params = [];
+        foreach ($serviceCodes as $index => $paymentTypeId) {
+            $placeholder = ':payment_type_' . $index;
+            $placeholders[] = $placeholder;
+            $params[$placeholder] = $paymentTypeId;
+        }
+
         return $this->db->createCommand(
-            'select payment_type_id, payment_desc from smis.fss_payment_types order by payment_type_id'
+            'select payment_type_id, payment_desc
+               from smis.fss_payment_types
+              where payment_type_id in (' . implode(', ', $placeholders) . ')
+              order by array_position(
+                  array[' . implode(', ', $serviceCodes) . ']::bigint[],
+                  payment_type_id
+              )',
+            $params
         )->queryAll();
+    }
+
+    public function serviceIdForPaymentType(int $paymentTypeId): string
+    {
+        $catalog = $this->serviceCatalog();
+        if (!isset($catalog[$paymentTypeId])) {
+            throw new InvalidConfigException('The selected payment type has no service ID in NDU SERVICE CODES.xlsx.');
+        }
+
+        return (string) $paymentTypeId;
+    }
+
+    /**
+     * @return array<int, string> service code => service description
+     */
+    public function serviceCatalog(): array
+    {
+        static $catalog;
+        if ($catalog !== null) {
+            return $catalog;
+        }
+
+        $path = dirname(__DIR__) . '/NDU SERVICE CODES.xlsx';
+        if (!is_file($path)) {
+            throw new InvalidConfigException('NDU service codes workbook was not found in the eCitizen module.');
+        }
+
+        $archive = new \ZipArchive();
+        if ($archive->open($path) !== true) {
+            throw new InvalidConfigException('NDU service codes workbook could not be opened.');
+        }
+
+        try {
+            $sharedStringsXml = $archive->getFromName('xl/sharedStrings.xml');
+            $sheetXml = $archive->getFromName('xl/worksheets/sheet1.xml');
+            if ($sharedStringsXml === false || $sheetXml === false) {
+                throw new InvalidConfigException('NDU service codes workbook has an invalid worksheet structure.');
+            }
+
+            $sharedDocument = new \DOMDocument();
+            $sheetDocument = new \DOMDocument();
+            if (!@$sharedDocument->loadXML($sharedStringsXml) || !@$sheetDocument->loadXML($sheetXml)) {
+                throw new InvalidConfigException('NDU service codes workbook contains invalid XML.');
+            }
+
+            $sharedXPath = new \DOMXPath($sharedDocument);
+            $sharedXPath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $sharedStrings = [];
+            foreach ($sharedXPath->query('//x:si') as $item) {
+                $value = '';
+                foreach ($sharedXPath->query('.//x:t', $item) as $textNode) {
+                    $value .= $textNode->nodeValue;
+                }
+                $sharedStrings[] = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            }
+
+            $sheetXPath = new \DOMXPath($sheetDocument);
+            $sheetXPath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $catalog = [];
+            foreach ($sheetXPath->query('//x:sheetData/x:row[position() > 1]') as $row) {
+                $service = null;
+                $serviceCode = null;
+                foreach ($sheetXPath->query('./x:c', $row) as $cell) {
+                    $column = substr($cell->getAttribute('r'), 0, 1);
+                    $valueNode = $sheetXPath->query('./x:v', $cell)->item(0);
+                    if ($valueNode === null) {
+                        continue;
+                    }
+
+                    $value = $valueNode->nodeValue;
+                    if ($cell->getAttribute('t') === 's') {
+                        $value = $sharedStrings[(int) $value] ?? '';
+                    }
+
+                    if ($column === 'A') {
+                        $service = trim((string) $value);
+                    } elseif ($column === 'B') {
+                        $serviceCode = filter_var($value, FILTER_VALIDATE_INT);
+                    }
+                }
+
+                if ($service !== null && $service !== '' && $serviceCode !== false && $serviceCode !== null) {
+                    $catalog[$serviceCode] ??= $service;
+                }
+            }
+        } finally {
+            $archive->close();
+        }
+
+        if ($catalog === []) {
+            throw new InvalidConfigException('NDU service codes workbook contains no services.');
+        }
+
+        return $catalog;
     }
 
     public function bankAccounts(): array
@@ -196,22 +310,30 @@ class PaymentService
                     \"amountExpected\" as deposit_amount,
                     registration_number as reg_number,
                     registration_number,
-                    status as post_status,
+                    case when status = 'Paid' then 'Credited' else status end as post_status,
                     \"billDesc\" as post_comment,
                     null as receipt_no,
                     :payment_mode_id as pay_mode,
                     \"billRefNumber\" as trans_reference,
                     \"billRefNumber\" as source_reference,
+                    response,
                     trans_date as last_update,
-                    0 as has_fee_payment
+                    case when exists (
+                        select 1
+                          from smisportal.fss_fee_transactions ft
+                         where ft.trans_id = (:portal_trans_id_offset + e.payment_id)
+                           and ft.trans_type = 'CR'
+                    ) then 1 else 0 end as has_fee_payment
                from smisportal.ecitizen
+               as e
               where payment_id = :payment_id
                 and registration_number = :registration_number
-                and coalesce(status, 'Pending') = 'Pending'",
+                and coalesce(status, 'Pending') in ('Pending', 'Paid', 'Credited', 'Settled')",
             [
                 ':payment_id' => $transId,
                 ':registration_number' => $registrationNumber,
                 ':payment_mode_id' => self::PAYMENT_MODE_ID,
+                ':portal_trans_id_offset' => self::PORTAL_ECITIZEN_TRANS_ID_OFFSET,
             ]
         )->queryOne();
 
@@ -226,21 +348,27 @@ class PaymentService
                     \"amountExpected\" as deposit_amount,
                     registration_number as reg_number,
                     registration_number,
-                    status as post_status,
+                    case when status = 'Paid' then 'Credited' else status end as post_status,
                     \"billDesc\" as post_comment,
                     null as receipt_no,
                     :payment_mode_id as pay_mode,
                     \"billRefNumber\" as trans_reference,
                     \"billRefNumber\" as source_reference,
                     trans_date as last_update,
-                    0 as has_fee_payment
+                    case when exists (
+                        select 1
+                          from smisportal.fss_fee_transactions ft
+                         where ft.trans_id = (:portal_trans_id_offset + e.payment_id)
+                           and ft.trans_type = 'CR'
+                    ) then 1 else 0 end as has_fee_payment
                from smisportal.ecitizen e
               where registration_number = :registration_number
-                and coalesce(status, 'Pending') = 'Pending'
+                and coalesce(status, 'Pending') in ('Pending', 'Paid', 'Credited', 'Settled')
               order by payment_id desc",
             [
                 ':registration_number' => $registrationNumber,
                 ':payment_mode_id' => self::PAYMENT_MODE_ID,
+                ':portal_trans_id_offset' => self::PORTAL_ECITIZEN_TRANS_ID_OFFSET,
             ]
         )->queryAll();
 
@@ -440,6 +568,7 @@ class PaymentService
         array $bankAccount,
         float $amount,
         int $paymentTypeId,
+        string $serviceId,
         string $narration
     ): array {
         $reference = $this->buildReference($studentContext['registrationNumber']);
@@ -449,6 +578,7 @@ class PaymentService
         $clientName = trim(($student['surname'] ?? '') . ' ' . ($student['other_names'] ?? ''));
         $metadata = [
             'payment_type_id' => $paymentTypeId,
+            'service_id' => $serviceId,
             'bank_account_id' => $bankAccount['brank_account_id'] ?? null,
             'account_no' => $bankAccount['account_no'] ?? null,
             'branch_code' => $bankAccount['branch_code'] ?? null,
@@ -486,7 +616,7 @@ class PaymentService
                     ':bill_desc' => substr($narration, 0, 100),
                     ':bill_ref_number' => $reference,
                     ':currency' => $config['currency'],
-                    ':service_id' => $config['serviceID'],
+                    ':service_id' => $serviceId,
                     ':client_msisdn' => $student['primary_phone_no'] ?: ($identity->primary_phone_no ?? null),
                     ':client_name' => $clientName,
                     ':client_id_number' => $student['id_no'] ?: $student['passport_no'] ?: ($identity->national_id ?? null) ?: ($identity->passport_no ?? null) ?: $studentContext['registrationNumber'],
@@ -509,19 +639,128 @@ class PaymentService
         }
     }
 
+    public function queuePaidRequestForSync(
+        string $reference,
+        float $amount,
+        string $paymentDate,
+        string $gatewayReference,
+        array $payload = []
+    ): array {
+        $portalDb = $this->portalDb();
+        $transaction = $portalDb->beginTransaction();
+        try {
+            $request = $portalDb->createCommand(
+                'select *
+                   from smisportal.ecitizen
+                  where "billRefNumber" = :reference
+                  order by payment_id desc
+                  limit 1',
+                [':reference' => $reference]
+            )->queryOne();
+
+            if (!$request) {
+                throw new NotFoundHttpException('Payment request not found.');
+            }
+
+            $expectedAmount = round((float) $request['amountExpected'], 2);
+            if (abs($expectedAmount - round($amount, 2)) > 0.01) {
+                throw new ServerErrorHttpException('The paid amount does not match the requested amount.');
+            }
+
+            $metadata = json_decode((string) ($request['response'] ?? ''), true);
+            $metadata = is_array($metadata) ? $metadata : [];
+            $metadata['gateway_reference'] = $gatewayReference;
+            $metadata['paid_amount'] = $amount;
+            $metadata['payment_date'] = $paymentDate;
+            if ($payload !== []) {
+                $metadata['notification_payload'] = $payload;
+            }
+
+            $this->lockPosting($portalDb, $reference);
+
+            if ((int) ($request['sync_status'] ?? self::SYNC_PENDING) === self::SYNC_DONE) {
+                $this->creditPortalFeeStatement($portalDb, $request, $amount, $paymentDate, $gatewayReference, $metadata);
+                $transaction->commit();
+
+                return [
+                    'payment_id' => (int) $request['payment_id'],
+                    'reference' => $reference,
+                ];
+            }
+
+            $portalDb->createCommand("set local smisportal.ecitizen_app_write = '1'")->execute();
+            $portalDb->createCommand()->update('smisportal.ecitizen', [
+                'status' => 'Credited',
+                'paid_amount' => $amount,
+                'payment_date' => $paymentDate,
+                'gateway_reference' => substr($gatewayReference ?: $reference, 0, 100),
+                'response' => json_encode($metadata),
+                'sync_status' => self::SYNC_PENDING,
+                'sync_error' => null,
+                'last_synced_at' => null,
+            ], ['payment_id' => $request['payment_id']])->execute();
+
+            $this->creditPortalFeeStatement($portalDb, $request, $amount, $paymentDate, $gatewayReference, $metadata);
+
+            $transaction->commit();
+
+            return [
+                'payment_id' => (int) $request['payment_id'],
+                'reference' => $reference,
+            ];
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
+        }
+    }
+
+    public function pendingPaidRequestsForSync(int $limit = 50): array
+    {
+        return $this->portalDb()->createCommand(
+            'select *
+               from smisportal.ecitizen
+              where coalesce(status, :pending_status) in (:paid_status, :credited_status)
+                and sync_status = :sync_status
+              order by payment_id asc
+              limit ' . (int) $limit,
+            [
+                ':pending_status' => 'Pending',
+                ':paid_status' => 'Paid',
+                ':credited_status' => 'Credited',
+                ':sync_status' => self::SYNC_PENDING,
+            ]
+        )->queryAll();
+    }
+
+    public function markSyncFailed(string $reference, string $message): void
+    {
+        $portalDb = $this->portalDb();
+        $transaction = $portalDb->beginTransaction();
+        try {
+            $portalDb->createCommand("set local smisportal.ecitizen_app_write = '1'")->execute();
+            $portalDb->createCommand()->update('smisportal.ecitizen', [
+                'sync_status' => self::SYNC_FAILED,
+                'sync_error' => substr($message, 0, 1000),
+            ], ['billRefNumber' => $reference])->execute();
+            $transaction->commit();
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            Yii::warning('Unable to mark eCitizen sync failed for ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+        }
+    }
+
     public function postPaidBankingSlip(string $reference, float $amount, string $paymentDate, string $gatewayReference): int
     {
+        $this->assertConsoleSmisWriteContext();
+
         $slip = $this->db->createCommand(
             'select * from smis.fss_banking_slips where source_reference = :reference or trans_reference = :reference order by trans_id desc limit 1',
             [':reference' => $reference]
         )->queryOne();
 
-        $pendingRequest = null;
-        if (!$slip) {
-            $pendingRequest = $this->pendingRequestByReference($reference);
-            if (!$pendingRequest) {
-                throw new NotFoundHttpException('Payment request not found.');
-            }
+        $pendingRequest = $this->pendingRequestByReference($reference);
+        if (!$slip && !$pendingRequest) {
+            throw new NotFoundHttpException('Payment request not found.');
         }
 
         $expectedAmount = $slip ? (float) $slip['deposit_amount'] : (float) $pendingRequest['amountExpected'];
@@ -529,9 +768,20 @@ class PaymentService
             throw new ServerErrorHttpException('The paid amount does not match the requested amount.');
         }
 
+        if ($pendingRequest) {
+            $portalExpectedAmount = round((float) $pendingRequest['amountExpected'], 2);
+            if (abs($portalExpectedAmount - round($amount, 2)) > 0.01) {
+                throw new ServerErrorHttpException('The paid amount does not match the requested amount.');
+            }
+
+            $this->queuePaidRequestForSync($reference, $amount, $paymentDate, $gatewayReference);
+            $pendingRequest = $this->pendingRequestByReference($reference) ?: $pendingRequest;
+        }
+
         $transaction = $this->db->beginTransaction();
 
         try {
+            $this->lockPosting($this->db, $reference);
             if (!$slip) {
                 $slip = $this->createSettledBankingSlip($pendingRequest, $paymentDate, $gatewayReference);
             }
@@ -540,16 +790,22 @@ class PaymentService
             $this->db->createCommand()->update('smis.fss_banking_slips', [
                 'deposit_date' => $paymentDate,
                 'process_date' => date('Y-m-d'),
-                'post_status' => 'NOT POSTED',
+                'post_status' => 'POSTED',
                 'post_comment' => substr($paymentDescription, 0, 20),
                 'trans_reference' => substr($gatewayReference ?: $reference, 0, 50),
                 'last_update' => new \yii\db\Expression('now()'),
             ], ['trans_id' => $slip['trans_id']])->execute();
 
+            $slip = $this->db->createCommand(
+                'select * from smis.fss_banking_slips where trans_id = :trans_id',
+                [':trans_id' => $slip['trans_id']]
+            )->queryOne();
+
             $this->ensureFeeTransactionDescription($slip, $amount, $paymentDate, $paymentDescription);
+            $this->ensureSmisFeePayment($slip, $amount, $paymentDate);
 
             $transaction->commit();
-            $this->markPendingRequestSettled($reference, $gatewayReference);
+            $this->markPendingRequestSettled($reference, $gatewayReference, (int) $slip['trans_id']);
             return (int) $slip['trans_id'];
         } catch (\Throwable $exception) {
             $transaction->rollBack();
@@ -560,12 +816,22 @@ class PaymentService
     public function gatewayConfig(): array
     {
         $config = $this->params();
-        foreach (['apiClientID', 'apiKey', 'secret', 'serviceID', 'url', 'currency'] as $key) {
+        foreach (['apiClientID', 'apiKey', 'secret', 'url', 'currency'] as $key) {
             if (empty($config[$key])) {
                 throw new InvalidConfigException("Missing eCitizen configuration value: {$key}.");
             }
         }
         return $config;
+    }
+
+    private function assertConsoleSmisWriteContext(): void
+    {
+        if (Yii::$app instanceof \yii\console\Application) {
+            return;
+        }
+
+        Yii::error('Blocked web-context attempt to post eCitizen payment directly into SMIS.', 'ecitizen.payment');
+        throw new ServerErrorHttpException('SMIS posting is only available through the synchronization worker.');
     }
 
     private function pendingRequestByReference(string $reference): ?array
@@ -574,16 +840,89 @@ class PaymentService
             'select *
                from smisportal.ecitizen
               where "billRefNumber" = :reference
-                and coalesce(status, :pending) = :pending
+                and coalesce(status, :pending) in (:pending, :paid, :credited, :settled)
               order by payment_id desc
               limit 1',
             [
                 ':reference' => $reference,
                 ':pending' => 'Pending',
+                ':paid' => 'Paid',
+                ':credited' => 'Credited',
+                ':settled' => 'Settled',
             ]
         )->queryOne();
 
         return $request ?: null;
+    }
+
+    private function creditPortalFeeStatement(
+        Connection $portalDb,
+        array $request,
+        float $amount,
+        string $paymentDate,
+        string $gatewayReference,
+        array $metadata
+    ): void {
+        $paymentId = (int) $request['payment_id'];
+        $transId = $this->portalCreditTransId($paymentId);
+        $existingCredit = $portalDb->createCommand(
+            'select 1 from smisportal.fss_fee_transactions where trans_id = :trans_id and trans_type = :trans_type',
+            [
+                ':trans_id' => $transId,
+                ':trans_type' => 'CR',
+            ]
+        )->queryScalar();
+
+        $registrationNumber = (string) $request['registration_number'];
+        $context = $this->portalStudentContextByRegistrationNumber($registrationNumber);
+        $description = substr((string) ($request['billDesc'] ?? 'eCitizen student fee payment'), 0, 150);
+        $userId = (string) ($metadata['user_id'] ?? $registrationNumber);
+        $progressCode = $this->progressCodeFor($portalDb, 'smisportal', $registrationNumber, (int) $context['academicProgress']['acad_session_id']);
+
+        if (!$existingCredit) {
+            $portalDb->createCommand()->insert('smisportal.fss_fee_transactions', [
+                'trans_id' => $transId,
+                'academic_progress_id' => $context['academicProgress']['academic_progress_id'],
+                'trans_date' => $paymentDate,
+                'trans_type' => 'CR',
+                'trans_amount' => $amount,
+                'trans_desc' => $description,
+                'user_id' => $userId,
+                'receipt_status' => '',
+                'exchange_rate' => 1,
+                'progress_code' => $progressCode,
+                'sync_status' => false,
+                'student_semester_session_id' => $this->studentSemesterSessionId($portalDb, 'smisportal', (int) $context['academicProgress']['academic_progress_id']),
+            ])->execute();
+        }
+
+        $existingPayment = $portalDb->createCommand(
+            'select 1 from smisportal.fss_fee_payments where trans_id = :trans_id',
+            [':trans_id' => $transId]
+        )->queryScalar();
+
+        $collectionPointId = $metadata['bank_id'] ?? null;
+        if ($existingPayment || $collectionPointId === null || $collectionPointId === '') {
+            return;
+        }
+
+        $portalDb->createCommand()->insert('smisportal.fss_fee_payments', [
+            'fee_paymt_id' => $transId,
+            'receipt_no' => $this->receiptNumber($gatewayReference, (string) $request['billRefNumber']),
+            'trans_date' => $paymentDate,
+            'trans_amount' => $amount,
+            'pay_mode' => self::PAYMENT_MODE_ID,
+            'collection_point_id' => (int) $collectionPointId,
+            'user_id' => $userId,
+            'entry_date' => date('Y-m-d'),
+            'trans_id' => $transId,
+            'academic_session' => '',
+            'authorized_by' => $userId,
+            'authorized_date' => date('Y-m-d'),
+            'receipt_status' => '',
+            'exchange_rate' => 1,
+            'student_prog_curriculum_id' => $context['programme']['student_prog_curriculum_id'],
+        ])->execute();
     }
 
     private function createSettledBankingSlip(array $request, string $paymentDate, string $gatewayReference): array
@@ -633,7 +972,7 @@ class PaymentService
         )->queryOne();
     }
 
-    private function markPendingRequestSettled(string $reference, string $gatewayReference): void
+    private function markPendingRequestSettled(string $reference, string $gatewayReference, int $transId): void
     {
         $portalDb = $this->portalDb();
         $transaction = $portalDb->beginTransaction();
@@ -650,11 +989,17 @@ class PaymentService
             $portalDb->createCommand(
                 'update smisportal.ecitizen
                     set status = :status,
-                        response = :response
+                        response = :response,
+                        synced_trans_id = :synced_trans_id,
+                        sync_status = :sync_status,
+                        sync_error = null,
+                        last_synced_at = now()
                   where "billRefNumber" = :reference',
                 [
                     ':status' => 'Settled',
                     ':response' => json_encode($metadata),
+                    ':synced_trans_id' => $transId,
+                    ':sync_status' => self::SYNC_DONE,
                     ':reference' => $reference,
                 ]
             )->execute();
@@ -695,13 +1040,157 @@ class PaymentService
             'exchange_rate' => 1,
             'progress_code' => $progressCode,
             'sync_status' => false,
+            'student_semester_session_id' => $this->studentSemesterSessionId($this->db, 'smis', (int) $academicProgress['academic_progress_id']),
         ])->execute();
+    }
+
+    private function ensureSmisFeePayment(array $slip, float $amount, string $paymentDate): void
+    {
+        $existingPayment = $this->db->createCommand(
+            'select * from smis.fss_fee_payments where trans_id = :trans_id',
+            [':trans_id' => $slip['trans_id']]
+        )->queryOne();
+
+        if ($existingPayment) {
+            if (empty($slip['receipt_no']) && !empty($existingPayment['receipt_no']) && ctype_digit((string) $existingPayment['receipt_no'])) {
+                $this->db->createCommand()->update('smis.fss_banking_slips', [
+                    'receipt_no' => (int) $existingPayment['receipt_no'],
+                    'post_status' => 'POSTED',
+                    'last_update' => new \yii\db\Expression('now()'),
+                ], ['trans_id' => $slip['trans_id']])->execute();
+            }
+            return;
+        }
+
+        if (empty($slip['bank_id'])) {
+            throw new ServerErrorHttpException('The eCitizen banking slip is missing a collection point.');
+        }
+
+        $studentContext = $this->studentContextByRegistrationNumber((string) $slip['reg_number']);
+        $receiptNo = $this->ensureSmisReceiptNo($slip);
+        $userId = (string) ($slip['user_id'] ?? $slip['reg_number'] ?? '');
+
+        $this->db->createCommand()->insert('smis.fss_fee_payments', [
+            'receipt_no' => (string) $receiptNo,
+            'trans_date' => $paymentDate,
+            'trans_amount' => $amount,
+            'pay_mode' => self::PAYMENT_MODE_ID,
+            'collection_point_id' => (int) $slip['bank_id'],
+            'user_id' => $userId,
+            'entry_date' => date('Y-m-d'),
+            'trans_id' => (int) $slip['trans_id'],
+            'academic_session' => '',
+            'authorized_by' => $userId,
+            'authorized_date' => date('Y-m-d'),
+            'receipt_status' => '',
+            'exchange_rate' => 1,
+            'student_prog_curriculum_id' => $studentContext['programme']['student_prog_curriculum_id'],
+        ])->execute();
+
+        $this->db->createCommand()->update('smis.fss_banking_slips', [
+            'receipt_no' => $receiptNo,
+            'post_status' => 'POSTED',
+            'last_update' => new \yii\db\Expression('now()'),
+        ], ['trans_id' => $slip['trans_id']])->execute();
+    }
+
+    private function ensureSmisReceiptNo(array $slip): int
+    {
+        if (!empty($slip['receipt_no'])) {
+            return (int) $slip['receipt_no'];
+        }
+
+        $lastValue = (int) $this->db->createCommand(
+            'select coalesce(max(last_value), 0) from smis.fss_receipt_counter'
+        )->queryScalar();
+        $nextValue = $lastValue + 1;
+
+        $this->db->createCommand()->insert('smis.fss_receipt_counter', [
+            'last_value' => $nextValue,
+        ])->execute();
+
+        $this->db->createCommand()->update('smis.fss_banking_slips', [
+            'receipt_no' => $nextValue,
+        ], ['trans_id' => $slip['trans_id']])->execute();
+
+        return $nextValue;
+    }
+
+    private function portalStudentContextByRegistrationNumber(string $registrationNumber): array
+    {
+        $portalDb = $this->portalDb();
+        $programme = $portalDb->createCommand(
+            'select * from smisportal.sm_student_programme_curriculum where registration_number = :registration_number order by student_prog_curriculum_id desc limit 1',
+            [':registration_number' => $registrationNumber]
+        )->queryOne();
+        $academicProgress = $portalDb->createCommand(
+            'select * from smisportal.sm_academic_progress where student_prog_curriculum_id = :student_prog_curriculum_id order by academic_progress_id desc limit 1',
+            [':student_prog_curriculum_id' => $programme['student_prog_curriculum_id'] ?? null]
+        )->queryOne();
+
+        if (!$programme || !$academicProgress) {
+            throw new NotFoundHttpException('Student portal fee posting records could not be resolved.');
+        }
+
+        return [
+            'registrationNumber' => $registrationNumber,
+            'programme' => $programme,
+            'academicProgress' => $academicProgress,
+        ];
+    }
+
+    private function studentSemesterSessionId(Connection $db, string $schema, int $academicProgressId): ?int
+    {
+        try {
+            $id = $db->createCommand(
+                "select student_semester_session_id from {$schema}.sm_student_sem_session_progress where academic_progress_id = :academic_progress_id order by student_semester_session_id desc limit 1",
+                [':academic_progress_id' => $academicProgressId]
+            )->queryScalar();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $id === false || $id === null ? null : (int) $id;
+    }
+
+    private function portalCreditTransId(int $paymentId): int
+    {
+        return self::PORTAL_ECITIZEN_TRANS_ID_OFFSET + $paymentId;
+    }
+
+    private function smisEcitizenPaymentId(int $transId): int
+    {
+        return self::PORTAL_ECITIZEN_TRANS_ID_OFFSET + $transId;
+    }
+
+    private function lockPosting(Connection $db, string $reference): void
+    {
+        $db->createCommand(
+            'select pg_advisory_xact_lock(hashtext(:lock_key))',
+            [':lock_key' => 'ecitizen-payment-' . $reference]
+        )->execute();
+    }
+
+    private function nextNumericValue(Connection $db, string $table, string $column): int
+    {
+        return ((int) $db->createCommand("select coalesce(max({$column}), 0) + 1 from {$table}")->queryScalar());
+    }
+
+    private function receiptNumber(string $gatewayReference, string $fallback): string
+    {
+        $receiptNo = trim($gatewayReference) !== '' ? $gatewayReference : $fallback;
+        return substr($receiptNo, 0, 30);
     }
 
     private function progressCode(string $registrationNumber, int $academicSessionId): string
     {
-        $sessionName = $this->db->createCommand(
-            'select acad_session_name from smis.org_academic_session where acad_session_id = :acad_session_id',
+        return $this->progressCodeFor($this->db, 'smis', $registrationNumber, $academicSessionId);
+    }
+
+    private function progressCodeFor(Connection $db, string $schema, string $registrationNumber, int $academicSessionId): string
+    {
+        $sessionName = $db->createCommand(
+            "select acad_session_name from {$schema}.org_academic_session where acad_session_id = :acad_session_id",
             [':acad_session_id' => $academicSessionId]
         )->queryScalar();
 
@@ -713,6 +1202,7 @@ class PaymentService
         float $amount,
         string $reference,
         string $description,
+        string $serviceId,
         ?string $phoneNumber = null
     ): array
     {
@@ -726,7 +1216,7 @@ class PaymentService
 
         $payload = [
             'apiClientID' => $config['apiClientID'],
-            'serviceID' => $config['serviceID'],
+            'serviceID' => $serviceId,
             'billRefNumber' => $reference,
             'billDesc' => substr($description, 0, 100),
             'clientMSISDN' => $clientPhone,
@@ -819,7 +1309,7 @@ class PaymentService
 
     private function formatAmount(float $amount): string
     {
-        return rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.');
+        return number_format($amount, 2, '.', '');
     }
 
     public function queryPaymentStatus(string $reference): array

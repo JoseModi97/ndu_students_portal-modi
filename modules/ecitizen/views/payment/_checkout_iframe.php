@@ -36,6 +36,11 @@ use yii\bootstrap5\Html;
                 'class' => 'btn btn-outline-primary',
                 'form' => 'ecitizen-checkout-form',
             ]) ?>
+            <?= Html::submitButton('Open Checkout in New Tab', [
+                'class' => 'btn btn-outline-secondary ms-2',
+                'form' => 'ecitizen-checkout-form',
+                'formtarget' => '_blank',
+            ]) ?>
         </div>
     </div>
 </div>

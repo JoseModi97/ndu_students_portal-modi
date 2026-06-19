@@ -2,6 +2,7 @@
 
 use yii\bootstrap5\ActiveForm;
 use yii\bootstrap5\Html;
+use kartik\select2\Select2;
 
 /**
  * @var yii\web\View $this
@@ -160,9 +161,15 @@ JS);
                             'required' => true,
                         ]) ?>
 
-                        <?= $form->field($model, 'payment_type_id')->dropDownList($paymentTypes, [
-                            'prompt' => 'Select payment type',
-                            'required' => true,
+                        <?= $form->field($model, 'payment_type_id')->widget(Select2::class, [
+                            'data' => $paymentTypes,
+                            'options' => [
+                                'placeholder' => 'Select payment type',
+                                'required' => true,
+                            ],
+                            'pluginOptions' => [
+                                'allowClear' => true,
+                            ],
                         ]) ?>
 
                         <?php if (!empty($configuredBankAccountId)): ?>

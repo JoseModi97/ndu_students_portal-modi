@@ -85,7 +85,7 @@ php modules\refund_requests\automation\step4_finalize.php
 
 ### 7. `step5_post_caution_refund.php`
 
-Posts the latest fully approved, unposted `CAUTION` request for the target student on SMIS only. This creates one `smis.fss_refund_batches` row with `posted_by` and `posted_at` set while `status` and `date_paid` are left empty for the payment interface, creates the caution DR/CR fee transactions in `smis.fss_fee_transactions`, updates prior `smis.fss_cancelled_vouchers` rows for the same `request_id` to the final voucher number when that column exists, and updates only `smis.fss_refund_requests.approval_status`, `voucher_no`, and `amount_approved`. Posting does not set `refund_status = REFUNDED`; `voucher_no` is the posted marker.
+Posts the latest fully approved, unposted `CAUTION` request for the target student on SMIS only. This creates one `smis.fss_refund_batches` row with `posted_by` and `posted_at` set, `status = PENDING`, and an empty `date_paid`; creates the caution DR/CR fee transactions in `smis.fss_fee_transactions`; updates prior `smis.fss_cancelled_vouchers` rows for the same `request_id` to the final voucher number when that column exists; and updates `smis.fss_refund_requests` with `approval_status = APPROVED`, `refund_status = REFUNDED`, the voucher number, and the approved amount.
 
 Usage:
 
@@ -102,10 +102,7 @@ This step updates `smis.fss_refund_batches`:
 - `status = PAID`
 - `date_paid = current timestamp`
 
-It also updates linked `smis.fss_refund_requests` rows:
-
-- `approval_status = APPROVED`
-- `refund_status = REFUNDED`
+Linked `smis.fss_refund_requests` rows are already marked `REFUNDED` during posting and are not changed by this step.
 
 Usage:
 
