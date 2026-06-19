@@ -276,6 +276,10 @@ $select2FilterOptions = static function (string $placeholder): array {
                                     return Html::tag('span', Html::encode($invoice['action_status']), ['class' => 'text-muted']);
                                 }
 
+                                if (!$invoice['has_service_id']) {
+                                    return Html::tag('span', 'Invalid service configuration', ['class' => 'text-danger small']);
+                                }
+
                                 return Html::tag(
                                     'div',
                                     Html::a('Pay this invoice', ['invoice', 'trans_id' => $invoice['trans_id']], [
