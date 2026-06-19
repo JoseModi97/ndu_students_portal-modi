@@ -31,7 +31,7 @@ $this->registerCss(<<<CSS
     cursor: wait;
 }
 .ecitizen-invoice-filter-dropdown .select2-results > .select2-results__options {
-    max-height: 20rem;
+    max-height: 285px;
 }
 .ecitizen-invoices-grid-panel {
     box-shadow: none;
@@ -321,7 +321,7 @@ $select2FilterOptions = static function (string $placeholder): array {
                             ['class' => 'd-flex justify-content-between align-items-center flex-wrap gap-2']
                         ),
                         'after' => false,
-                        'footer' => false,
+                        'footer' => '',
                     ],
                     'summary' => 'Showing {begin}-{end} of {totalCount} invoices',
                 ]) ?>
