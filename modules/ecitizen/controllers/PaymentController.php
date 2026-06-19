@@ -336,7 +336,7 @@ final class PaymentController extends BaseController
             $invoice['settlement_status'] = $isSettled ? 'Settled' : 'Not settled';
             $invoice['action_status'] = match (true) {
                 $postStatus === 'POSTED' || $postStatus === 'SETTLED' => 'Posted',
-                !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true) => 'Credited',
+                !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true) => '',
                 default => 'Pending action',
             };
 
