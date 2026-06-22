@@ -42,7 +42,7 @@ $studentInfoHtml = "<b>Name:</b> " . Html::encode($user->surname . ' ' . $user->
 $helpHtml = "For technical issues with this portal, contact ICT Support. For application status inquiries after 14 days, visit the Finance Office.";
 $secureHtml = "All refund disbursements are audited and verified to ensure funds are sent only to accounts registered in the student's name.";
 $hasRejectedRequests = !empty($previousRequests);
-$showMainRequestCard = true;
+$showMainRequestCard = !$hasRejectedRequests;
 $officialRequest = $smisRequest ?? null;
 $approvedLevelIds = [];
 foreach ((array)$approvals as $approval) {
@@ -368,7 +368,7 @@ $this->registerJs("
                 <div>
                     <p class="cr-notice__title" style="margin:0;">Previous Not Approved Request<?= count($previousRequests) === 1 ? '' : 's' ?> Found</p>
                     <p style="font-size: 0.85rem; margin:0; color: var(--cr-slate-700);">
-                        You may submit a new refund request because your earlier application was not approved.
+                        Review your previous request and use Update Request to make the required corrections.
                     </p>
                 </div>
                 <?= Html::a('View Previous Requests', '#previous-refund-requests', ['class' => 'cr-btn cr-btn--secondary']) ?>

@@ -53,7 +53,6 @@ try {
 function ensureRefundStructure(\yii\db\Connection $db, string $schema): void
 {
     $batchTable = $db->quoteTableName($schema . '.fss_refund_batches');
-    $cancelledTable = $db->quoteTableName($schema . '.fss_cancelled_vouchers');
     $requestTable = $db->quoteTableName($schema . '.fss_refund_requests');
 
     $db->createCommand("DROP TABLE IF EXISTS {$db->quoteTableName($schema . '.fss_refund_posting_items')}")->execute();
@@ -101,26 +100,6 @@ SQL)->execute();
     $db->createCommand("ALTER TABLE {$batchTable} ALTER COLUMN posted_by DROP NOT NULL")->execute();
     $db->createCommand("ALTER TABLE {$batchTable} ALTER COLUMN posted_at DROP NOT NULL")->execute();
     $db->createCommand("ALTER TABLE {$batchTable} ALTER COLUMN posted_at DROP DEFAULT")->execute();
-
-    $db->createCommand(<<<SQL
-CREATE TABLE IF NOT EXISTS {$cancelledTable} (
-    cancelled_vid int8 NOT NULL,
-    voucher_no int8 NULL,
-    request_id int8 NULL,
-    date_cancelled timestamp NULL,
-    amount numeric(15,2) NULL,
-    userid varchar(30) NULL,
-    remarks varchar(255) NULL,
-    CONSTRAINT fss_cancelled_vouchers_pkey PRIMARY KEY (cancelled_vid),
-    CONSTRAINT fk_voucher_no
-        FOREIGN KEY (voucher_no)
-        REFERENCES {$batchTable}(voucher_no)
-)
-SQL)->execute();
-
-    if (ownsTable($db, $schema, 'fss_cancelled_vouchers')) {
-        $db->createCommand("ALTER TABLE {$cancelledTable} ADD COLUMN IF NOT EXISTS request_id int8 NULL")->execute();
-    }
 
     if (ownsTable($db, $schema, 'fss_refund_requests')) {
         $db->createCommand("ALTER TABLE {$requestTable} DROP CONSTRAINT IF EXISTS fss_refund_requests_voucher_no_fkey")->execute();
@@ -208,25 +187,6 @@ function postSide(\yii\db\Connection $db, string $schema, int $requestId, int $v
         ], ['request_id' => $requestId])
         ->execute();
 
-    updateCancelledVoucherRequestVoucher($db, $schema, $requestId, $voucherNo);
-}
-
-function updateCancelledVoucherRequestVoucher(\yii\db\Connection $db, string $schema, int $requestId, int $voucherNo): void
-{
-    $table = $db->getTableSchema($schema . '.fss_cancelled_vouchers', true);
-    if ($table === null || !in_array('request_id', $table->columnNames, true)) {
-        return;
-    }
-
-    $db->createCommand()
-        ->update($schema . '.fss_cancelled_vouchers', [
-            'voucher_no' => $voucherNo,
-        ], [
-            'and',
-            ['request_id' => $requestId],
-            ['voucher_no' => null],
-        ])
-        ->execute();
 }
 
 function refundAcademicProgress(\yii\db\Connection $db, string $schema, int $studentProgCurriculumId): array

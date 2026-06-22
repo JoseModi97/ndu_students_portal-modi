@@ -6,7 +6,7 @@ This folder contains PHP CLI scripts for testing the current `refund_requests` m
 - SMIS sync table: `smis.fss_refund_requests`
 - Portal approval table: `smisportal.fss_refund_approval_process`
 - Disapproved request tables: `smisportal.fss_refund_requests_disapproved` and `smis.fss_refund_requests_disapproved`
-- Refund batch tables: `fss_refund_batches` and `fss_cancelled_vouchers`
+- Refund batch table: `fss_refund_batches`
 - Posting fee transaction table: `smis.fss_fee_transactions`
 
 ## Target Student
@@ -19,7 +19,7 @@ All scripts target:
 
 ### 1. `step0_cleanup.php`
 
-Deletes existing FSS refund requests, disapproved-request rows, approval-process rows, refund batch rows, orphan refund batch rows, and SMIS posting-generated fee transactions for the target student.
+Deletes existing FSS refund requests, disapproved-request rows, approval-process rows, refund batch rows, orphan refund batch rows, and SMIS posting-generated fee transactions for the target student. It also removes duplicate caution debit transactions while preserving the oldest one by transaction date and transaction ID.
 
 Usage:
 
@@ -85,7 +85,7 @@ php modules\refund_requests\automation\step4_finalize.php
 
 ### 7. `step5_post_caution_refund.php`
 
-Posts the latest fully approved, unposted `CAUTION` request for the target student on SMIS only. This creates one `smis.fss_refund_batches` row with `posted_by` and `posted_at` set, `status = PENDING`, and an empty `date_paid`; creates the caution DR/CR fee transactions in `smis.fss_fee_transactions`; updates prior `smis.fss_cancelled_vouchers` rows for the same `request_id` to the final voucher number when that column exists; and updates `smis.fss_refund_requests` with `approval_status = APPROVED`, `refund_status = REFUNDED`, the voucher number, and the approved amount.
+Posts the latest fully approved, unposted `CAUTION` request for the target student on SMIS only. This creates one `smis.fss_refund_batches` row with `posted_by` and `posted_at` set, `status = PENDING`, and an empty `date_paid`; creates matching caution debit (`DR`, ` CAUTION MONEY`) and refund credit (`CR`, `CAUTION REFUND - {voucherNo}`) transactions in `smis.fss_fee_transactions`; and updates `smis.fss_refund_requests` with `approval_status = APPROVED`, `refund_status = REFUNDED`, the voucher number, and the approved amount. It does not mutate `fss_cancelled_vouchers`.
 
 Usage:
 

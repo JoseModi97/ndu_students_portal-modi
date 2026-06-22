@@ -51,6 +51,7 @@ try {
     $deletedApprovals = deleteApprovals(Yii::$app->db, 'smisportal', $requestIds);
     $deletedSmisApprovals = deleteApprovals(Yii::$app->smisDb, 'smis', $allSmisRequestIds);
     $deletedSmisFeeTransactions = deletePostingFeeTransactions(Yii::$app->smisDb, 'smis', $smisVoucherNos, $regNo);
+    $deletedDuplicateCautionDebits = deleteDuplicateCautionDebits(Yii::$app->smisDb, 'smis', $regNo);
 
     $deletedPortal = $requestIds
         ? Yii::$app->db->createCommand()->delete('smisportal.fss_refund_requests', ['request_id' => $requestIds])->execute()
@@ -66,8 +67,6 @@ try {
             ->execute();
     }
 
-    $deletedPortalCancelled = deleteCancelledVouchers(Yii::$app->db, 'smisportal', $portalVoucherNos, $requestIds);
-    $deletedSmisCancelled = deleteCancelledVouchers(Yii::$app->smisDb, 'smis', $smisVoucherNos, $allSmisRequestIds);
     $deletedPortalBatches = deleteRefundBatches(Yii::$app->db, 'smisportal', $portalVoucherNos);
     $deletedSmisBatches = deleteRefundBatches(Yii::$app->smisDb, 'smis', $smisVoucherNos);
 
@@ -76,10 +75,9 @@ try {
     echo "Deleted $deletedApprovals approval records from smisportal.fss_refund_approval_process\n";
     echo "Deleted $deletedSmisApprovals approval records from smis.fss_refund_approval_process\n";
     echo "Deleted $deletedSmisFeeTransactions posted fee transaction records from smis.fss_fee_transactions\n";
+    echo "Deleted $deletedDuplicateCautionDebits duplicate caution debits from smis.fss_fee_transactions\n";
     echo "Deleted $deletedPortal records from smisportal.fss_refund_requests\n";
     echo "Deleted $deletedSmis records from smis.fss_refund_requests\n";
-    echo "Deleted $deletedPortalCancelled cancelled voucher records from smisportal.fss_cancelled_vouchers\n";
-    echo "Deleted $deletedSmisCancelled cancelled voucher records from smis.fss_cancelled_vouchers\n";
     echo "Deleted $deletedPortalBatches refund batch records from smisportal.fss_refund_batches\n";
     echo "Deleted $deletedSmisBatches refund batch records from smis.fss_refund_batches\n";
 
@@ -215,7 +213,12 @@ function deletePostingFeeTransactions(\yii\db\Connection $db, string $schema, ar
     $refundDescriptions = array_map(static fn(int|string $voucherNo): string => 'CAUTION REFUND - ' . $voucherNo, $voucherNos);
     $postingDescriptionCondition = [
         'or',
-        ['and', ['user_id' => 'AUTO-POST'], ['trans_desc' => 'CAUTION MONEY']],
+        [
+            'and',
+            ['user_id' => 'AUTO-POST'],
+            ['trans_desc' => 'CAUTION MONEY'],
+            ['not', ['trans_type' => 'DR']],
+        ],
     ];
 
     if ($refundDescriptions) {
@@ -231,6 +234,33 @@ function deletePostingFeeTransactions(\yii\db\Connection $db, string $schema, ar
         ->execute();
 }
 
+function deleteDuplicateCautionDebits(\yii\db\Connection $db, string $schema, string $regNo): int
+{
+    if ($db->getTableSchema($schema . '.fss_fee_transactions', true) === null) {
+        return 0;
+    }
+
+    $transactionIds = (new \yii\db\Query())
+        ->select('trans_id')
+        ->from($schema . '.fss_fee_transactions')
+        ->where(['trans_type' => 'DR'])
+        ->andWhere(new \yii\db\Expression('TRIM(trans_desc) = :description', [
+            ':description' => 'CAUTION MONEY',
+        ]))
+        ->andWhere(['LIKE', 'progress_code', $regNo . '%', false])
+        ->orderBy(['trans_date' => SORT_ASC, 'trans_id' => SORT_ASC])
+        ->column($db);
+
+    $duplicateIds = array_slice(array_map('intval', $transactionIds), 1);
+    if (!$duplicateIds) {
+        return 0;
+    }
+
+    return $db->createCommand()
+        ->delete($schema . '.fss_fee_transactions', ['trans_id' => $duplicateIds])
+        ->execute();
+}
+
 function deleteRefundBatches(\yii\db\Connection $db, string $schema, array $voucherNos): int
 {
     if (!$voucherNos || $db->getTableSchema($schema . '.fss_refund_batches', true) === null) {
@@ -239,30 +269,5 @@ function deleteRefundBatches(\yii\db\Connection $db, string $schema, array $vouc
 
     return $db->createCommand()
         ->delete($schema . '.fss_refund_batches', ['voucher_no' => $voucherNos])
-        ->execute();
-}
-
-function deleteCancelledVouchers(\yii\db\Connection $db, string $schema, array $voucherNos, array $requestIds): int
-{
-    $table = $db->getTableSchema($schema . '.fss_cancelled_vouchers', true);
-    if ($table === null) {
-        return 0;
-    }
-
-    $conditions = ['or'];
-    if ($voucherNos) {
-        $conditions[] = ['voucher_no' => $voucherNos];
-    }
-    $conditions[] = ['voucher_no' => null];
-    if ($requestIds && in_array('request_id', $table->columnNames, true)) {
-        $conditions[] = ['request_id' => $requestIds];
-    }
-
-    if (count($conditions) === 1) {
-        return 0;
-    }
-
-    return $db->createCommand()
-        ->delete($schema . '.fss_cancelled_vouchers', $conditions)
         ->execute();
 }

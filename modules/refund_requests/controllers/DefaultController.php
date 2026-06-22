@@ -453,7 +453,7 @@ class DefaultController extends BaseController
      */
     private function calculateExpectedCautionFee(string $regNumber, ?int $studentProgCurriculumId = null): float
     {
-        return $this->sumCautionTransactions($regNumber, 'DR', $studentProgCurriculumId);
+        return $this->sumCautionTransactions($regNumber, 'DR', $studentProgCurriculumId, true);
     }
 
     /**
@@ -466,7 +466,12 @@ class DefaultController extends BaseController
         return $this->sumCautionTransactions($regNumber, 'CR', $studentProgCurriculumId);
     }
 
-    private function sumCautionTransactions(string $regNumber, string $transactionType, ?int $studentProgCurriculumId = null): float
+    private function sumCautionTransactions(
+        string $regNumber,
+        string $transactionType,
+        ?int $studentProgCurriculumId = null,
+        bool $excludeRefundPostingEntries = false
+    ): float
     {
         $studentFilter = ['or'];
         $academicProgressIds = $studentProgCurriculumId !== null
@@ -489,11 +494,15 @@ class DefaultController extends BaseController
             ->from('smis.fss_fee_transactions ft')
             ->where(['ft.trans_type' => $transactionType])
             ->andWhere($studentFilter)
-            ->andWhere(new \yii\db\Expression('TRIM(ft.trans_desc) = :cautionDescription'))
-            ->addParams([':cautionDescription' => 'CAUTION MONEY'])
-            ->sum('ft.trans_amount', Yii::$app->smisDb);
+            ->andWhere($excludeRefundPostingEntries
+                ? ['ft.trans_desc' => 'CAUTION MONEY']
+                : new \yii\db\Expression('TRIM(ft.trans_desc) = :cautionDescription'));
 
-        return (float)$sum;
+        if (!$excludeRefundPostingEntries) {
+            $sum->addParams([':cautionDescription' => 'CAUTION MONEY']);
+        }
+
+        return (float)$sum->sum('ft.trans_amount', Yii::$app->smisDb);
     }
 
     private function academicProgressIds(int $studentProgCurriculumId): array
@@ -678,6 +687,14 @@ class DefaultController extends BaseController
         $rejectedRequest = null;
         $latestRejection = null;
         $isPostingRejection = false;
+        if ($rejectedRequestId <= 0 && RefundRequest::find()
+            ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
+            ->andWhere('UPPER(approval_status) = :notApproved', [':notApproved' => 'NOT APPROVED'])
+            ->exists()) {
+            $this->setFlash('info', 'Previous Request Found', 'Please update your previous not approved request before starting another application.');
+            return $this->redirect(['index', '#' => 'previous-refund-requests']);
+        }
+
         if ($rejectedRequestId > 0) {
             $rejectedRequest = RefundRequest::find()
                 ->where([
