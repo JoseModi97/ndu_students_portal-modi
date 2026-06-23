@@ -221,12 +221,12 @@ function deletePostingFeeTransactions(\yii\db\Connection $db, string $schema, ar
         [
             'and',
             ['user_id' => 'AUTO-POST'],
-            ['trans_desc' => 'CAUTION MONEY'],
+            ['trans_desc' => ['CAUTION MONEY', ' CAUTION MONEY']],
             ['not', ['trans_type' => 'DR']],
         ],
-        ['LIKE', 'trans_desc', 'CAUTION REFUND', false],
-        ['LIKE', 'trans_desc', 'Caution Refund', false],
-        ['LIKE', 'trans_desc', 'Caution Money - Cancelled', false],
+        ['LIKE', 'trans_desc', 'CAUTION REFUND%', false],
+        ['LIKE', 'trans_desc', 'Caution Refund%', false],
+        ['LIKE', 'trans_desc', 'Caution Money - Cancelled%', false],
     ];
 
     if ($refundDescriptions) {
