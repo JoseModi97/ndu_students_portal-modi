@@ -15,6 +15,7 @@ use yii\helpers\Url;
 /** @var bool $overrideEligibility */
 /** @var bool $eligible */
 /** @var string|null $reason */
+/** @var array|null $cancelledVoucher */
 
 $this->title = 'Full Process Tracking';
 $this->registerCssFile('@web/css/refund-requests.css');
@@ -25,6 +26,8 @@ $totalStages = count($allLevels) + 2; // +1 for Eligibility, +1 for Application
 $currentStageIndex = 0;
 $requestStatus = $request ? strtoupper((string)$request->approval_status) : null;
 $isRejected = $requestStatus === 'NOT APPROVED';
+$cancelledVoucher = $cancelledVoucher ?? null;
+$isCancelled = !empty($cancelledVoucher);
 $approvedLevelIds = [];
 foreach ($approvals as $approval) {
     if (!$approval->approver || strtoupper((string)$approval->approval_status) !== 'APPROVED') {
@@ -44,8 +47,8 @@ $isRefunded = $request && (
     strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED'
     || strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED'
 );
-$isApproved = $requestStatus === 'APPROVED' || $isWorkflowApproved || $isRefunded;
-$requestStatusLabel = $isRefunded ? 'PAID' : ($isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus));
+$isApproved = !$isCancelled && ($requestStatus === 'APPROVED' || $isWorkflowApproved || $isRefunded);
+$requestStatusLabel = $isCancelled ? 'CANCELLED' : ($isRefunded ? 'PAID' : ($isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus)));
 $referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
 $requestRefundAmount = 0.0;
 if ($request) {
@@ -109,6 +112,19 @@ $progressPercent = min(100, max(0, $progressPercent));
                 <?= $request ? Html::encode($referenceNo . ' - ' . $requestStatusLabel) : 'Real-time tracking of the entire refund lifecycle' ?>
             </p>
         </div>
+
+        <?php if ($isCancelled): ?>
+            <div class="cr-notice cr-notice--warning" style="margin-bottom: 1.5rem;">
+                <p class="cr-notice__title">Voucher Cancelled</p>
+                <p>
+                    Voucher No. <?= Html::encode($cancelledVoucher['voucher_no'] ?? 'N/A') ?>
+                    was cancelled on <?= Html::encode(!empty($cancelledVoucher['date_cancelled']) ? Yii::$app->formatter->asDatetime($cancelledVoucher['date_cancelled']) : 'a recorded date') ?>.
+                    <?php if (!empty($cancelledVoucher['remarks'])): ?>
+                        Remarks: <?= Html::encode($cancelledVoucher['remarks']) ?>
+                    <?php endif; ?>
+                </p>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($requests)): ?>
             <div class="cr-card" style="margin-bottom: 1.5rem;">
@@ -306,7 +322,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                     <div class="cr-card__body">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <span style="font-size: 0.7rem; font-weight: 700; color: var(--cr-slate-400); text-transform: uppercase;">Request Status</span>
-                            <span class="cr-badge <?= $request ? ($isApproved ? 'cr-badge--approved' : ($isRejected ? 'cr-badge--rejected' : 'cr-badge--pending')) : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
+                            <span class="cr-badge <?= $request ? ($isCancelled ? 'cr-badge--rejected' : ($isApproved ? 'cr-badge--approved' : ($isRejected ? 'cr-badge--rejected' : 'cr-badge--pending'))) : 'cr-badge--rejected' ?>" style="font-size: 0.65rem;">
                                 <?= $request ? Html::encode($referenceNo . ' - ' . $requestStatusLabel) : 'NO ACTIVE REQUEST' ?>
                             </span>
                         </div>

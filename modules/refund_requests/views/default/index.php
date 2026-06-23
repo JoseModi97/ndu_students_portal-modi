@@ -24,6 +24,7 @@ use yii\helpers\Url;
 /** @var app\modules\refund_requests\models\RefundRequest[] $previousRequests */
 /** @var array $refundedRequests */
 /** @var array $activeRequests */
+/** @var array|null $cancelledVoucher */
 
 $this->title = 'Refund Request Dashboard';
 
@@ -34,6 +35,8 @@ $approvals = $approvals ?? [];
 $allLevels = $allLevels ?? [];
 $refundedRequests = $refundedRequests ?? [];
 $activeRequests = $activeRequests ?? [];
+$cancelledVoucher = $cancelledVoucher ?? null;
+$isCancelled = !empty($cancelledVoucher);
 $refundedTypeIdsJson = Json::htmlEncode(array_fill_keys(array_map('strval', array_keys($refundedRequests)), true));
 $activeTypeIdsJson = Json::htmlEncode(array_fill_keys(array_map('strval', array_keys($activeRequests)), true));
 $totalLevels = count($allLevels);
@@ -344,6 +347,19 @@ $this->registerJs("
             <div class="cr-flash"><?= Html::encode(Yii::$app->session->getFlash('info')) ?></div>
         <?php endif; ?>
 
+        <?php if ($cancelledVoucher): ?>
+            <div class="cr-notice cr-notice--warning" style="margin-bottom: 2rem;">
+                <p class="cr-notice__title" style="margin:0;">Voucher Cancelled</p>
+                <p style="font-size: 0.85rem; margin:0; color: var(--cr-slate-700);">
+                    Voucher No. <?= Html::encode($cancelledVoucher['voucher_no'] ?? 'N/A') ?>
+                    was cancelled on <?= Html::encode(!empty($cancelledVoucher['date_cancelled']) ? Yii::$app->formatter->asDatetime($cancelledVoucher['date_cancelled']) : 'a recorded date') ?>.
+                    <?php if (!empty($cancelledVoucher['remarks'])): ?>
+                        Remarks: <?= Html::encode($cancelledVoucher['remarks']) ?>
+                    <?php endif; ?>
+                </p>
+            </div>
+        <?php endif; ?>
+
         <!-- <div class="cr-header">
             <span class="cr-header__badge">National Defence University of Kenya</span>
             <h1 class="cr-header__title">Refund Request</h1>
@@ -416,9 +432,9 @@ $this->registerJs("
                             <?php 
                             $s = strtoupper($request->approval_status);
                             $isNotApproved = $s === 'NOT APPROVED';
-                            $isApproved = $s === 'APPROVED' || $isWorkflowApproved || $isRefunded;
-                            $b = $isApproved ? 'cr-badge--approved' : ($isNotApproved ? 'cr-badge--rejected' : 'cr-badge--pending');
-                            $statusLabel = $isNotApproved ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $s);
+                            $isApproved = !$isCancelled && ($s === 'APPROVED' || $isWorkflowApproved || $isRefunded);
+                            $b = $isCancelled ? 'cr-badge--rejected' : ($isApproved ? 'cr-badge--approved' : ($isNotApproved ? 'cr-badge--rejected' : 'cr-badge--pending'));
+                            $statusLabel = $isCancelled ? 'CANCELLED' : ($isNotApproved ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $s));
                             ?>
                             <span class="cr-badge <?= $b ?>" style="font-size: 0.9rem; padding: 0.3rem 1rem;"><?= Html::encode($statusLabel) ?></span>
                         </span>

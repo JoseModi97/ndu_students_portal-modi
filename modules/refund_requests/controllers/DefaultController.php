@@ -525,6 +525,79 @@ class DefaultController extends BaseController
         ])));
     }
 
+    private function latestCancelledVoucherForRequest(?RefundRequest $request, $smisRequest = null): ?array
+    {
+        $requestIds = array_values(array_unique(array_filter([
+            $request ? (int)$request->request_id : null,
+            $smisRequest ? (int)$smisRequest->request_id : null,
+        ])));
+        $voucherNos = array_values(array_unique(array_filter([
+            $request && $request->voucher_no ? (int)$request->voucher_no : null,
+            $smisRequest && $smisRequest->voucher_no ? (int)$smisRequest->voucher_no : null,
+        ])));
+
+        return $this->latestCancelledVoucher($requestIds, $voucherNos);
+    }
+
+    private function latestCancelledVoucherForStudent(?int $studentProgCurriculumId): ?array
+    {
+        if ($studentProgCurriculumId === null) {
+            return null;
+        }
+
+        $requestIds = array_values(array_unique(array_filter(array_merge(
+            RefundRequest::find()
+                ->select('request_id')
+                ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+                ->column(),
+            \app\modules\refund_requests\models\RefundRequestOfficial::find()
+                ->select('request_id')
+                ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+                ->column()
+        ))));
+
+        return $this->latestCancelledVoucher($requestIds, []);
+    }
+
+    private function latestCancelledVoucher(array $requestIds, array $voucherNos): ?array
+    {
+        $sources = [
+            [Yii::$app->db, 'smisportal.fss_cancelled_vouchers'],
+            [Yii::$app->smisDb, 'smis.fss_cancelled_vouchers'],
+        ];
+        $matches = [];
+
+        foreach ($sources as [$db, $tableName]) {
+            $table = $db->getTableSchema($tableName, true);
+            if ($table === null) {
+                continue;
+            }
+
+            $query = (new \yii\db\Query())->from($tableName);
+            if ($requestIds && in_array('request_id', $table->columnNames, true)) {
+                $query->where(['request_id' => $requestIds]);
+            } elseif ($voucherNos) {
+                $query->where(['voucher_no' => $voucherNos]);
+            } else {
+                continue;
+            }
+
+            foreach ($query->all($db) as $row) {
+                $matches[] = $row;
+            }
+        }
+
+        if (!$matches) {
+            return null;
+        }
+
+        usort($matches, static function (array $a, array $b): int {
+            return strtotime((string)($b['date_cancelled'] ?? '')) <=> strtotime((string)($a['date_cancelled'] ?? ''));
+        });
+
+        return $matches[0];
+    }
+
 
     /**
      * Renders the index view for the module
@@ -569,6 +642,7 @@ class DefaultController extends BaseController
         $previousRequests = [];
         $refundedRequests = [];
         $activeRequests = [];
+        $cancelledVoucher = null;
         if ($check['student_prog_curriculum_id']) {
             $existingRequest = RefundRequest::find()
                 ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
@@ -609,6 +683,7 @@ class DefaultController extends BaseController
                 $existingRequest = null;
             }
             $activeRequests = $this->activeRequestsByType((int)$check['student_prog_curriculum_id'], $refundedRequests);
+            $cancelledVoucher = $this->latestCancelledVoucherForStudent((int)$check['student_prog_curriculum_id']);
         }
 
         $hasExternalActiveRequest = $check['hasExistingRequest']
@@ -635,6 +710,7 @@ class DefaultController extends BaseController
             'previousRequests' => $previousRequests,
             'refundedRequests' => $refundedRequests,
             'activeRequests' => $activeRequests,
+            'cancelledVoucher' => $cancelledVoucher,
         ]);
     }
 
@@ -1027,6 +1103,7 @@ class DefaultController extends BaseController
 
         $allLevels = ApprovalLevel::find()->orderBy(['approval_order' => SORT_ASC])->all();
         $balance = $regNumber ? $this->calculateFeeBalance($regNumber) : 0;
+        $cancelledVoucher = $this->latestCancelledVoucherForRequest($request, $smisRequest);
 
         return $this->render('track', [
             'user' => $user,
@@ -1041,6 +1118,7 @@ class DefaultController extends BaseController
             'overrideEligibility' => $this->module->overrideEligibility,
             'eligible' => $check['eligible'],
             'reason' => $check['reason'],
+            'cancelledVoucher' => $cancelledVoucher,
         ]);
     }
 }
