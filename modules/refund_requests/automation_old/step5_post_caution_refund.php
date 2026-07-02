@@ -4,19 +4,10 @@
  * Posts the latest fully approved caution refund for NR605/0001/2022 on SMIS only.
  */
 
-$root = __DIR__;
-while (!is_file($root . '/vendor/autoload.php')) {
-    $parent = dirname($root);
-    if ($parent === $root) {
-        throw new RuntimeException('Could not locate project root from automation script.');
-    }
-    $root = $parent;
-}
+require __DIR__ . '/../../../vendor/autoload.php';
+require __DIR__ . '/../../../vendor/yiisoft/yii2/Yii.php';
 
-require $root . '/vendor/autoload.php';
-require $root . '/vendor/yiisoft/yii2/Yii.php';
-
-$config = require $root . '/config/console.php';
+$config = require __DIR__ . '/../../../config/console.php';
 new yii\console\Application($config);
 
 $regNo = 'NR605/0001/2022';
@@ -240,14 +231,12 @@ function insertFeeTransaction(\yii\db\Connection $db, string $schema, array $pro
         'receipt_status' => '',
         'exchange_rate' => 1.00,
         'progress_code' => (string)$progress['progress_code'],
+        'sync_status' => false,
         'student_semester_session_id' => $progress['student_semester_session_id'] === null ? null : (int)$progress['student_semester_session_id'],
     ];
 
     if ($table !== null && in_array('fee_trans_id', $table->columnNames, true)) {
         $attributes['fee_trans_id'] = $transId;
-    }
-    if ($table !== null && in_array('sync_status', $table->columnNames, true)) {
-        $attributes['sync_status'] = false;
     }
 
     $db->createCommand()

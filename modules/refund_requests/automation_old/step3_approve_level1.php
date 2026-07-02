@@ -1,28 +1,17 @@
 <?php
 /**
- * Step 4: Approve Level 2
- * Records only the second approval after Level 1 has already approved.
+ * Step 3: Approve Level 1
+ * Records the first approval for the current FSS refund request.
  */
 
-$root = __DIR__;
-while (!is_file($root . '/vendor/autoload.php')) {
-    $parent = dirname($root);
-    if ($parent === $root) {
-        throw new RuntimeException('Could not locate project root from automation script.');
-    }
-    $root = $parent;
-}
+require __DIR__ . '/../../../vendor/autoload.php';
+require __DIR__ . '/../../../vendor/yiisoft/yii2/Yii.php';
 
-require $root . '/vendor/autoload.php';
-require $root . '/vendor/yiisoft/yii2/Yii.php';
-
-$config = require $root . '/config/console.php';
+$config = require __DIR__ . '/../../../config/console.php';
 new yii\console\Application($config);
 
 $regNo = 'NR605/0001/2022';
-$levelId = 2;
-
-echo "--- Step 4: Approving Level {$levelId} for $regNo ---\n";
+echo "--- Step 3: Approving Level 1 for $regNo ---\n";
 
 $request = (new \yii\db\Query())
     ->select(['r.request_id'])
@@ -36,7 +25,15 @@ if (!$request) {
     die("ERROR: Refund request not found. Did you run Step 2?\n");
 }
 
-$requestId = (int)$request['request_id'];
+$level = (new \yii\db\Query())
+    ->from('smisportal."fss_refund_approval levels"')
+    ->where(['approval_level_id' => 1])
+    ->one();
+
+if (!$level) {
+    die("ERROR: Approval level 1 not found.\n");
+}
+
 $decision = promptDecision();
 $remarks = $decision === 'NOT APPROVED'
     ? promptComment()
@@ -46,23 +43,20 @@ $transactionPortal = Yii::$app->db->beginTransaction();
 $transactionSmis = Yii::$app->smisDb->beginTransaction();
 
 try {
-    ensureSmisRequest($requestId);
-    ensureLevelApproved(Yii::$app->db, 'smisportal', $requestId, 1);
-    ensureLevelApproved(Yii::$app->smisDb, 'smis', $requestId, 1);
-
-    $portalApproverId = insertDecision(Yii::$app->db, 'smisportal', $requestId, $levelId, $decision, $remarks);
-    $smisApproverId = insertDecision(Yii::$app->smisDb, 'smis', $requestId, $levelId, $decision, $remarks);
+    ensureSmisRequest((int)$request['request_id']);
+    $portalApproverId = insertDecision(Yii::$app->db, 'smisportal', (int)$request['request_id'], (int)$level['approval_level_id'], $decision, $remarks);
+    $smisApproverId = insertDecision(Yii::$app->smisDb, 'smis', (int)$request['request_id'], (int)$level['approval_level_id'], $decision, $remarks);
 
     if ($decision === 'NOT APPROVED') {
-        archiveDisapprovedRequest(Yii::$app->db, 'smisportal', $requestId, $portalApproverId, $remarks);
-        archiveDisapprovedRequest(Yii::$app->smisDb, 'smis', $requestId, $smisApproverId, $remarks);
-        markRequestRejected(Yii::$app->db, 'smisportal', $requestId);
-        markRequestRejected(Yii::$app->smisDb, 'smis', $requestId);
+        archiveDisapprovedRequest(Yii::$app->db, 'smisportal', (int)$request['request_id'], $portalApproverId, $remarks);
+        archiveDisapprovedRequest(Yii::$app->smisDb, 'smis', (int)$request['request_id'], $smisApproverId, $remarks);
+        markRequestRejected(Yii::$app->db, 'smisportal', (int)$request['request_id']);
+        markRequestRejected(Yii::$app->smisDb, 'smis', (int)$request['request_id']);
     }
 
     $transactionPortal->commit();
     $transactionSmis->commit();
-    echo "SUCCESS: Level {$levelId} {$decision} decision recorded for request {$requestId} in Portal and SMIS.\n";
+    echo "SUCCESS: Level 1 {$decision} decision recorded for request {$request['request_id']} in Portal and SMIS.\n";
 } catch (\Throwable $e) {
     $transactionPortal->rollBack();
     $transactionSmis->rollBack();
@@ -72,7 +66,7 @@ try {
 function promptDecision(): string
 {
     while (true) {
-        echo "Decision for Level 2? Type 'approve' or 'reject': ";
+        echo "Decision for Level 1? Type 'approve' or 'reject': ";
         $answer = strtolower(trim((string)fgets(STDIN)));
 
         if (in_array($answer, ['approve', 'approved'], true)) {
@@ -126,23 +120,6 @@ function ensureSmisRequest(int $requestId): void
     Yii::$app->smisDb->createCommand()
         ->insert('smis.fss_refund_requests', $portalRequest)
         ->execute();
-}
-
-function ensureLevelApproved(\yii\db\Connection $db, string $schema, int $requestId, int $levelId): void
-{
-    $approved = (new \yii\db\Query())
-        ->from($schema . '.fss_refund_approval_process p')
-        ->innerJoin($schema . '.fss_refund_approvers a', 'a.approver_id = p.approver_id')
-        ->where([
-            'p.request_id' => $requestId,
-            'a.approval_level_id' => $levelId,
-            'p.approval_status' => 'APPROVED',
-        ])
-        ->exists($db);
-
-    if (!$approved) {
-        throw new \RuntimeException("Cannot approve level 2: level {$levelId} approval is missing in {$schema}.");
-    }
 }
 
 function insertDecision(\yii\db\Connection $db, string $schema, int $requestId, int $levelId, string $decision, ?string $remarks): int

@@ -116,41 +116,21 @@ php modules\refund_requests\automation\step6_save_paid_refund_voucher.php
 
 Prints the latest FSS refund request for the target student, including refund type, bank/branch labels, refund batch rows and payment status, cancelled voucher rows, SMIS posting fee transactions, and any matching disapproved-request rows when available.
 
-```powershell
-php modules\refund_requests\automation\debug_record.php
-```
-
 ### `verify_accuracy.php`
 
 Prints the SMIS fee balance, caution posting fee transactions, SMIS academic status, and portal clearance status used by the eligibility flow.
-
-```powershell
-php modules\refund_requests\automation\verify_accuracy.php
-```
 
 ### `check_status.php`
 
 Prints a quick clearance-status summary and latest refund request approval/refund/voucher status for the target student, including batch `status` and `date_paid` when a voucher exists.
 
-```powershell
-php modules\refund_requests\automation\check_status.php
-```
-
 ### `check_bank_reference_data.php`
 
 Prints SMIS and Portal row counts and maximum primary-key values for `fss_banks` and `fss_bank_branches`.
 
-```powershell
-php modules\refund_requests\automation\check_bank_reference_data.php
-```
-
 ### `sync_student_status_cli.php`
 
 Interactive CLI tool to synchronize student academic statuses across SMIS and Portal.
-
-```powershell
-php modules\refund_requests\automation\sync_student_status_cli.php
-```
 
 ## Tracking the Changes
 

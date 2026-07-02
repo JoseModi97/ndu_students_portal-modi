@@ -3,19 +3,10 @@
  * Checks FSS bank and branch reference data counts on SMIS and Portal.
  */
 
-$root = __DIR__;
-while (!is_file($root . '/vendor/autoload.php')) {
-    $parent = dirname($root);
-    if ($parent === $root) {
-        throw new RuntimeException('Could not locate project root from automation script.');
-    }
-    $root = $parent;
-}
+require __DIR__ . '/../../../vendor/autoload.php';
+require __DIR__ . '/../../../vendor/yiisoft/yii2/Yii.php';
 
-require $root . '/vendor/autoload.php';
-require $root . '/vendor/yiisoft/yii2/Yii.php';
-
-$config = require $root . '/config/console.php';
+$config = require __DIR__ . '/../../../config/console.php';
 new yii\console\Application($config);
 
 $tables = [

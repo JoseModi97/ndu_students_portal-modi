@@ -4,10 +4,19 @@
  * Approves only the final FSS refund workflow level after previous levels are approved.
  */
 
-require __DIR__ . '/../../../vendor/autoload.php';
-require __DIR__ . '/../../../vendor/yiisoft/yii2/Yii.php';
+$root = __DIR__;
+while (!is_file($root . '/vendor/autoload.php')) {
+    $parent = dirname($root);
+    if ($parent === $root) {
+        throw new RuntimeException('Could not locate project root from automation script.');
+    }
+    $root = $parent;
+}
 
-$config = require __DIR__ . '/../../../config/console.php';
+require $root . '/vendor/autoload.php';
+require $root . '/vendor/yiisoft/yii2/Yii.php';
+
+$config = require $root . '/config/console.php';
 new yii\console\Application($config);
 
 $regNo = 'NR605/0001/2022';
