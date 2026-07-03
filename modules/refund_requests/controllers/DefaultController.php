@@ -498,6 +498,8 @@ class DefaultController extends BaseController
                 ? ['ft.trans_desc' => 'CAUTION MONEY']
                 : new \yii\db\Expression('TRIM(ft.trans_desc) = :cautionDescription'));
 
+
+
         if (!$excludeRefundPostingEntries) {
             $sum->addParams([':cautionDescription' => 'CAUTION MONEY']);
         }
