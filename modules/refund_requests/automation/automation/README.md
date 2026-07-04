@@ -19,7 +19,7 @@ All scripts target:
 
 ### 1. `step0_cleanup.php`
 
-Deletes existing FSS refund requests, disapproved-request rows, approval-process rows, refund batch rows, orphan refund batch rows, and SMIS posting-generated fee transactions for the target student. It also removes duplicate caution debit transactions while preserving the oldest one by transaction date and transaction ID.
+Deletes existing FSS refund requests, disapproved-request rows, approval-process rows, refund batch rows, orphan refund batch rows, and SMIS posting-generated fee transactions for the target student. It also removes duplicate caution money entries across direct fee transactions and fees-payable invoice details while preserving the oldest entry by transaction date and record ID.
 
 Usage:
 
@@ -142,6 +142,14 @@ Prints SMIS and Portal row counts and maximum primary-key values for `fss_banks`
 
 ```powershell
 php modules\refund_requests\automation\check_bank_reference_data.php
+```
+
+### `seed_bank_reference_data.php`
+
+Restores missing Portal banks and bank branches from the authoritative SMIS reference tables. It preserves the SMIS primary keys, refreshes existing matching rows, repairs table sequences, and is safe to run repeatedly. The script refuses to seed if an SMIS source table is empty.
+
+```powershell
+php modules\refund_requests\automation\automation\seed_bank_reference_data.php
 ```
 
 ### `sync_student_status_cli.php`

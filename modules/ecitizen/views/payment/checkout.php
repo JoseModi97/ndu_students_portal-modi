@@ -1,6 +1,8 @@
 <?php
 
 use yii\bootstrap5\Html;
+use yii\helpers\Json;
+use yii\helpers\Url;
 
 /**
  * @var yii\web\View $this
@@ -9,9 +11,11 @@ use yii\bootstrap5\Html;
  * @var string $reference
  * @var float $amount
  * @var string $description
+ * @var string|null $refreshedTransId
  */
 
 $this->title = $title;
+$refreshedTransId = $refreshedTransId ?? null;
 $this->registerCss(<<<CSS
 .ecitizen-frame-wrap {
     width: 100%;
@@ -25,7 +29,14 @@ $this->registerCss(<<<CSS
     border: 0;
 }
 CSS);
-$this->registerJs("var checkoutForm = document.getElementById('ecitizen-checkout-form'); if (checkoutForm) { checkoutForm.submit(); }");
+$refreshUrlScript = '';
+if ($refreshedTransId !== null) {
+    $refreshUrl = Url::to(['invoice', 'trans_id' => $refreshedTransId]);
+    $refreshUrlScript = 'window.history.replaceState(null, document.title, '
+        . Json::htmlEncode($refreshUrl)
+        . ');';
+}
+$this->registerJs($refreshUrlScript . "var checkoutForm = document.getElementById('ecitizen-checkout-form'); if (checkoutForm) { checkoutForm.submit(); }");
 ?>
 
 <div class="content-header">

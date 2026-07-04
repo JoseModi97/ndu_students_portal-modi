@@ -108,8 +108,10 @@ class DefaultController extends BaseController
         $cautionReservedAmount = ($studentProgCurriculumId !== null && $cautionTypeId !== null)
             ? $this->reservedRefundAmount($studentProgCurriculumId, $cautionTypeId)
             : 0;
+        // Caution money is never overridden: a real paid/posted caution amount
+        // must exist before the student can request a caution refund.
         $cautionBaseAmount = $this->module->overrideEligibility
-            ? max($cautionFeePaid, $expectedCaution)
+            ? $cautionFeePaid
             : (($cautionFeePaid >= $expectedCaution) ? $cautionFeePaid : 0);
         $cautionRemainingAmount = max(0, $cautionBaseAmount - $cautionReservedAmount);
         
@@ -506,7 +508,7 @@ class DefaultController extends BaseController
             return 0.0;
         }
 
-        $directTransactionQuery = (new \yii\db\Query())
+        $sum = (new \yii\db\Query())
             ->from('smis.fss_fee_transactions ft')
             ->where(['ft.trans_type' => $transactionType])
             ->andWhere($studentFilter)
@@ -516,7 +518,7 @@ class DefaultController extends BaseController
         if ($excludeRefundPostingEntries) {
             // Posting a caution refund creates a matching DR " CAUTION MONEY" entry.
             // Do not mistake that accounting entry for newly refundable caution money.
-            $directTransactionQuery->andWhere(new \yii\db\Expression(
+            $sum->andWhere(new \yii\db\Expression(
                 "NOT EXISTS (
                     SELECT 1
                     FROM smis.fss_fee_transactions refund_ft
@@ -530,24 +532,7 @@ class DefaultController extends BaseController
             ));
         }
 
-        $directTransactionAmount = (float)$directTransactionQuery->sum('ft.trans_amount', Yii::$app->smisDb);
-
-        if ($transactionType !== 'DR') {
-            return $directTransactionAmount;
-        }
-
-        $feePayableCautionAmount = (float)((new \yii\db\Query())
-            ->from('smis.fss_fee_transactions ft')
-            ->innerJoin('smis.fss_invoice fi', 'fi.trans_id = ft.trans_id')
-            ->innerJoin('smis.fss_invoice_details fid', 'fid.invoice_id = fi.id')
-            ->where(['ft.trans_type' => $transactionType])
-            ->andWhere($studentFilter)
-            ->andWhere(new \yii\db\Expression('UPPER(TRIM(ft.trans_desc)) <> :cautionDescription'))
-            ->andWhere(new \yii\db\Expression('UPPER(TRIM(fid.invoice_detail_desc)) = :cautionDescription'))
-            ->addParams([':cautionDescription' => 'CAUTION MONEY'])
-            ->sum('fid.amount', Yii::$app->smisDb));
-
-        return $directTransactionAmount + $feePayableCautionAmount;
+        return (float)$sum->sum('ft.trans_amount', Yii::$app->smisDb);
     }
 
     private function sumCautionInvoiceDetails(string $regNumber): float
@@ -813,34 +798,6 @@ class DefaultController extends BaseController
      */
     public function actionApply()
     {
-        $navigationSessionKey = 'refund_requests.apply.navigation_params';
-        $navigationParams = null;
-
-        if ($this->request->isPost
-            && !$this->request->post('RefundRequest')
-            && $this->request->post('type') !== null) {
-            $navigationParams = [
-                'type' => $this->request->post('type'),
-                'amount' => $this->request->post('amount'),
-                'rejected_request_id' => $this->request->post('rejected_request_id'),
-            ];
-        } elseif ($this->request->isGet
-            && ($this->request->get('type') !== null || $this->request->get('rejected_request_id') !== null)) {
-            $navigationParams = [
-                'type' => $this->request->get('type'),
-                'amount' => $this->request->get('amount'),
-                'rejected_request_id' => $this->request->get('rejected_request_id'),
-            ];
-        }
-
-        if ($navigationParams !== null) {
-            Yii::$app->session->set($navigationSessionKey, $navigationParams);
-            return $this->redirect(['apply']);
-        }
-
-        $navigationParams = Yii::$app->session->get($navigationSessionKey, []);
-        Yii::$app->session->remove($navigationSessionKey);
-
         /** @var User $user */
         $user = User::findOne(Yii::$app->user->id);
         $regNumber = $user->registration_number;
@@ -851,10 +808,7 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
-        $rejectedRequestId = (int)$this->request->post(
-            'rejected_request_id',
-            $navigationParams['rejected_request_id'] ?? 0
-        );
+        $rejectedRequestId = (int)$this->request->post('rejected_request_id', $this->request->get('rejected_request_id', 0));
         $rejectedRequest = null;
         $latestRejection = null;
         $isPostingRejection = false;
@@ -889,7 +843,7 @@ class DefaultController extends BaseController
             $isPostingRejection = $this->isPostingWindowDisapproval((int)$rejectedRequest->request_id);
         }
 
-        $typeId = $this->request->post('type', $navigationParams['type'] ?? null);
+        $typeId = $this->request->post('type', $this->request->get('type'));
         if (!$typeId && $this->request->isPost && isset($this->request->post('RefundRequest')['refund_type'])) {
             $typeId = $this->request->post('RefundRequest')['refund_type'];
         }
@@ -920,7 +874,7 @@ class DefaultController extends BaseController
             return $this->redirect(['index']);
         }
 
-        $passedAmount = $this->request->post('amount', $navigationParams['amount'] ?? null);
+        $passedAmount = $this->request->post('amount', $this->request->get('amount'));
 
         $refundableAmount = 0;
         if ($refundedRequestDetails !== null) {
@@ -1035,22 +989,7 @@ class DefaultController extends BaseController
             }
         }
 
-        $banks = Bank::find()
-            ->andWhere(['not', ['bank_name' => null]])
-            ->andWhere(['<>', 'bank_name', ''])
-            ->orderBy(['bank_name' => SORT_ASC, 'brank_id' => SORT_ASC])
-            ->all();
-
-        $uniqueBanks = [];
-        foreach ($banks as $bank) {
-            $normalizedName = mb_strtolower(trim((string)preg_replace('/\s+/', ' ', $bank->bank_name)));
-            $isSelectedBank = $model->bank_id !== null
-                && (int)$bank->brank_id === (int)$model->bank_id;
-            if ($normalizedName !== '' && (!isset($uniqueBanks[$normalizedName]) || $isSelectedBank)) {
-                $uniqueBanks[$normalizedName] = $bank;
-            }
-        }
-        $banks = array_values($uniqueBanks);
+        $banks = Bank::find()->all();
         $refundTypes = \app\modules\refund_requests\models\RefundType::find()->where(['refund_type_status' => true])->all();
 
         return $this->render('apply', [
@@ -1141,37 +1080,14 @@ class DefaultController extends BaseController
      * @param int $bankId
      * @return array
      */
-    public function actionBranches(int $bankId): array
+    public function actionBranches($bankId)
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
-
-        $bankCode = Bank::find()
-            ->select('bank_code')
-            ->where(['brank_id' => $bankId])
-            ->scalar();
-
-        if ($bankCode === false || $bankCode === null) {
-            return [];
+        $bank = Bank::findOne($bankId);
+        if ($bank) {
+            return BankBranch::find()->where(['bank_code' => $bank->bank_code])->all();
         }
-
-        $branches = BankBranch::find()
-            ->select(['branch_id', 'branch_name'])
-            ->where(['bank_code' => $bankCode])
-            ->andWhere(['not', ['branch_name' => null]])
-            ->andWhere(['<>', 'branch_name', ''])
-            ->orderBy(['branch_name' => SORT_ASC, 'branch_id' => SORT_ASC])
-            ->asArray()
-            ->all();
-
-        $uniqueBranches = [];
-        foreach ($branches as $branch) {
-            $normalizedName = mb_strtolower(trim((string)preg_replace('/\s+/', ' ', $branch['branch_name'])));
-            if ($normalizedName !== '' && !isset($uniqueBranches[$normalizedName])) {
-                $uniqueBranches[$normalizedName] = $branch;
-            }
-        }
-
-        return array_values($uniqueBranches);
+        return [];
     }
 
     /**

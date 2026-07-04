@@ -90,7 +90,7 @@ var timestampPopoverTriggerList = [].slice.call(document.querySelectorAll('.ecit
 timestampPopoverTriggerList.forEach(function (popoverTriggerEl) {
     new bootstrap.Popover(popoverTriggerEl, {
         html: true,
-        sanitize: false,
+        sanitize: true,
         trigger: 'focus',
         placement: 'bottom',
         customClass: 'ecitizen-timestamp-popover'
@@ -208,23 +208,23 @@ $select2FilterOptions = static function (string $placeholder): array {
                             'filter' => $invoiceFilterOptions['reference'],
                             'filterWidgetOptions' => $select2FilterOptions('All references'),
                         ],
-                        [
-                            'label' => 'Date',
-                            'attribute' => 'deposit_date',
-                            'value' => static fn(array $invoice): string => Yii::$app->formatter->asDate($invoice['deposit_date']),
-                            'filterType' => GridView::FILTER_DATE,
-                            'filterWidgetOptions' => [
-                                'options' => [
-                                    'placeholder' => 'All dates',
-                                ],
-                                'pluginOptions' => [
-                                    'autoclose' => true,
-                                    'clearBtn' => true,
-                                    'format' => 'yyyy-mm-dd',
-                                    'todayHighlight' => true,
-                                ],
-                            ],
-                        ],
+                        // [
+                        //     'label' => 'Date',
+                        //     'attribute' => 'deposit_date',
+                        //     'value' => static fn(array $invoice): string => Yii::$app->formatter->asDate($invoice['deposit_date']),
+                        //     'filterType' => GridView::FILTER_DATE,
+                        //     'filterWidgetOptions' => [
+                        //         'options' => [
+                        //             'placeholder' => 'All dates',
+                        //         ],
+                        //         'pluginOptions' => [
+                        //             'autoclose' => true,
+                        //             'clearBtn' => true,
+                        //             'format' => 'yyyy-mm-dd',
+                        //             'todayHighlight' => true,
+                        //         ],
+                        //     ],
+                        // ],
                         [
                             'label' => 'Transaction Date',
                             'attribute' => 'transaction_date',
@@ -278,17 +278,19 @@ $select2FilterOptions = static function (string $placeholder): array {
 
                                 return Html::tag(
                                     'div',
-                                    Html::a('Pay this invoice', ['invoice', 'trans_id' => $invoice['trans_id']], [
+                                    Html::a('Pay this invoice', ['invoice', 'trans_id' => $invoice['trans_id_token']], [
                                         'class' => 'btn btn-outline-primary btn-sm',
                                     ])
-                                        . Html::beginForm(['complete-payment', 'trans_id' => $invoice['trans_id']], 'post', [
+                                        /*
+                                        . Html::beginForm(['complete-payment', 'trans_id' => $invoice['trans_id_token']], 'post', [
                                             'class' => 'ecitizen-complete-payment-form',
                                             'data-confirm' => 'Check eCitizen for this invoice and credit it only if payment is confirmed?',
                                         ])
                                         . Html::submitButton('Complete payment', [
                                             'class' => 'btn btn-outline-success btn-sm ecitizen-complete-payment-btn',
                                         ])
-                                        . Html::endForm(),
+                                        . Html::endForm()
+                                        */,
                                     ['class' => 'ecitizen-action-buttons']
                                 );
                             },

@@ -20,33 +20,11 @@ use kartik\select2\Select2;
 $this->title = 'Apply for Refund Request';
 $this->registerCssFile('@web/css/refund-requests.css');
 
-$refundIndexUrl = Url::to(['index']);
-$refreshRedirectJs = <<<JS
-(function () {
-    var navigationEntries = window.performance && window.performance.getEntriesByType
-        ? window.performance.getEntriesByType('navigation')
-        : [];
-    var isReload = navigationEntries.length
-        ? navigationEntries[0].type === 'reload'
-        : window.performance
-            && window.performance.navigation
-            && window.performance.navigation.type === 1;
-
-    if (isReload) {
-        window.location.replace('$refundIndexUrl');
-    }
-})();
-JS;
-$this->registerJs($refreshRedirectJs, yii\web\View::POS_HEAD);
-
 $fieldConfig = [
     'options' => ['class' => 'cr-field'],
     'template' => "{label}\n{input}\n{error}",
     'labelOptions' => ['class' => null],
     'errorOptions' => ['class' => 'cr-error'],
-    'validateOnChange' => false,
-    'validateOnBlur' => false,
-    'validateOnType' => false,
 ];
 
 $refundedRequestDetails = $refundedRequestDetails ?? null;
@@ -331,10 +309,7 @@ $breadcrumbTypeLabel = $selectedRefundTypeLabel !== 'N/A' ? $selectedRefundTypeL
                     <?= Html::a('← Cancel', ['index'], [
                         'style' => 'display:inline-flex; align-items:center; padding:.65rem 1.5rem; font-family:var(--cr-font); font-size:.88rem; font-weight:700; border-radius:999px; border:1.5px solid var(--cr-blue-200); color:var(--cr-blue-600); background:transparent; text-decoration:none;'
                     ]) ?>
-                    <?= Html::submitButton('Submit Application', [
-                        'class' => 'cr-btn cr-btn--primary',
-                        'id' => 'submit-application-button',
-                    ]) ?>
+                    <?= Html::submitButton('Submit Application', ['class' => 'cr-btn cr-btn--primary']) ?>
                 </div>
             </div>
         </div>
@@ -349,38 +324,8 @@ $breadcrumbTypeLabel = $selectedRefundTypeLabel !== 'N/A' ? $selectedRefundTypeL
 	$branchUrl = Url::to(['branches']);
 
 $js = <<<JS
-var refundForm = $('#refund-requests-form');
-var submitApplicationRequested = false;
-var refundFormElement = document.getElementById('refund-requests-form');
-
-// Stop change handlers, Select2, and Enter presses from starting whole-form
-// validation. Only the explicit submit button may begin submission.
-if (refundFormElement) {
-    refundFormElement.addEventListener('submit', function(event) {
-        if (!submitApplicationRequested) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-        }
-    }, true);
-}
-
-$('#submit-application-button').on('click', function() {
-    submitApplicationRequested = true;
-});
-
-// A refund application may only be submitted through the explicit action
-// button. This blocks implicit Enter/Select2 and unrelated change submissions.
-refundForm.on('beforeSubmit', function() {
-    if (!submitApplicationRequested) {
-        return false;
-    }
-
-    submitApplicationRequested = false;
-    return true;
-});
-
 function togglePaymentOptionFields(value) {
-    var form = refundForm;
+    var form = $('#refund-requests-form');
     if (value === 'mpesa') {
         $('#bank-details-fields').hide();
         $('#mpesa-details-fields').show();
@@ -419,46 +364,24 @@ $('#bank-selector').on('change', function(e) {
     var bankId = $(this).val();
     var branchSelector = $('#branch-selector');
     
-    branchSelector
-        .empty()
-        .append(new Option('Select Branch', '', true, false))
-        .prop('disabled', !bankId)
-        .trigger('change.select2');
+    // Clear and reset branch selector
+    branchSelector.val(null).trigger('change');
+    branchSelector.empty();
     
     if (bankId) {
-        branchSelector
-            .empty()
-            .append(new Option('Loading branches...', '', true, false))
-            .prop('disabled', true)
-            .trigger('change.select2');
-
-        $.getJSON('$branchUrl', {bankId: bankId})
-        .done(function(data) {
-            branchSelector.empty();
-
-            if (!data.length) {
-                branchSelector
-                    .append(new Option('No branches available for this bank', '', true, false))
-                    .prop('disabled', true)
-                    .trigger('change.select2');
-                return;
-            }
-
-            branchSelector.append(new Option('Select Branch', '', true, false));
+        $.get('$branchUrl', {bankId: bankId}, function(data) {
+            var options = [];
             $.each(data, function(index, branch) {
-                branchSelector.append(new Option(branch.branch_name, branch.branch_id, false, false));
+                options.push({id: branch.branch_id, text: branch.branch_name});
             });
-
-            branchSelector
-                .prop('disabled', false)
-                .trigger('change.select2');
-        })
-        .fail(function() {
-            branchSelector
-                .empty()
-                .append(new Option('Unable to load branches. Please try again.', '', true, false))
-                .prop('disabled', true)
-                .trigger('change.select2');
+            
+            branchSelector.select2({
+                data: options,
+                placeholder: 'Select Branch',
+                allowClear: true,
+                theme: 'krajee-bs5',
+                width: '100%'
+            });
         });
     }
 });
@@ -472,7 +395,6 @@ $('#refund-requests-form').on('afterValidate', function (event, messages, errorA
     var list = summary.find('.error-list');
     
     if (errorAttributes.length > 0) {
-        submitApplicationRequested = false;
         var errorHtml = '<ul style=\"margin-bottom: 0; padding-left: 1.5rem;\">';
         $.each(messages, function(field, errors) {
             if (errors.length > 0) {

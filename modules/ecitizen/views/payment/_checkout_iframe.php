@@ -24,14 +24,14 @@ use yii\bootstrap5\Html;
             <?php endif; ?>
         </div>
 
-        <form id="ecitizen-checkout-form" method="post" action="<?= Html::encode($gatewayUrl) ?>" target="ecitizen-checkout-frame">
+        <form id="ecitizen-checkout-form" method="post" action="<?= Html::encode($gatewayUrl) ?>" target="ecitizen-checkout-frame" autocomplete="off">
             <?php foreach ($payload as $name => $value): ?>
                 <?= Html::hiddenInput($name, $value) . "\n" ?>
             <?php endforeach; ?>
         </form>
 
         <div class="ecitizen-frame-wrap border rounded bg-light">
-            <iframe name="ecitizen-checkout-frame" title="eCitizen checkout"></iframe>
+            <iframe name="ecitizen-checkout-frame" title="eCitizen checkout" referrerpolicy="no-referrer"></iframe>
         </div>
 
         <div class="mt-3">

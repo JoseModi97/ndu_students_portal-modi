@@ -7,6 +7,8 @@ use app\modules\ecitizen\Module;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\db\Connection;
+use yii\helpers\Url;
+use yii\web\BadRequestHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\ServerErrorHttpException;
 
@@ -16,6 +18,11 @@ class PaymentService
     public const SYNC_PENDING = 0;
     public const SYNC_DONE = 1;
     public const SYNC_FAILED = 2;
+    public const RECONCILIATION_CONFIRMED = 'confirmed';
+    public const RECONCILIATION_REVIEW_REQUIRED = 'review_required';
+    public const RECONCILIATION_UNKNOWN = 'unknown';
+    private const REMOTE_SETTLED_STATUSES = ['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'];
+    private const REMOTE_REVERSAL_STATUSES = ['REVERSED', 'REFUNDED', 'REVERSE', 'REFUND'];
     private const PORTAL_ECITIZEN_TRANS_ID_OFFSET = 900000000000;
 
     private Connection $db;
@@ -38,6 +45,90 @@ class PaymentService
     private function params(): array
     {
         return $this->module()->ecitizenParams();
+    }
+
+    public function invoiceToken(int $transId, string $registrationNumber): string
+    {
+        if ($transId < 1 || trim($registrationNumber) === '') {
+            throw new InvalidConfigException('A valid invoice and student are required to create an invoice token.');
+        }
+
+        $payload = json_encode([
+            'v' => 1,
+            'trans_id' => $transId,
+            'issued_at' => time(),
+        ], JSON_THROW_ON_ERROR);
+        $encrypted = Yii::$app->security->encryptByKey(
+            $payload,
+            $this->invoiceTokenKey(),
+            $this->invoiceTokenContext($registrationNumber)
+        );
+
+        return rtrim(strtr(base64_encode($encrypted), '+/', '-_'), '=');
+    }
+
+    public function transIdFromInvoiceToken(string $token, string $registrationNumber): int
+    {
+        try {
+            if ($token === '' || strlen($token) > 1024 || preg_match('/^[A-Za-z0-9_-]+$/D', $token) !== 1) {
+                throw new \UnexpectedValueException('Malformed token.');
+            }
+
+            $padding = (4 - strlen($token) % 4) % 4;
+            $encrypted = base64_decode(
+                strtr($token, '-_', '+/') . str_repeat('=', $padding),
+                true
+            );
+            if ($encrypted === false) {
+                throw new \UnexpectedValueException('Malformed token.');
+            }
+
+            $decrypted = Yii::$app->security->decryptByKey(
+                $encrypted,
+                $this->invoiceTokenKey(),
+                $this->invoiceTokenContext($registrationNumber)
+            );
+            if ($decrypted === false) {
+                throw new \UnexpectedValueException('Invalid token.');
+            }
+
+            $payload = json_decode($decrypted, true, 2, JSON_THROW_ON_ERROR);
+            $transId = filter_var($payload['trans_id'] ?? null, FILTER_VALIDATE_INT, [
+                'options' => ['min_range' => 1],
+            ]);
+            $issuedAt = filter_var($payload['issued_at'] ?? null, FILTER_VALIDATE_INT);
+            $now = time();
+            $ttl = max(60, (int) ($this->params()['invoiceTokenTtl'] ?? 900));
+            if (($payload['v'] ?? null) !== 1
+                || $transId === false
+                || $issuedAt === false
+                || $issuedAt > $now + 60
+                || $issuedAt < $now - $ttl
+            ) {
+                throw new \UnexpectedValueException('Invalid token payload.');
+            }
+
+            return $transId;
+        } catch (\Throwable $exception) {
+            Yii::warning('Rejected invalid eCitizen invoice token: ' . $exception->getMessage(), 'ecitizen.payment');
+            throw new BadRequestHttpException('The invoice link is invalid. Please open it from your invoice list.');
+        }
+    }
+
+    private function invoiceTokenKey(): string
+    {
+        $params = $this->params();
+        $keyMaterial = (string) ($params['invoiceTokenKey'] ?? '');
+        if (strlen($keyMaterial) < 32) {
+            throw new InvalidConfigException('A dedicated eCitizen invoice token key of at least 32 characters is required.');
+        }
+
+        return hash('sha256', $keyMaterial, true);
+    }
+
+    private function invoiceTokenContext(string $registrationNumber): string
+    {
+        return 'ecitizen-invoice-v1:' . strtoupper(trim($registrationNumber));
     }
 
     public function resolveLoggedInStudent(): array
@@ -95,6 +186,24 @@ class PaymentService
             'select 1 from smis.fss_payment_modes where payment_mode_id = :payment_mode_id',
             [':payment_mode_id' => self::PAYMENT_MODE_ID]
         )->queryScalar();
+    }
+
+    public function outstandingFeeBalance(string $registrationNumber): float
+    {
+        $balance = $this->db->createCommand(
+            "select coalesce(sum(
+                    case
+                        when trans_type = 'DR' then trans_amount
+                        when trans_type = 'CR' then -trans_amount
+                        else 0
+                    end
+                ), 0)
+               from smis.fss_fee_transactions
+              where left(progress_code, length(:progress_prefix)) = :progress_prefix",
+            [':progress_prefix' => $registrationNumber . '-']
+        )->queryScalar();
+
+        return round((float) $balance, 2);
     }
 
     public function paymentTypes(): array
@@ -318,12 +427,7 @@ class PaymentService
                     \"billRefNumber\" as source_reference,
                     response,
                     trans_date as last_update,
-                    case when exists (
-                        select 1
-                          from smisportal.fss_fee_transactions ft
-                         where ft.trans_id = (:portal_trans_id_offset + e.payment_id)
-                           and ft.trans_type = 'CR'
-                    ) then 1 else 0 end as has_fee_payment
+                    case when coalesce(status, 'Pending') in ('Credited', 'Settled') then 1 else 0 end as has_fee_payment
                from smisportal.ecitizen
                as e
               where payment_id = :payment_id
@@ -333,7 +437,6 @@ class PaymentService
                 ':payment_id' => $transId,
                 ':registration_number' => $registrationNumber,
                 ':payment_mode_id' => self::PAYMENT_MODE_ID,
-                ':portal_trans_id_offset' => self::PORTAL_ECITIZEN_TRANS_ID_OFFSET,
             ]
         )->queryOne();
 
@@ -355,12 +458,7 @@ class PaymentService
                     \"billRefNumber\" as trans_reference,
                     \"billRefNumber\" as source_reference,
                     trans_date as last_update,
-                    case when exists (
-                        select 1
-                          from smisportal.fss_fee_transactions ft
-                         where ft.trans_id = (:portal_trans_id_offset + e.payment_id)
-                           and ft.trans_type = 'CR'
-                    ) then 1 else 0 end as has_fee_payment
+                    case when coalesce(status, 'Pending') in ('Credited', 'Settled') then 1 else 0 end as has_fee_payment
                from smisportal.ecitizen e
               where registration_number = :registration_number
                 and coalesce(status, 'Pending') in ('Pending', 'Paid', 'Credited', 'Settled')
@@ -368,7 +466,6 @@ class PaymentService
             [
                 ':registration_number' => $registrationNumber,
                 ':payment_mode_id' => self::PAYMENT_MODE_ID,
-                ':portal_trans_id_offset' => self::PORTAL_ECITIZEN_TRANS_ID_OFFSET,
             ]
         )->queryAll();
 
@@ -485,7 +582,7 @@ class PaymentService
                     ft.trans_type,
                     ft.trans_amount as fee_transaction_amount,
                     ft.trans_desc,
-                    ft.sync_status
+                    null as sync_status
                 from smis.fss_banking_slips bs
                 left join smis.fss_fee_payments fp
                     on fp.trans_id = bs.trans_id
@@ -558,7 +655,7 @@ class PaymentService
                 'SMIS programme curriculum' => "SELECT student_prog_curriculum_id, student_id, registration_number, prog_curriculum_id, student_category_id, adm_refno, status_id\nFROM smis.sm_student_programme_curriculum\nWHERE registration_number = {$registrationValue}\nORDER BY student_prog_curriculum_id DESC;",
                 'Academic progress' => "SELECT sap.academic_progress_id, sap.acad_session_id, sap.academic_level_id, sap.student_prog_curriculum_id, sap.progress_status_id, sap.current_status\nFROM smis.sm_academic_progress sap\nINNER JOIN smis.sm_student_programme_curriculum spc\n    ON spc.student_prog_curriculum_id = sap.student_prog_curriculum_id\nWHERE spc.registration_number = {$registrationValue}\nORDER BY sap.current_status DESC, sap.academic_progress_id DESC;",
                 'Settlement bank accounts' => "SELECT ba.brank_account_id, ba.account_no, ba.account_details, ba.branch_code, bb.branch_name, bb.bank_code, b.brank_id, b.bank_name\nFROM smis.fss_bank_accounts ba\nLEFT JOIN smis.fss_bank_branches bb ON bb.branch_code = ba.branch_code\nLEFT JOIN smis.fss_banks b ON b.bank_code = bb.bank_code\nORDER BY b.bank_name, ba.account_no;",
-                'Full eCitizen workflow trace' => "SELECT bs.trans_id, bs.reg_number, bs.deposit_date, bs.deposit_amount, bs.post_status, bs.post_comment, bs.receipt_no, bs.source_reference, bs.trans_reference, fp.fee_paymt_id, fp.trans_date AS fee_payment_date, fp.trans_amount AS fee_payment_amount, fp.student_prog_curriculum_id, ft.academic_progress_id, ft.trans_type, ft.trans_amount AS fee_transaction_amount, ft.trans_desc, ft.sync_status\nFROM smis.fss_banking_slips bs\nLEFT JOIN smis.fss_fee_payments fp ON fp.trans_id = bs.trans_id\nLEFT JOIN smis.fss_fee_transactions ft ON ft.trans_id = bs.trans_id\nWHERE bs.pay_mode = 12\n  AND bs.reg_number = {$registrationValue}\nORDER BY bs.trans_id DESC;",
+                'Full eCitizen workflow trace' => "SELECT bs.trans_id, bs.reg_number, bs.deposit_date, bs.deposit_amount, bs.post_status, bs.post_comment, bs.receipt_no, bs.source_reference, bs.trans_reference, fp.fee_paymt_id, fp.trans_date AS fee_payment_date, fp.trans_amount AS fee_payment_amount, fp.student_prog_curriculum_id, ft.academic_progress_id, ft.trans_type, ft.trans_amount AS fee_transaction_amount, ft.trans_desc, NULL AS sync_status\nFROM smis.fss_banking_slips bs\nLEFT JOIN smis.fss_fee_payments fp ON fp.trans_id = bs.trans_id\nLEFT JOIN smis.fss_fee_transactions ft ON ft.trans_id = bs.trans_id\nWHERE bs.pay_mode = 12\n  AND bs.reg_number = {$registrationValue}\nORDER BY bs.trans_id DESC;",
             ],
         ];
     }
@@ -621,9 +718,9 @@ class PaymentService
                     ':client_name' => $clientName,
                     ':client_id_number' => $student['id_no'] ?: $student['passport_no'] ?: ($identity->national_id ?? null) ?: ($identity->passport_no ?? null) ?: $studentContext['registrationNumber'],
                     ':client_email' => $student['primary_email'] ?: ($identity->primary_email ?? null),
-                    ':callback_url' => \yii\helpers\Url::to(['/ecitizen/payment/invoices'], true),
+                    ':callback_url' => $this->callbackUrl('/ecitizen/payment/invoices'),
                     ':picture_url' => '',
-                    ':notification_url' => \yii\helpers\Url::to(['/ecitizen/payment/notify'], true),
+                    ':notification_url' => $this->callbackUrl('/ecitizen/payment/notify'),
                     ':amount_expected' => $amount,
                     ':registration_number' => $studentContext['registrationNumber'],
                     ':response' => json_encode($metadata),
@@ -680,6 +777,10 @@ class PaymentService
 
             if ((int) ($request['sync_status'] ?? self::SYNC_PENDING) === self::SYNC_DONE) {
                 $this->creditPortalFeeStatement($portalDb, $request, $amount, $paymentDate, $gatewayReference, $metadata);
+                $portalDb->createCommand("set local smisportal.ecitizen_app_write = '1'")->execute();
+                $portalDb->createCommand()->update('smisportal.ecitizen', [
+                    'response' => json_encode($metadata),
+                ], ['payment_id' => $request['payment_id']])->execute();
                 $transaction->commit();
 
                 return [
@@ -701,6 +802,9 @@ class PaymentService
             ], ['payment_id' => $request['payment_id']])->execute();
 
             $this->creditPortalFeeStatement($portalDb, $request, $amount, $paymentDate, $gatewayReference, $metadata);
+            $portalDb->createCommand()->update('smisportal.ecitizen', [
+                'response' => json_encode($metadata),
+            ], ['payment_id' => $request['payment_id']])->execute();
 
             $transaction->commit();
 
@@ -730,6 +834,174 @@ class PaymentService
                 ':sync_status' => self::SYNC_PENDING,
             ]
         )->queryAll();
+    }
+
+    public function settledRequestsForReconciliation(int $limit = 100, int $minimumIntervalMinutes = 60): array
+    {
+        $limit = max(1, min($limit, 1000));
+        $minimumIntervalMinutes = max(1, min($minimumIntervalMinutes, 10080));
+
+        return $this->portalDb()->createCommand(
+            'select *
+               from smisportal.ecitizen
+              where status = :status
+                and (
+                    last_status_checked_at is null
+                    or last_status_checked_at <= now() - make_interval(mins => :minimum_interval_minutes)
+                )
+              order by last_status_checked_at asc nulls first, payment_id asc
+              limit ' . $limit,
+            [
+                ':status' => 'Settled',
+                ':minimum_interval_minutes' => $minimumIntervalMinutes,
+            ]
+        )->queryAll();
+    }
+
+    public function reconcileSettledRequest(array $request): array
+    {
+        $reference = trim((string) ($request['billRefNumber'] ?? ''));
+        if ($reference === '') {
+            throw new \InvalidArgumentException('The settled eCitizen row has no bill reference.');
+        }
+
+        $payload = $this->queryPaymentStatus($reference);
+        $classification = $this->classifyReconciliationPayload($request, $payload);
+        $remoteStatus = $classification['remote_status'];
+        $reconciliationStatus = $classification['reconciliation_status'];
+
+        $portalDb = $this->portalDb();
+        $transaction = $portalDb->beginTransaction();
+        try {
+            $this->lockPosting($portalDb, $reference);
+            $currentReconciliationStatus = (string) $portalDb->createCommand(
+                'select reconciliation_status
+                   from smisportal.ecitizen
+                  where payment_id = :payment_id
+                    and status = :status
+                  for update',
+                [
+                    ':payment_id' => (int) $request['payment_id'],
+                    ':status' => 'Settled',
+                ]
+            )->queryScalar();
+            if ($currentReconciliationStatus === self::RECONCILIATION_REVIEW_REQUIRED) {
+                // A confirmed reversal is a sticky audit condition and must be cleared manually.
+                $reconciliationStatus = self::RECONCILIATION_REVIEW_REQUIRED;
+            }
+
+            $portalDb->createCommand("set local smisportal.ecitizen_app_write = '1'")->execute();
+
+            $attributes = [
+                'remote_status' => $remoteStatus !== '' ? substr($remoteStatus, 0, 32) : null,
+                'reconciliation_status' => $reconciliationStatus,
+                'last_status_checked_at' => new \yii\db\Expression('now()'),
+                'status_check_error' => null,
+                'last_status_response' => json_encode($payload, JSON_UNESCAPED_SLASHES),
+            ];
+            if ($reconciliationStatus === self::RECONCILIATION_REVIEW_REQUIRED) {
+                $attributes['reversal_detected_at'] = new \yii\db\Expression(
+                    'coalesce(reversal_detected_at, now())'
+                );
+            }
+
+            $portalDb->createCommand()->update(
+                'smisportal.ecitizen',
+                $attributes,
+                [
+                    'payment_id' => (int) $request['payment_id'],
+                    'status' => 'Settled',
+                ]
+            )->execute();
+            $transaction->commit();
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
+        }
+
+        return [
+            'reference' => $reference,
+            'remote_status' => $remoteStatus,
+            'reconciliation_status' => $reconciliationStatus,
+        ];
+    }
+
+    public function classifyReconciliationPayload(array $request, array $payload): array
+    {
+        $remoteStatus = strtoupper(trim((string) ($payload['status'] ?? $payload['payment_status'] ?? '')));
+        $reconciliationStatus = self::RECONCILIATION_UNKNOWN;
+
+        if (in_array($remoteStatus, self::REMOTE_SETTLED_STATUSES, true)
+            && $this->statusPayloadMatchesReconciliationRequest($request, $payload, true)
+        ) {
+            $reconciliationStatus = self::RECONCILIATION_CONFIRMED;
+        } elseif (in_array($remoteStatus, self::REMOTE_REVERSAL_STATUSES, true)
+            && $this->statusPayloadMatchesReconciliationRequest($request, $payload, true)
+        ) {
+            $reconciliationStatus = self::RECONCILIATION_REVIEW_REQUIRED;
+        }
+
+        return [
+            'remote_status' => $remoteStatus,
+            'reconciliation_status' => $reconciliationStatus,
+        ];
+    }
+
+    public function markReconciliationFailed(int $paymentId, string $message): void
+    {
+        $portalDb = $this->portalDb();
+        $transaction = $portalDb->beginTransaction();
+        try {
+            $portalDb->createCommand("set local smisportal.ecitizen_app_write = '1'")->execute();
+            $portalDb->createCommand()->update('smisportal.ecitizen', [
+                'last_status_checked_at' => new \yii\db\Expression('now()'),
+                'status_check_error' => substr($message, 0, 1000),
+            ], [
+                'payment_id' => $paymentId,
+                'status' => 'Settled',
+            ])->execute();
+            $transaction->commit();
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            Yii::warning(
+                'Unable to record eCitizen reconciliation failure for payment ' . $paymentId . ': '
+                . $exception->getMessage(),
+                'ecitizen.payment'
+            );
+        }
+    }
+
+    private function statusPayloadMatchesReconciliationRequest(
+        array $request,
+        array $payload,
+        bool $requireAmount
+    ): bool {
+        $reference = trim((string) (
+            $payload['client_invoice_ref']
+            ?? $payload['ref_no']
+            ?? $payload['billRefNumber']
+            ?? ''
+        ));
+        if ($reference === '' || !hash_equals((string) $request['billRefNumber'], $reference)) {
+            return false;
+        }
+
+        if (!$requireAmount) {
+            return true;
+        }
+
+        $amount = $this->paidAmount($payload);
+        if ($amount === null) {
+            foreach (['reversed_amount', 'refund_amount', 'amount_reversed', 'amount_refunded'] as $field) {
+                if (isset($payload[$field]) && trim((string) $payload[$field]) !== '') {
+                    $amount = round((float) $payload[$field], 2);
+                    break;
+                }
+            }
+        }
+
+        return $amount !== null
+            && abs($amount - round((float) $request['amountExpected'], 2)) <= 0.01;
     }
 
     public function markSyncFailed(string $reference, string $message): void
@@ -821,6 +1093,32 @@ class PaymentService
                 throw new InvalidConfigException("Missing eCitizen configuration value: {$key}.");
             }
         }
+
+        $allowedGatewayHosts = array_values(array_filter(array_map(
+            static fn (mixed $host): string => strtolower(trim((string) $host)),
+            (array) ($config['allowedGatewayHosts'] ?? [])
+        )));
+        if ($allowedGatewayHosts === []) {
+            throw new InvalidConfigException('No trusted eCitizen gateway hosts are configured.');
+        }
+        $allowedPortalHosts = array_values(array_filter(array_map(
+            static fn (mixed $host): string => strtolower(trim((string) $host)),
+            (array) ($config['allowedPortalHosts'] ?? [])
+        )));
+        if ($allowedPortalHosts === []) {
+            throw new InvalidConfigException('No trusted portal hosts are configured for eCitizen callbacks.');
+        }
+
+        $this->assertTrustedHttpsUrl((string) $config['url'], $allowedGatewayHosts, 'eCitizen gateway URL');
+        if (!empty($config['statusUrl'])) {
+            $this->assertTrustedHttpsUrl((string) $config['statusUrl'], $allowedGatewayHosts, 'eCitizen status URL');
+        }
+        $this->assertTrustedHttpsUrl(
+            (string) ($config['callbackBaseUrl'] ?? ''),
+            $allowedPortalHosts,
+            'eCitizen callback base URL'
+        );
+
         return $config;
     }
 
@@ -861,17 +1159,35 @@ class PaymentService
         float $amount,
         string $paymentDate,
         string $gatewayReference,
-        array $metadata
+        array &$metadata
     ): void {
         $paymentId = (int) $request['payment_id'];
-        $transId = $this->portalCreditTransId($paymentId);
-        $existingCredit = $portalDb->createCommand(
-            'select 1 from smisportal.fss_fee_transactions where trans_id = :trans_id and trans_type = :trans_type',
-            [
-                ':trans_id' => $transId,
-                ':trans_type' => 'CR',
-            ]
-        )->queryScalar();
+        $transId = (int) ($metadata['portal_fee_trans_id'] ?? 0);
+        $existingCredit = false;
+
+        if ($transId > 0) {
+            $existingCredit = $portalDb->createCommand(
+                'select 1 from smisportal.fss_fee_transactions where trans_id = :trans_id and trans_type = :trans_type',
+                [
+                    ':trans_id' => $transId,
+                    ':trans_type' => 'CR',
+                ]
+            )->queryScalar();
+        }
+
+        if (!$existingCredit) {
+            $legacyTransId = $this->portalCreditTransId($paymentId);
+            $existingCredit = $portalDb->createCommand(
+                'select 1 from smisportal.fss_fee_transactions where trans_id = :trans_id and trans_type = :trans_type',
+                [
+                    ':trans_id' => $legacyTransId,
+                    ':trans_type' => 'CR',
+                ]
+            )->queryScalar();
+            if ($existingCredit) {
+                $transId = $legacyTransId;
+            }
+        }
 
         $registrationNumber = (string) $request['registration_number'];
         $context = $this->portalStudentContextByRegistrationNumber($registrationNumber);
@@ -880,21 +1196,30 @@ class PaymentService
         $progressCode = $this->progressCodeFor($portalDb, 'smisportal', $registrationNumber, (int) $context['academicProgress']['acad_session_id']);
 
         if (!$existingCredit) {
-            $portalDb->createCommand()->insert('smisportal.fss_fee_transactions', [
-                'trans_id' => $transId,
-                'academic_progress_id' => $context['academicProgress']['academic_progress_id'],
-                'trans_date' => $paymentDate,
-                'trans_type' => 'CR',
-                'trans_amount' => $amount,
-                'trans_desc' => $description,
-                'user_id' => $userId,
-                'receipt_status' => '',
-                'exchange_rate' => 1,
-                'progress_code' => $progressCode,
-                'sync_status' => false,
-                'student_semester_session_id' => $this->studentSemesterSessionId($portalDb, 'smisportal', (int) $context['academicProgress']['academic_progress_id']),
-            ])->execute();
+            $transId = (int) $portalDb->createCommand(
+                'insert into smisportal.fss_fee_transactions
+                    (academic_progress_id, trans_date, trans_type, trans_amount, trans_desc, user_id,
+                     receipt_status, exchange_rate, progress_code, sync_status, student_semester_session_id)
+                 values
+                    (:academic_progress_id, :trans_date, :trans_type, :trans_amount, :trans_desc, :user_id,
+                     :receipt_status, :exchange_rate, :progress_code, :sync_status, :student_semester_session_id)
+                 returning trans_id',
+                [
+                    ':academic_progress_id' => $context['academicProgress']['academic_progress_id'],
+                    ':trans_date' => $paymentDate,
+                    ':trans_type' => 'CR',
+                    ':trans_amount' => $amount,
+                    ':trans_desc' => $description,
+                    ':user_id' => $userId,
+                    ':receipt_status' => '',
+                    ':exchange_rate' => 1,
+                    ':progress_code' => $progressCode,
+                    ':sync_status' => false,
+                    ':student_semester_session_id' => $this->studentSemesterSessionId($portalDb, 'smisportal', (int) $context['academicProgress']['academic_progress_id']),
+                ]
+            )->queryScalar();
         }
+        $metadata['portal_fee_trans_id'] = $transId;
 
         $existingPayment = $portalDb->createCommand(
             'select 1 from smisportal.fss_fee_payments where trans_id = :trans_id',
@@ -906,8 +1231,7 @@ class PaymentService
             return;
         }
 
-        $portalDb->createCommand()->insert('smisportal.fss_fee_payments', [
-            'fee_paymt_id' => $transId,
+        $paymentAttributes = [
             'receipt_no' => $this->receiptNumber($gatewayReference, (string) $request['billRefNumber']),
             'trans_date' => $paymentDate,
             'trans_amount' => $amount,
@@ -922,7 +1246,12 @@ class PaymentService
             'receipt_status' => '',
             'exchange_rate' => 1,
             'student_prog_curriculum_id' => $context['programme']['student_prog_curriculum_id'],
-        ])->execute();
+        ];
+        if (!$this->columnHasDatabaseGeneratedValue($portalDb, 'smisportal.fss_fee_payments', 'fee_paymt_id')) {
+            $paymentAttributes['fee_paymt_id'] = $transId;
+        }
+
+        $portalDb->createCommand()->insert('smisportal.fss_fee_payments', $paymentAttributes)->execute();
     }
 
     private function createSettledBankingSlip(array $request, string $paymentDate, string $gatewayReference): array
@@ -1039,7 +1368,6 @@ class PaymentService
             'receipt_status' => '',
             'exchange_rate' => 1,
             'progress_code' => $progressCode,
-            'sync_status' => false,
             'student_semester_session_id' => $this->studentSemesterSessionId($this->db, 'smis', (int) $academicProgress['academic_progress_id']),
         ])->execute();
     }
@@ -1176,6 +1504,14 @@ class PaymentService
         return ((int) $db->createCommand("select coalesce(max({$column}), 0) + 1 from {$table}")->queryScalar());
     }
 
+    private function columnHasDatabaseGeneratedValue(Connection $db, string $table, string $column): bool
+    {
+        $schema = $db->schema->getTableSchema($table, true);
+        $tableColumn = $schema?->columns[$column] ?? null;
+
+        return $tableColumn !== null && ($tableColumn->autoIncrement || $tableColumn->defaultValue !== null);
+    }
+
     private function receiptNumber(string $gatewayReference, string $fallback): string
     {
         $receiptNo = trim($gatewayReference) !== '' ? $gatewayReference : $fallback;
@@ -1223,8 +1559,8 @@ class PaymentService
             'clientIDNumber' => $clientIdNumber,
             'clientName' => $clientName,
             'clientEmail' => $student['primary_email'] ?: $identity->primary_email,
-            'notificationURL' => \yii\helpers\Url::to(['/ecitizen/payment/notify'], true),
-            'callBackURLOnSuccess' => \yii\helpers\Url::to(['/ecitizen/payment/invoices'], true),
+            'notificationURL' => $this->callbackUrl('/ecitizen/payment/notify'),
+            'callBackURLOnSuccess' => $this->callbackUrl('/ecitizen/payment/invoices'),
             'pictureURL' => '',
             'currency' => $config['currency'],
             'amountExpected' => $amountExpected,
@@ -1269,9 +1605,36 @@ class PaymentService
             'reference' => $payload['client_invoice_ref'] ?? $payload['billRefNumber'] ?? $payload['clientInvoiceRef'] ?? '',
             'gatewayReference' => $payload['invoice_number'] ?? $payload['invoiceNumber'] ?? $payload['transaction_id'] ?? $payload['trans_reference'] ?? '',
             'amount' => (float) ($payload['amount_paid'] ?? $payload['amountPaid'] ?? $payload['amount'] ?? 0),
-            'paymentDate' => date('Y-m-d', strtotime($payload['payment_date'] ?? $payload['paymentDate'] ?? 'now')),
+            'paymentDate' => self::normalizePaymentDate((string) ($payload['payment_date'] ?? $payload['paymentDate'] ?? '')),
             'status' => strtoupper((string) ($payload['status'] ?? $payload['payment_status'] ?? '')),
         ];
+    }
+
+    public static function normalizePaymentDate(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/\b(\d{4}-\d{2}-\d{2})\b/', $value, $matches) === 1) {
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $matches[1]);
+            $errors = \DateTimeImmutable::getLastErrors();
+            if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        try {
+            return (new \DateTimeImmutable($value))->format('Y-m-d');
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    public static function notificationStatusIsPaid(string $status): bool
+    {
+        return in_array(strtoupper(trim($status)), ['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'], true);
     }
 
     public function studentContextByRegistrationNumber(string $registrationNumber): array
@@ -1367,7 +1730,14 @@ class PaymentService
 
     public function paymentDate(array $payload): string
     {
-        return date('Y-m-d', strtotime($payload['payment_date'] ?? $payload['paymentDate'] ?? 'now'));
+        $paymentDate = self::normalizePaymentDate(
+            (string) ($payload['payment_date'] ?? $payload['paymentDate'] ?? '')
+        );
+        if ($paymentDate === '') {
+            throw new \RuntimeException('eCitizen returned an invalid payment date.');
+        }
+
+        return $paymentDate;
     }
 
     public function gatewayReference(array $payload, string $fallback): string
@@ -1406,6 +1776,26 @@ class PaymentService
         return $parts['scheme'] . '://' . $parts['host'] . '/api/invoice/payment/status';
     }
 
+    private function callbackUrl(string $route): string
+    {
+        $config = $this->gatewayConfig();
+        $baseUrl = rtrim((string) $config['callbackBaseUrl'], '/');
+        return $baseUrl . Url::to([$route]);
+    }
+
+    private function assertTrustedHttpsUrl(string $url, array $allowedHosts, string $label): void
+    {
+        $parts = parse_url($url);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if (($parts['scheme'] ?? null) !== 'https' || $host === '' || isset($parts['user']) || isset($parts['pass'])) {
+            throw new InvalidConfigException("{$label} must be an HTTPS URL without embedded credentials.");
+        }
+
+        if ($allowedHosts !== [] && !in_array($host, $allowedHosts, true)) {
+            throw new InvalidConfigException("{$label} uses an untrusted host.");
+        }
+    }
+
     private function requestJson(string $url, array $payload): string
     {
         $queryUrl = $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($payload);
@@ -1414,9 +1804,11 @@ class PaymentService
             curl_setopt_array($ch, [
                 CURLOPT_HTTPGET => true,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_TIMEOUT => 45,
                 CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_HTTPHEADER => ['Accept: application/json'],
             ]);
             $caBundlePath = $this->caBundlePath();
@@ -1433,8 +1825,11 @@ class PaymentService
 
             $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            if ($statusCode >= 400) {
+            if ($statusCode < 200 || $statusCode >= 300) {
                 throw new \RuntimeException('eCitizen status endpoint returned HTTP ' . $statusCode . '.');
+            }
+            if (strlen((string) $body) > 1048576) {
+                throw new \RuntimeException('eCitizen status endpoint returned an oversized response.');
             }
 
             return (string) $body;
@@ -1445,6 +1840,8 @@ class PaymentService
                 'method' => 'GET',
                 'header' => "Accept: application/json\r\n",
                 'ignore_errors' => true,
+                'follow_location' => 0,
+                'max_redirects' => 0,
                 'timeout' => 45,
             ],
             'ssl' => array_filter([
@@ -1456,6 +1853,13 @@ class PaymentService
         $body = @file_get_contents($queryUrl, false, $context);
         if ($body === false) {
             throw new \RuntimeException('Unable to connect to eCitizen status endpoint.');
+        }
+        $statusLine = (string) (($http_response_header ?? [])[0] ?? '');
+        if (!preg_match('/\s2\d{2}\s/', $statusLine)) {
+            throw new \RuntimeException('eCitizen status endpoint returned an unsuccessful response.');
+        }
+        if (strlen($body) > 1048576) {
+            throw new \RuntimeException('eCitizen status endpoint returned an oversized response.');
         }
 
         return $body;

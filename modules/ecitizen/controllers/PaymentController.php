@@ -9,14 +9,23 @@ use Yii;
 use yii\base\DynamicModel;
 use yii\data\ArrayDataProvider;
 use yii\filters\AccessControl;
+use yii\filters\HostControl;
 use yii\filters\VerbFilter;
 use yii\helpers\ArrayHelper;
 use yii\web\BadRequestHttpException;
+use yii\web\HttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
+use yii\web\TooManyRequestsHttpException;
 
 final class PaymentController extends BaseController
 {
+    private const CHECKOUT_RATE_LIMIT = 5;
+    private const INVOICE_LAUNCH_RATE_LIMIT = 30;
+    private const COMPLETE_PAYMENT_RATE_LIMIT = 10;
+    private const NOTIFICATION_RATE_LIMIT = 300;
+    private const RATE_LIMIT_WINDOW = 300;
+
     private PaymentService $payments;
 
     public function init(): void
@@ -28,6 +37,11 @@ final class PaymentController extends BaseController
     public function behaviors(): array
     {
         return [
+            'host' => [
+                'class' => HostControl::class,
+                'allowedHosts' => fn (): array => (array) ($this->ecitizenParams()['allowedPortalHosts'] ?? []),
+                'fallbackHostInfo' => (string) ($this->ecitizenParams()['callbackBaseUrl'] ?? ''),
+            ],
             'access' => [
                 'class' => AccessControl::class,
                 'rules' => [
@@ -37,14 +51,26 @@ final class PaymentController extends BaseController
                     ],
                     [
                         'allow' => true,
+                        'actions' => ['report'],
                         'roles' => ['@'],
+                        'matchCallback' => fn (): bool => !empty($this->ecitizenParams()['workflowReportEnabled']),
+                    ],
+                    [
+                        'allow' => true,
+                        'roles' => ['@'],
+                        'actions' => ['index', 'checkout', 'success', 'invoices', 'invoice', 'complete-payment'],
                     ],
                 ],
             ],
             'verbs' => [
                 'class' => VerbFilter::class,
                 'actions' => [
+                    'index' => ['get', 'head'],
                     'checkout' => ['post'],
+                    'success' => ['get', 'head'],
+                    'invoices' => ['get', 'head'],
+                    'report' => ['get', 'head'],
+                    'invoice' => ['get', 'head'],
                     'complete-payment' => ['post'],
                     'notify' => ['post'],
                 ],
@@ -58,6 +84,36 @@ final class PaymentController extends BaseController
             $this->enableCsrfValidation = false;
         }
         return parent::beforeAction($action);
+    }
+
+    public function afterAction($action, $result): mixed
+    {
+        $result = parent::afterAction($action, $result);
+        $response = Yii::$app->response;
+        $gatewayOrigin = $this->gatewayOrigin();
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+        $response->headers->set('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
+        $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+        $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
+        $response->headers->set(
+            'Content-Security-Policy',
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; "
+            . "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            . "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+            . "img-src 'self' data: https:; "
+            . "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self'; "
+            . "form-action 'self' {$gatewayOrigin}; frame-src {$gatewayOrigin}"
+        );
+        if (Yii::$app->request->isSecureConnection) {
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
+        return $result;
     }
 
     public function actionIndex(): string
@@ -85,6 +141,12 @@ final class PaymentController extends BaseController
 
     public function actionCheckout(): string|Response|array
     {
+        $this->enforceRateLimit(
+            'checkout',
+            (string) Yii::$app->user->id,
+            self::CHECKOUT_RATE_LIMIT,
+            self::RATE_LIMIT_WINDOW
+        );
         $model = new PaymentForm();
         $studentContext = $this->payments->resolveLoggedInStudent();
         $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
@@ -150,6 +212,18 @@ final class PaymentController extends BaseController
             if ($paymentType === null) {
                 throw new BadRequestHttpException('The selected payment type is not available.');
             }
+            if (!empty($this->ecitizenParams()['enforceFeeBalance'])) {
+                $outstandingBalance = max(
+                    0,
+                    $this->payments->outstandingFeeBalance($studentContext['registrationNumber'])
+                );
+                if ($outstandingBalance <= 0) {
+                    throw new BadRequestHttpException('There is no outstanding fee balance available for payment.');
+                }
+                if ((float) $model->amount > $outstandingBalance + 0.01) {
+                    throw new BadRequestHttpException('The payment amount cannot exceed the outstanding fee balance.');
+                }
+            }
             $description = $paymentType['payment_desc'];
             $serviceId = $this->payments->serviceIdForPaymentType((int) $model->payment_type_id);
             $request = $this->payments->createPendingBankingSlip(
@@ -194,11 +268,11 @@ final class PaymentController extends BaseController
             ]);
         } catch (\Throwable $exception) {
             if (Yii::$app->request->isAjax) {
-                Yii::$app->response->statusCode = 400;
+                Yii::$app->response->statusCode = $this->publicStatusCode($exception);
                 Yii::$app->response->format = Response::FORMAT_JSON;
                 return [
                     'success' => false,
-                    'message' => $exception->getMessage(),
+                    'message' => $this->publicExceptionMessage($exception, 'Unable to create the payment request. Please try again later.'),
                 ];
             }
 
@@ -209,8 +283,23 @@ final class PaymentController extends BaseController
     public function actionNotify(): Response
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+        $this->enforceRateLimit(
+            'notify',
+            (string) Yii::$app->request->userIP,
+            self::NOTIFICATION_RATE_LIMIT,
+            60
+        );
+        if ((int) Yii::$app->request->headers->get('Content-Length', 0) > 65536) {
+            Yii::$app->response->statusCode = 413;
+            return $this->asJson(['success' => false, 'message' => 'Notification payload is too large.']);
+        }
+
         $payload = Yii::$app->request->post();
         if (empty($payload)) {
+            if (strlen(Yii::$app->request->rawBody) > 65536) {
+                Yii::$app->response->statusCode = 413;
+                return $this->asJson(['success' => false, 'message' => 'Notification payload is too large.']);
+            }
             $rawPayload = json_decode(Yii::$app->request->rawBody, true);
             $payload = is_array($rawPayload) ? $rawPayload : [];
         }
@@ -221,23 +310,31 @@ final class PaymentController extends BaseController
         }
 
         $notification = $this->payments->extractNotification($payload);
-        if (empty($notification['reference']) || $notification['amount'] <= 0) {
+        if (empty($notification['reference']) || $notification['amount'] <= 0 || $notification['paymentDate'] === '') {
             Yii::$app->response->statusCode = 400;
             return $this->asJson(['success' => false, 'message' => 'Invalid eCitizen notification payload.']);
         }
 
-        $paidStatuses = ['', 'PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'];
-        if (!in_array($notification['status'], $paidStatuses, true)) {
+        if (!PaymentService::notificationStatusIsPaid($notification['status'])) {
             return $this->asJson(['success' => true, 'message' => 'Notification received but payment is not complete.']);
         }
 
-        $queued = $this->payments->queuePaidRequestForSync(
-            $notification['reference'],
-            $notification['amount'],
-            $notification['paymentDate'],
-            $notification['gatewayReference'],
-            $payload
-        );
+        try {
+            $queued = $this->payments->queuePaidRequestForSync(
+                $notification['reference'],
+                $notification['amount'],
+                $notification['paymentDate'],
+                $notification['gatewayReference'],
+                $payload
+            );
+        } catch (\Throwable $exception) {
+            Yii::error(
+                'Unable to process signed eCitizen notification: ' . $exception->getMessage(),
+                'ecitizen.payment'
+            );
+            Yii::$app->response->statusCode = 500;
+            return $this->asJson(['success' => false, 'message' => 'Unable to process the payment notification.']);
+        }
 
         return $this->asJson(['success' => true, 'payment_id' => $queued['payment_id'], 'sync_status' => 'queued']);
     }
@@ -251,6 +348,13 @@ final class PaymentController extends BaseController
     {
         $studentContext = $this->payments->resolveLoggedInStudent();
         $invoices = $this->normalizeInvoices($this->payments->invoiceRequests($studentContext['registrationNumber']));
+        foreach ($invoices as &$invoice) {
+            $invoice['trans_id_token'] = $this->payments->invoiceToken(
+                (int) $invoice['trans_id'],
+                $studentContext['registrationNumber']
+            );
+        }
+        unset($invoice);
         $invoiceFilterModel = new DynamicModel([
             'reference',
             'deposit_date',
@@ -335,7 +439,7 @@ final class PaymentController extends BaseController
             $isSettled = in_array($postStatus, ['NOT POSTED', 'CREDITED', 'SETTLED', 'POSTED'], true) || !empty($invoice['has_fee_payment']);
             $invoice['settlement_status'] = $isSettled ? 'Settled' : 'Not settled';
             $invoice['action_status'] = match (true) {
-                $postStatus === 'POSTED' || $postStatus === 'SETTLED' => 'Posted',
+                $postStatus === 'POSTED' || $postStatus === 'SETTLED' => '',
                 !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true) => '',
                 default => 'Pending action',
             };
@@ -412,11 +516,21 @@ final class PaymentController extends BaseController
         ]);
     }
 
-    public function actionInvoice(int $trans_id): string|Response|array
+    public function actionInvoice(string $trans_id): string|Response|array
     {
         try {
+            $this->enforceRateLimit(
+                'invoice',
+                (string) Yii::$app->user->id,
+                self::INVOICE_LAUNCH_RATE_LIMIT,
+                self::RATE_LIMIT_WINDOW
+            );
             $studentContext = $this->payments->resolveLoggedInStudent();
-            $invoice = $this->payments->findInvoiceRequest($trans_id, $studentContext['registrationNumber']);
+            $resolvedTransId = $this->payments->transIdFromInvoiceToken(
+                $trans_id,
+                $studentContext['registrationNumber']
+            );
+            $invoice = $this->payments->findInvoiceRequest($resolvedTransId, $studentContext['registrationNumber']);
             if (!$invoice) {
                 throw new \yii\web\NotFoundHttpException('The selected eCitizen invoice could not be found.');
             }
@@ -457,26 +571,44 @@ final class PaymentController extends BaseController
                 'reference' => $reference,
                 'amount' => (float) $invoice['deposit_amount'],
                 'description' => $invoice['post_comment'] ?: 'eCitizen student fee payment',
+                'refreshedTransId' => $this->payments->invoiceToken(
+                    $resolvedTransId,
+                    $studentContext['registrationNumber']
+                ),
             ]);
         } catch (\Throwable $exception) {
             if (Yii::$app->request->isAjax) {
-                Yii::$app->response->statusCode = 400;
+                Yii::$app->response->statusCode = $this->publicStatusCode($exception);
                 Yii::$app->response->format = Response::FORMAT_JSON;
                 return [
                     'success' => false,
-                    'message' => $exception->getMessage(),
+                    'message' => $this->publicExceptionMessage($exception, 'Unable to launch this payment. Please try again later.'),
                 ];
             }
 
-            $this->setFlash('danger', 'Error launching payment', $exception->getMessage());
+            $this->setFlash(
+                'danger',
+                'Error launching payment',
+                $this->publicExceptionMessage($exception, 'Unable to launch this payment. Please try again later.')
+            );
             return $this->redirect(['invoices']);
         }
     }
 
-    public function actionCompletePayment(int $trans_id): Response
+    public function actionCompletePayment(string $trans_id): Response
     {
+        $this->enforceRateLimit(
+            'complete-payment',
+            (string) Yii::$app->user->id,
+            self::COMPLETE_PAYMENT_RATE_LIMIT,
+            self::RATE_LIMIT_WINDOW
+        );
         $studentContext = $this->payments->resolveLoggedInStudent();
-        $invoice = $this->payments->findInvoiceRequest($trans_id, $studentContext['registrationNumber']);
+        $resolvedTransId = $this->payments->transIdFromInvoiceToken(
+            $trans_id,
+            $studentContext['registrationNumber']
+        );
+        $invoice = $this->payments->findInvoiceRequest($resolvedTransId, $studentContext['registrationNumber']);
         if (!$invoice) {
             throw new \yii\web\NotFoundHttpException('The selected eCitizen invoice could not be found.');
         }
@@ -555,5 +687,61 @@ final class PaymentController extends BaseController
         }
 
         return (string) (Yii::$app->user->identity->primary_phone_no ?? '');
+    }
+
+    private function gatewayOrigin(): string
+    {
+        $parts = parse_url((string) ($this->ecitizenParams()['url'] ?? ''));
+        if (($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])) {
+            return "'none'";
+        }
+
+        return 'https://' . strtolower((string) $parts['host']);
+    }
+
+    private function enforceRateLimit(string $scope, string $subject, int $limit, int $windowSeconds): void
+    {
+        $window = intdiv(time(), $windowSeconds);
+        $key = [
+            'ecitizen-rate-limit',
+            $scope,
+            hash('sha256', $subject),
+            $window,
+        ];
+        $cache = Yii::$app->cache;
+        $count = (int) $cache->get($key);
+        if ($count >= $limit) {
+            throw new TooManyRequestsHttpException('Too many requests. Please wait before trying again.');
+        }
+
+        $cache->set($key, $count + 1, $windowSeconds + 5);
+    }
+
+    private function publicExceptionMessage(\Throwable $exception, string $fallback): string
+    {
+        if ($exception instanceof HttpException && $exception->statusCode >= 400 && $exception->statusCode < 500) {
+            return $exception->getMessage();
+        }
+
+        Yii::error(
+            sprintf(
+                'eCitizen payment request failed: %s in %s:%d',
+                $exception->getMessage(),
+                $exception->getFile(),
+                $exception->getLine()
+            ),
+            'ecitizen.payment'
+        );
+
+        return $fallback;
+    }
+
+    private function publicStatusCode(\Throwable $exception): int
+    {
+        if ($exception instanceof HttpException && $exception->statusCode >= 400 && $exception->statusCode < 500) {
+            return $exception->statusCode;
+        }
+
+        return 500;
     }
 }

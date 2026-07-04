@@ -92,7 +92,7 @@ var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggl
 popoverTriggerList.forEach(function (popoverTriggerEl) {
     new bootstrap.Popover(popoverTriggerEl, {
         html: true,
-        sanitize: false,
+        sanitize: true,
         trigger: 'focus',
         placement: 'bottom',
         customClass: 'ecitizen-student-popover'
@@ -156,6 +156,7 @@ JS);
 
                         <?= $form->field($model, 'amount')->input('number', [
                             'min' => 1,
+                            'max' => $model->maxPaymentAmount(),
                             'step' => '0.01',
                             'placeholder' => 'Amount in KES',
                             'required' => true,

@@ -20,8 +20,9 @@ class PaymentForm extends Model
         return [
             [['amount', 'payment_type_id', 'narration', 'phone_number'], 'required'],
             [['bank_account_id'], 'required', 'when' => fn () => empty($this->configuredBankAccountId())],
-            [['amount'], 'number', 'min' => 1],
-            [['payment_type_id', 'bank_account_id'], 'integer'],
+            [['amount'], 'match', 'pattern' => '/^\d+(?:\.\d{1,2})?$/', 'message' => 'Amount must be a positive number with no more than two decimal places.'],
+            [['amount'], 'number', 'min' => 1, 'max' => $this->maxPaymentAmount()],
+            [['payment_type_id', 'bank_account_id'], 'integer', 'min' => 1],
             [['narration', 'phone_number'], 'trim'],
             [['narration'], 'string', 'max' => 100],
             [['phone_number'], 'string', 'min' => 9, 'max' => 20],
@@ -44,5 +45,11 @@ class PaymentForm extends Model
     {
         $module = Yii::$app->getModule('ecitizen');
         return $module->ecitizenParams()['bankAccountId'] ?? null;
+    }
+
+    public function maxPaymentAmount(): float
+    {
+        $module = Yii::$app->getModule('ecitizen');
+        return (float) ($module->ecitizenParams()['maxPaymentAmount'] ?? 99999999.99);
     }
 }

@@ -62,8 +62,8 @@ try {
     $deletedSmisApprovals = deleteApprovals(Yii::$app->smisDb, 'smis', $allSmisRequestIds);
     $deletedPortalFeeTransactions = deletePostingFeeTransactions(Yii::$app->db, 'smisportal', $portalVoucherNos, $regNo);
     $deletedSmisFeeTransactions = deletePostingFeeTransactions(Yii::$app->smisDb, 'smis', $smisVoucherNos, $regNo);
-    $deletedPortalDuplicateCautionDebits = deleteDuplicateCautionDebits(Yii::$app->db, 'smisportal', $regNo);
-    $deletedDuplicateCautionDebits = deleteDuplicateCautionDebits(Yii::$app->smisDb, 'smis', $regNo);
+    $deletedPortalDuplicateCaution = deleteDuplicateCautionMoney(Yii::$app->db, 'smisportal', $regNo);
+    $deletedDuplicateCaution = deleteDuplicateCautionMoney(Yii::$app->smisDb, 'smis', $regNo);
 
     $deletedPortal = $requestIds
         ? Yii::$app->db->createCommand()->delete('smisportal.fss_refund_requests', ['request_id' => $requestIds])->execute()
@@ -91,8 +91,10 @@ try {
     echo "Deleted $deletedSmisApprovals approval records from smis.fss_refund_approval_process\n";
     echo "Deleted $deletedPortalFeeTransactions posted fee transaction records from smisportal.fss_fee_transactions\n";
     echo "Deleted $deletedSmisFeeTransactions posted fee transaction records from smis.fss_fee_transactions\n";
-    echo "Deleted $deletedPortalDuplicateCautionDebits duplicate caution debits from smisportal.fss_fee_transactions\n";
-    echo "Deleted $deletedDuplicateCautionDebits duplicate caution debits from smis.fss_fee_transactions\n";
+    echo "Deleted {$deletedPortalDuplicateCaution['fee_transactions']} duplicate caution fee transaction records from smisportal.fss_fee_transactions\n";
+    echo "Deleted {$deletedPortalDuplicateCaution['invoice_details']} duplicate caution invoice detail records from smisportal.fss_invoice_details\n";
+    echo "Deleted {$deletedDuplicateCaution['fee_transactions']} duplicate caution fee transaction records from smis.fss_fee_transactions\n";
+    echo "Deleted {$deletedDuplicateCaution['invoice_details']} duplicate caution invoice detail records from smis.fss_invoice_details\n";
     echo "Deleted $deletedPortal records from smisportal.fss_refund_requests\n";
     echo "Deleted $deletedSmis records from smis.fss_refund_requests\n";
     echo "Deleted $deletedPortalCancelledVouchers cancelled voucher records from smisportal.fss_cancelled_vouchers\n";
@@ -256,31 +258,115 @@ function deletePostingFeeTransactions(\yii\db\Connection $db, string $schema, ar
         ->execute();
 }
 
-function deleteDuplicateCautionDebits(\yii\db\Connection $db, string $schema, string $regNo): int
+function deleteDuplicateCautionMoney(\yii\db\Connection $db, string $schema, string $regNo): array
 {
     if ($db->getTableSchema($schema . '.fss_fee_transactions', true) === null) {
-        return 0;
+        return ['fee_transactions' => 0, 'invoice_details' => 0];
     }
 
-    $transactionIds = (new \yii\db\Query())
-        ->select('trans_id')
-        ->from($schema . '.fss_fee_transactions')
-        ->where(['trans_type' => 'DR'])
-        ->andWhere(new \yii\db\Expression('TRIM(trans_desc) = :description', [
+    $studentFilter = studentProgressFilter($regNo);
+    $entries = (new \yii\db\Query())
+        ->select([
+            'source' => new \yii\db\Expression("'fee_transaction'"),
+            'trans_id' => 'ft.trans_id',
+            'invoice_detail_id' => new \yii\db\Expression('NULL'),
+            'trans_date' => 'ft.trans_date',
+            'created_order' => 'ft.trans_id',
+        ])
+        ->from($schema . '.fss_fee_transactions ft')
+        ->where(['ft.trans_type' => 'DR'])
+        ->andWhere(new \yii\db\Expression('UPPER(TRIM(ft.trans_desc)) = :description', [
             ':description' => 'CAUTION MONEY',
         ]))
-        ->andWhere(['LIKE', 'progress_code', $regNo . '%', false])
-        ->orderBy(['trans_date' => SORT_ASC, 'trans_id' => SORT_ASC])
-        ->column($db);
+        ->andWhere($studentFilter)
+        ->all($db);
 
-    $duplicateIds = array_slice(array_map('intval', $transactionIds), 1);
-    if (!$duplicateIds) {
-        return 0;
+    if (
+        $db->getTableSchema($schema . '.fss_invoice', true) !== null
+        && $db->getTableSchema($schema . '.fss_invoice_details', true) !== null
+    ) {
+        $entries = array_merge($entries, (new \yii\db\Query())
+            ->select([
+                'source' => new \yii\db\Expression("'invoice_detail'"),
+                'trans_id' => 'ft.trans_id',
+                'invoice_detail_id' => 'fid.invoice_detail_id',
+                'trans_date' => 'fid.trans_date',
+                'created_order' => 'fid.invoice_detail_id',
+            ])
+            ->from($schema . '.fss_invoice_details fid')
+            ->innerJoin($schema . '.fss_invoice fi', 'fi.id = fid.invoice_id')
+            ->innerJoin($schema . '.fss_fee_transactions ft', 'ft.trans_id = fi.trans_id')
+            ->where(['ft.trans_type' => 'DR'])
+            ->andWhere($studentFilter)
+            ->andWhere(new \yii\db\Expression('UPPER(TRIM(ft.trans_desc)) <> :description'))
+            ->andWhere(new \yii\db\Expression('UPPER(TRIM(fid.invoice_detail_desc)) = :description'))
+            ->addParams([':description' => 'CAUTION MONEY'])
+            ->all($db));
     }
 
-    return $db->createCommand()
-        ->delete($schema . '.fss_fee_transactions', ['trans_id' => $duplicateIds])
-        ->execute();
+    usort($entries, static function (array $a, array $b): int {
+        $dateCompare = strcmp((string)$a['trans_date'], (string)$b['trans_date']);
+        if ($dateCompare !== 0) {
+            return $dateCompare;
+        }
+
+        return (int)$a['created_order'] <=> (int)$b['created_order'];
+    });
+
+    $duplicateEntries = array_slice($entries, 1);
+    $duplicateTransactionIds = [];
+    $duplicateInvoiceDetailIds = [];
+
+    foreach ($duplicateEntries as $entry) {
+        if ($entry['source'] === 'fee_transaction') {
+            $duplicateTransactionIds[] = (int)$entry['trans_id'];
+        } elseif ($entry['source'] === 'invoice_detail') {
+            $duplicateInvoiceDetailIds[] = (int)$entry['invoice_detail_id'];
+        }
+    }
+
+    $deletedFeeTransactions = $duplicateTransactionIds
+        ? $db->createCommand()
+            ->delete($schema . '.fss_fee_transactions', ['trans_id' => array_values(array_unique($duplicateTransactionIds))])
+            ->execute()
+        : 0;
+
+    $deletedInvoiceDetails = $duplicateInvoiceDetailIds
+        ? $db->createCommand()
+            ->delete($schema . '.fss_invoice_details', ['invoice_detail_id' => array_values(array_unique($duplicateInvoiceDetailIds))])
+            ->execute()
+        : 0;
+
+    return [
+        'fee_transactions' => $deletedFeeTransactions,
+        'invoice_details' => $deletedInvoiceDetails,
+    ];
+}
+
+function studentProgressFilter(string $regNo): array
+{
+    $filter = ['or'];
+    foreach (registrationNumberVariants($regNo) as $variant) {
+        $filter[] = ['LIKE', 'ft.progress_code', $variant . '%', false];
+    }
+
+    if (count($filter) === 1) {
+        $filter[] = ['ft.progress_code' => '__NO_REGISTRATION_NUMBER_MATCH__'];
+    }
+
+    return $filter;
+}
+
+function registrationNumberVariants(string $regNo): array
+{
+    $trimmed = trim($regNo);
+    $variants = [
+        $trimmed,
+        str_replace('/', '-', $trimmed),
+        str_replace('-', '/', $trimmed),
+    ];
+
+    return array_values(array_unique(array_filter($variants, static fn(string $variant): bool => $variant !== '')));
 }
 
 function deleteRefundBatches(\yii\db\Connection $db, string $schema, array $voucherNos): int
