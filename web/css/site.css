@@ -209,6 +209,22 @@ a {
     transition: all .25s ease-in-out;
 }
 
+/* Prevent a flash of the sidebar on mobile page load. AdminLTE's own JS
+   (PushMenu's autoCollapse) only hides the sidebar off-canvas *after* it
+   has already painted visible, which reads as a glitch. Hiding it via CSS
+   from the first paint fixes that; the hamburger toggle keeps working
+   unchanged since it still just adds/removes AdminLTE's own .sidebar-open
+   class, which this respects. */
+@media (max-width: 991.98px) {
+    .main-sidebar {
+        margin-left: -250px;
+    }
+
+    .sidebar-open .main-sidebar {
+        margin-left: 0;
+    }
+}
+
 /* =========================================================
    Page / content header
    ========================================================= */
@@ -911,6 +927,26 @@ label {
 
 .nav-tabs .nav-link:hover {
     text-decoration: underline;
+}
+
+/* =========================================================
+   Growl notifications (flash messages)
+   ========================================================= */
+/* The widget sizes itself with a "col-xs-11 col-sm-3" grid-column hack
+   instead of a real width, expecting a .row flex parent it never has.
+   AdminLTE's bundled grid CSS gives .col-sm-3 an unconditional
+   width:100% base rule that's only narrowed by max-width:25% at >=576px;
+   below that (all mobile widths) nothing constrains it, so the
+   fixed-position toast stretches to the full viewport and overflows off
+   the left edge (right:20px + width:100% has nowhere to go but off-screen).
+   Give it an explicit, viewport-safe width at every breakpoint instead. */
+[data-notify="container"] {
+    box-sizing: border-box !important;
+    width: calc(100vw - 2.5rem) !important;
+    max-width: 22rem !important;
+    left: auto !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: var(--shadow-lg) !important;
 }
 
 /* =========================================================
