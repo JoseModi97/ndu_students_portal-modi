@@ -496,6 +496,22 @@ a {
     color: #fff !important;
 }
 
+.btn-info {
+    background-color: var(--brand-blue-light) !important;
+    border-color: var(--brand-blue-light) !important;
+    color: var(--ink) !important;
+}
+
+.btn-info:hover, .btn-info:active, .btn-info:focus {
+    background-color: var(--brand-blue) !important;
+    border-color: var(--brand-blue) !important;
+    color: #fff !important;
+}
+
+.text-info {
+    color: var(--brand-blue) !important;
+}
+
 /* =========================================================
    Cards
    ========================================================= */
@@ -797,6 +813,17 @@ a {
     background-color: #f4f5f7 !important;
     color: var(--muted) !important;
     font-style: italic;
+}
+
+/* Compact "label: value" summary row above a table (e.g. bill/my-invoices) */
+.student-summary-row {
+    font-size: .88rem;
+    color: var(--ink);
+}
+
+.student-summary-row strong {
+    font-weight: 700;
+    margin-right: .25rem;
 }
 
 .form-group label {

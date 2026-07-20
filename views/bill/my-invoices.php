@@ -25,16 +25,12 @@ use yii\helpers\Url;
                     </div>
                     <div class="card-body">
 
-                        <table style="width:100%; font-size:12px; margin-bottom:15px;">
-                            <tr>
-                                <td><strong>Name:</strong> <?= htmlspecialchars($name) ?></td>
-                                <td><strong>Reg. Number:</strong> <?= htmlspecialchars($regNumber) ?></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Programme:</strong> <?= htmlspecialchars($currentSessionDetails['programme']) ?></td>
-                                <td><strong>Level:</strong> <?= htmlspecialchars($currentSessionDetails['level']) ?></td>
-                            </tr>
-                        </table>
+                        <div class="row mb-3 gy-1 student-summary-row">
+                            <div class="col-sm-6"><strong>Name:</strong> <?= htmlspecialchars($name) ?></div>
+                            <div class="col-sm-6"><strong>Reg. Number:</strong> <?= htmlspecialchars($regNumber) ?></div>
+                            <div class="col-sm-6"><strong>Programme:</strong> <?= htmlspecialchars($currentSessionDetails['programme']) ?></div>
+                            <div class="col-sm-6"><strong>Level:</strong> <?= htmlspecialchars($currentSessionDetails['level']) ?></div>
+                        </div>
 
                         <?php if (empty($invoices)): ?>
                             <div class="alert alert-info">No invoices found.</div>
