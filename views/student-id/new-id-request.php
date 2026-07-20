@@ -5,6 +5,9 @@ use yii\helpers\Html;
 
 /* @var $this yii\web\View */
 /* @var $model app\models\StudentIdRequest */
+
+$this->params['breadcrumbs'][] = ['label' => 'Student ID', 'url' => ['/student-id']];
+$this->params['breadcrumbs'][] = $this->title;
 ?>
 
 <!-- Content Header (Page header) -->

@@ -12,6 +12,9 @@
 use yii\helpers\Url;
 
 $this->title = $title;
+$this->params['breadcrumbs'][] = ['label' => 'Account', 'url' => ['/account/index']];
+$this->params['breadcrumbs'][] = ['label' => 'Name change', 'url' => ['/account/list-name-change']];
+$this->params['breadcrumbs'][] = 'Edit request';
 ?>
 
 <!-- Content Header (Page header) -->

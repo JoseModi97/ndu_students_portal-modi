@@ -38,13 +38,13 @@ use kartik\select2\Select2;
 
 
     <?= $form->field($model, 'request_date')->hiddenInput(['value'=>date("Y-m-d")])->label(false); ?>
-    <?= $form->field($model, 'reason')->textArea(['maxlength' => true,'rows' => 10,])->label('Reason for Withdrawal/ Deferment'); ?>
+    <?= $form->field($model, 'reason')->textArea(['maxlength' => true,'rows' => 5,])->label('Reason for Withdrawal/ Deferment'); ?>
 
     <?= $form->field($model, 'student_id')->hiddenInput(['value'=>142])->label(false); ?>
     <?= $form->field($model, 'approval_status')->hiddenInput(['value'=>'PENDING'])->label(false) ;?>
 
-
-    <?= $form->field($model, 'supporting_doc_url')->fileInput(['maxlength' => true]) ?>
+    <?= $form->field($model, 'supporting_doc_url')->fileInput(['maxlength' => true])
+        ->hint('Attach any document that supports your request (e.g. a letter or medical note).', ['tag' => 'small', 'class' => 'text-muted']); ?>
 
     <div class="form-group">
         <?= Html::submitButton('Save', ['class' => 'btn btn-success']) ?>

@@ -19,7 +19,8 @@ use yii\helpers\Url;
 use yii\web\ServerErrorHttpException;
 
 $this->title = $title;
-
+$this->params['breadcrumbs'][] = ['label' => 'Account', 'url' => ['/account/index']];
+$this->params['breadcrumbs'][] = 'Name change';
 ?>
 
 <!-- Content Header (Page header) -->

@@ -13,32 +13,22 @@ use yii\widgets\Breadcrumbs;
 /** @var yii\data\ActiveDataProvider $dataProvider */
 
 $this->title = 'Deferment Requests';
-//$this->params['breadcrumbs'][] = ['label' => 'Deferment', 'url' => ['/']];
 $this->params['breadcrumbs'][] = $this->title;
-
-
 ?>
 <div class="content-header">
     <div class="page-header">
-        <h3>Deferement  <i class="fa fa-angle-right" aria-hidden="true"></i>  Withrawal/ Deferment Requests</h3>
+        <h1>Deferment  <i class="fa fa-angle-right" aria-hidden="true"></i>  Requests</h1>
     </div>
 </div>
 
 <div class="sm-withdrawal-request-index">
-
+    <div class="card">
         <div class="card-body">
-            <?php
-
-            if(empty($pendingRequest)){
-                ?>
-            <div class="d-flex justify-content-end">
-                <?= Html::a('Submit Deferment Request', ['create'], ['class' => 'btn btn-success']) ?>
-            </div>
-<?php } ?>
-<!--    <p>-->
-<!--            <h3>--><?php //= Html::encode($this->title) ?><!--</h3>-->
-<!---->
-<!--    </p>-->
+            <?php if (empty($pendingRequest)): ?>
+                <div class="d-flex justify-content-end mb-3">
+                    <?= Html::a('Submit Deferment Request', ['create'], ['class' => 'btn btn-success']) ?>
+                </div>
+            <?php endif; ?>
 
     <?php // echo $this->render('_search', ['model' => $searchModel]); ?>
 

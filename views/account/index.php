@@ -11,6 +11,7 @@
  */
 
 $this->title = $title;
+$this->params['breadcrumbs'][] = 'Account';
 ?>
 
 <!-- Content Header (Page header) -->

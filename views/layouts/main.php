@@ -11,6 +11,7 @@ use app\assets\AppAsset;
 use app\assets\FontAwesomeAsset;
 use app\helpers\SmisHelper;
 use kartik\growl\Growl;
+use yii\bootstrap5\Breadcrumbs;
 use yii\bootstrap5\Html;
 use yii\helpers\Url;
 use yii\web\View;
@@ -73,6 +74,13 @@ AppAsset::register($this);
 
     <!-- Content Wrapper. Contains page content -->
     <div class="content-wrapper">
+        <?php if (!empty($this->params['breadcrumbs'])): ?>
+            <?= Breadcrumbs::widget([
+                'links' => $this->params['breadcrumbs'],
+                'homeLink' => ['label' => 'Home', 'url' => ['/site/index']],
+                'options' => ['class' => 'app-breadcrumbs'],
+            ]) ?>
+        <?php endif; ?>
         <?= \app\widgets\Alert::widget() ?>
         <?= $content ?>
     </div>

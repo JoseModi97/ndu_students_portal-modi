@@ -8,6 +8,8 @@ use yii\helpers\Html;
 use yii\web\View;
 
 $this->title = 'Report ID as lost: ' . ' ' . $model->student_id_serial_no;
+$this->params['breadcrumbs'][] = ['label' => 'Student ID', 'url' => ['/student-id']];
+$this->params['breadcrumbs'][] = $this->title;
 ?>
 
 <!-- Content Header (Page header) -->

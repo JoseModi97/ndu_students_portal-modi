@@ -37,6 +37,8 @@ use yii\helpers\Url;
                         </div>
                     </div>
 
+                    <div class="form-section-title">Contact information</div>
+
                     <div class="form-group row">
                         <label for="primary-phone" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
                             Primary phone
@@ -56,7 +58,7 @@ use yii\helpers\Url;
                     </div>
 
                     <div class="form-group row">
-                        <label for="post-address" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2text-md-right text-lg-right col-form-label required-control-label">
+                        <label for="post-address" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
                             Post address
                         </label>
                         <div class="col-sm-5 col-md-5 col-lg-5">
@@ -82,15 +84,18 @@ use yii\helpers\Url;
                         </div>
                     </div>
 
+                    <div class="form-section-title">Personal details</div>
+
                     <div class="form-group row">
                         <label for="date-of-birth" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
                             Date of birth
                         </label>
                         <div class="col-sm-3 col-md-3 col-lg-3">
-                            <input type="text" name="dateOfBirth" id="date-of-birth" class="form-control" required/>
+                            <input type="text" name="dateOfBirth" id="date-of-birth" class="form-control" placeholder="Select new date" required/>
                         </div>
                         <div class="col-sm-2 col-md-2 col-lg-2">
-                            <input type="text" class="form-control" disabled value="<?=$user->date_of_birth?>">
+                            <span class="current-value-caption">On file</span>
+                            <input type="text" class="form-control current-value-field" disabled value="<?=$user->date_of_birth?>">
                         </div>
                     </div>
 
@@ -296,9 +301,12 @@ use yii\helpers\Url;
                             </select>
                         </div>
                         <div class="col-sm-2 col-md-2 col-lg-2">
-                            <input type="text" class="form-control" disabled value="<?=strtoupper($user->nationality)?>">
+                            <span class="current-value-caption">On file</span>
+                            <input type="text" class="form-control current-value-field" disabled value="<?=strtoupper($user->nationality)?>">
                         </div>
                     </div>
+
+                    <div class="form-section-title">Identification documents</div>
 
                     <div class="form-group row">
                         <label for="national-id-no" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
@@ -326,6 +334,8 @@ use yii\helpers\Url;
                             <input type="text" class="form-control" id="passport-no" name="passportNumber" value="<?=$user->passport_no?>">
                         </div>
                     </div>
+
+                    <div class="form-section-title">Military details</div>
 
                     <div class="form-group row">
                         <label for="service" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
@@ -358,6 +368,8 @@ use yii\helpers\Url;
                             <input type="text" class="form-control" id="service-no" name="serviceNumber" value="<?=$user->service_number?>" required>
                         </div>
                     </div>
+
+                    <div class="form-section-title">Sponsorship &amp; health</div>
 
                     <div class="form-group row">
                         <label for="sponsor" class="col-sm-3 col-md-3 col-lg-3 offset-md-2 offset-lg-2 text-md-right text-lg-right col-form-label required-control-label">
@@ -406,7 +418,8 @@ use yii\helpers\Url;
                             </select>
                         </div>
                         <div class="col-sm-2 col-md-2 col-lg-2">
-                            <input type="text" class="form-control" disabled value="<?=$user->blood_group?>">
+                            <span class="current-value-caption">On file</span>
+                            <input type="text" class="form-control current-value-field" disabled value="<?=$user->blood_group?>">
                         </div>
                     </div>
 

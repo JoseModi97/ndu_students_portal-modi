@@ -6,6 +6,23 @@
 
 use yii\helpers\Url;
 
+$currentRoute = Yii::$app->controller->route;
+
+$isActive = static function (array $routes) use ($currentRoute): bool {
+    return in_array($currentRoute, $routes, true);
+};
+
+$isActivePrefix = static function (string $prefix, array $except = []) use ($currentRoute): bool {
+    if (in_array($currentRoute, $except, true)) {
+        return false;
+    }
+    $prefix = rtrim($prefix, '/');
+    return $currentRoute === $prefix || str_starts_with($currentRoute, $prefix . '/');
+};
+
+$navClass = static function (bool $active): string {
+    return 'nav-link' . ($active ? ' active' : '');
+};
 ?>
 
 <!-- Main Sidebar Container -->
@@ -41,7 +58,9 @@ use yii\helpers\Url;
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/account/index']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/account/index']); ?>" class="<?= $navClass($isActive([
+                        'account/index', 'account/update-profile', 'account/update-password', 'account/update-email',
+                    ])); ?>">
                         <i class="nav-icon fa fa-cog" aria-hidden="true"></i>
                         <p>Account</p>
                     </a>
@@ -50,75 +69,84 @@ use yii\helpers\Url;
                 if (Yii::$app->user->identity->admission_status === 'REGISTERED'):
                 ?>
                     <li class="nav-item">
-                        <a href="<?= Url::to(['/account/list-name-change']); ?>" class="nav-link">
+                        <a href="<?= Url::to(['/account/list-name-change']); ?>" class="<?= $navClass($isActive([
+                            'account/list-name-change', 'account/create-name-change', 'account/edit-name-change',
+                            'account/store-name-change', 'account/update-name-change', 'account/delete-name-change',
+                            'account/download-name-change-doc',
+                        ])); ?>">
                             <i class="nav-icon fas fa-edit" aria-hidden="true"></i>
                             <p>Name change</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="<?= Url::to(['/student-id']); ?>" class="nav-link">
+                        <a href="<?= Url::to(['/student-id']); ?>" class="<?= $navClass($isActivePrefix('student-id')); ?>">
                             <i class="nav-icon fa fa-id-card" aria-hidden="true"></i>
                             <p>Student ID</p>
                         </a>
                     </li>
                 <?php else: ?>
                     <li class="nav-item">
-                        <a href="<?= Url::to(['/registration/index']); ?>" class="nav-link">
+                        <a href="<?= Url::to(['/registration/index']); ?>" class="<?= $navClass($isActive([
+                            'registration/index', 'registration/registration-document',
+                            'registration/download-document', 'registration/delete-document',
+                        ])); ?>">
                             <i class="nav-icon fa fa-file" aria-hidden="true"></i>
                             <p>My registration documents</p>
                         </a>
                     </li>
 
                     <li class="nav-item">
-                        <a href="<?= Url::to(['/registration/add-documents']); ?>" class="nav-link">
+                        <a href="<?= Url::to(['/registration/add-documents']); ?>" class="<?= $navClass($isActive([
+                            'registration/add-documents', 'registration/upload', 'registration/submit-documents',
+                        ])); ?>">
                             <i class="nav-icon fa fa-upload" aria-hidden="true"></i>
                             <p>Add registration documents</p>
                         </a>
                     </li>
                 <?php endif; ?>
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/sm-withdrawal-request']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/sm-withdrawal-request']); ?>" class="<?= $navClass($isActivePrefix('sm-withdrawal-request')); ?>">
                         <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
                         <p>Deferment</p>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/ecitizen/payment/index']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/ecitizen/payment/index']); ?>" class="<?= $navClass($isActivePrefix('ecitizen')); ?>">
                         <i class="nav-icon fa fa-credit-card" aria-hidden="true"></i>
                         <p>eCitizen Payment</p>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/bill/raise-invoice']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/bill/raise-invoice']); ?>" class="<?= $navClass($isActive(['bill/raise-invoice', 'bill/accept-invoice'])); ?>">
                         <i class="nav-icon fas fa-file-invoice" aria-hidden="true"></i>
                         <p>Raise Invoice</p>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/bill/my-invoices']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/bill/my-invoices']); ?>" class="<?= $navClass($isActive(['bill/my-invoices', 'bill/download-invoice'])); ?>">
                         <i class="nav-icon fas fa-file-invoice" aria-hidden="true"></i>
                         <p>My Invoices</p>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/courses/fee-statement']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/courses/fee-statement']); ?>" class="<?= $navClass($isActive(['courses/fee-statement'])); ?>">
                         <i class="nav-icon fa fa-file-invoice-dollar" aria-hidden="true"></i>
                         <p>Fee Statement</p>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/refund-requests/default/index']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/refund-requests/default/index']); ?>" class="<?= $navClass($isActivePrefix('refund-requests')); ?>">
                         <i class="nav-icon fa fa-money-bill-wave" aria-hidden="true"></i>
                         <p>Refund Request</p>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/courses']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/courses']); ?>" class="<?= $navClass($isActivePrefix('courses', ['courses/fee-statement'])); ?>">
                         <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
                         <p>Course Registration</p>
                     </a>
@@ -137,7 +165,7 @@ use yii\helpers\Url;
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="<?= Url::to(['/results']); ?>" class="nav-link">
+                    <a href="<?= Url::to(['/results']); ?>" class="<?= $navClass($isActivePrefix('results')); ?>">
                         <i class="nav-icon fa fa-forward" aria-hidden="true"></i>
                         <p>Results</p>
                     </a>
