@@ -9,11 +9,13 @@
  */
 
 use app\assets\AppAsset;
+use app\assets\FontAwesomeAsset;
 use kartik\growl\Growl;
 use yii\bootstrap5\Html;
 use yii\web\ServerErrorHttpException;
 use yii\web\View;
 
+FontAwesomeAsset::register($this);
 AppAsset::register($this);
 ?>
 <?php $this->beginPage() ?>
@@ -24,6 +26,7 @@ AppAsset::register($this);
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="shortcut icon" href="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" type="image/x-icon">
     <link rel="icon" href="<?=Yii::getAlias('@web');?>/img/ndu-arms.png" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <?php $this->registerCsrfMetaTags() ?>
     <title><?= Html::encode($this->title) ?></title>
     <?php $this->head() ?>

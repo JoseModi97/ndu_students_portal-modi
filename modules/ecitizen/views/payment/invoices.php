@@ -179,13 +179,6 @@ $select2FilterOptions = static function (string $placeholder): array {
     ];
 };
 
-
-
-$value = str_replace('/', '', $registrationNumber);
-
-echo $value; // NR60500012022
-
-
 ?>
 
 <div class="content-header">

@@ -4,38 +4,40 @@
  */
 
 /* ——— Design tokens —————————————————————————————————————————————————————— */
+/* Mapped onto the portal's shared brand variables (see web/css/site.css)
+   so this module always matches the rest of the theme. */
 :root {
   --cr-blue-50:   #F5F7FC;
   --cr-blue-100:  #E4E8F5;
   --cr-blue-200:  #C7D0EA;
   --cr-blue-400:  #6E7DC1;
-  --cr-blue-600:  #304186;
-  --cr-blue-800:  #0B1B34;
+  --cr-blue-600:  var(--brand-blue, #304186);
+  --cr-blue-800:  var(--ink, #0B1B34);
 
   --cr-slate-50:  #FAFAFA;
   --cr-slate-200: #ECECEC;
   --cr-slate-400: #6B7280;
   --cr-slate-500: #4B5563;
-  --cr-slate-700: #0B1B34;
+  --cr-slate-700: var(--ink, #0B1B34);
 
-  --cr-teal-50:   #EAF6ED;
-  --cr-teal-100:  #D4EDDA;
-  --cr-teal-200:  #C3E6CB;
-  --cr-teal-400:  #28A745;
-  --cr-teal-600:  #218838;
-  --cr-teal-800:  #155724;
-  --cr-teal-900:  #0F3E1A;
+  --cr-teal-50:   #E9FBF3;
+  --cr-teal-100:  #C8F3E0;
+  --cr-teal-200:  #A3E9CC;
+  --cr-teal-400:  var(--brand-green, #03D47C);
+  --cr-teal-600:  var(--brand-green-dark, #03BB6D);
+  --cr-teal-800:  #027A49;
+  --cr-teal-900:  #01502E;
 
-  --cr-red:       #DC2626;
-  --cr-red-bg:    #FEF2F2;
+  --cr-red:       var(--brand-red, #FC3826);
+  --cr-red-bg:    #FEF0EE;
 
   --cr-white:     #FFFFFF;
-  --cr-shadow:    0 8px 16px rgb(0 0 0 / 3%), 0 3px 6px rgb(0 0 0 / 4%);
-  --cr-radius:    4px;
-  --cr-radius-sm: 4px;
+  --cr-shadow:    var(--shadow-md, 0 8px 16px rgb(0 0 0 / 6%), 0 3px 6px rgb(0 0 0 / 5%));
+  --cr-radius:    var(--radius, .5rem);
+  --cr-radius-sm: var(--radius-sm, .35rem);
 
   /* Typography */
-  --cr-font: GT-America-Standard, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --cr-font: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 /* ——— Page wrapper —————————————————————————————————————————————————————————— */

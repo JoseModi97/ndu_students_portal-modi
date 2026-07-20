@@ -242,6 +242,39 @@ a {
     font-size: .85em;
 }
 
+/* Bootstrap breadcrumb component, used by modules that render their own
+   content-header instead of .page-header (e.g. eCitizen) */
+.content-header h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.breadcrumb {
+    background: transparent;
+    padding: 0;
+    margin-bottom: .5rem;
+    font-size: .82rem;
+}
+
+.breadcrumb-item a {
+    color: var(--brand-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.breadcrumb-item a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+    color: var(--muted);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--muted);
+}
+
 /* =========================================================
    Buttons
    ========================================================= */
@@ -361,6 +394,98 @@ a {
     border-color: var(--brand-red);
     color: var(--brand-red);
     text-decoration: underline !important;
+}
+
+/* Bootstrap's stock button variants, remapped to the brand palette so
+   modules that use them (eCitizen, reports, etc.) match the rest of the app */
+.btn-primary {
+    background-color: var(--brand-blue) !important;
+    border-color: var(--brand-blue) !important;
+    color: #fff !important;
+}
+
+.btn-primary:hover, .btn-primary:active, .btn-primary:focus {
+    background-color: var(--brand-blue-light) !important;
+    border-color: var(--brand-blue-light) !important;
+    color: #fff !important;
+}
+
+.btn-outline-primary {
+    color: var(--brand-blue);
+    border-color: var(--brand-blue);
+}
+
+.btn-outline-primary:hover, .btn-outline-primary:active, .btn-outline-primary:focus {
+    background-color: var(--brand-blue) !important;
+    border-color: var(--brand-blue) !important;
+    color: #fff !important;
+}
+
+.btn-outline-success {
+    color: var(--brand-green);
+    border-color: var(--brand-green);
+}
+
+.btn-outline-success:hover, .btn-outline-success:active, .btn-outline-success:focus {
+    background-color: var(--brand-green) !important;
+    border-color: var(--brand-green) !important;
+    color: #fff !important;
+}
+
+.btn-outline-danger {
+    color: var(--brand-red);
+    border-color: var(--brand-red);
+}
+
+.btn-outline-danger:hover, .btn-outline-danger:active, .btn-outline-danger:focus {
+    background-color: var(--brand-red) !important;
+    border-color: var(--brand-red) !important;
+    color: #fff !important;
+}
+
+.btn-outline-warning {
+    color: #9c7300;
+    border-color: var(--brand-amber);
+}
+
+.btn-outline-warning:hover, .btn-outline-warning:active, .btn-outline-warning:focus {
+    background-color: var(--brand-amber) !important;
+    border-color: var(--brand-amber) !important;
+    color: var(--ink) !important;
+}
+
+.btn-outline-info {
+    color: var(--brand-blue);
+    border-color: var(--brand-blue-light);
+}
+
+.btn-outline-info:hover, .btn-outline-info:active, .btn-outline-info:focus {
+    background-color: var(--brand-blue-light) !important;
+    border-color: var(--brand-blue-light) !important;
+    color: #fff !important;
+}
+
+.btn-outline-secondary {
+    color: var(--muted);
+    border-color: #d7dbe0;
+}
+
+.btn-outline-secondary:hover, .btn-outline-secondary:active, .btn-outline-secondary:focus {
+    background-color: var(--muted) !important;
+    border-color: var(--muted) !important;
+    color: #fff !important;
+}
+
+.btn-warning {
+    background-color: var(--brand-amber) !important;
+    border-color: var(--brand-amber) !important;
+    color: var(--ink) !important;
+}
+
+.btn-danger {
+    background-color: var(--brand-red) !important;
+    border-color: var(--brand-red) !important;
+    color: #fff !important;
 }
 
 /* =========================================================
@@ -537,6 +662,75 @@ a {
     border: 1px solid transparent;
     border-radius: 8px;
     box-shadow: var(--shadow-sm);
+}
+
+/* Bootstrap badges, remapped to the brand palette */
+.badge.bg-success {
+    background-color: var(--brand-green) !important;
+}
+
+.badge.bg-danger {
+    background-color: var(--brand-red) !important;
+}
+
+.badge.bg-warning {
+    background-color: var(--brand-amber) !important;
+    color: var(--ink) !important;
+}
+
+.badge.bg-info {
+    background-color: var(--brand-blue-light) !important;
+    color: var(--ink) !important;
+}
+
+.badge.bg-primary {
+    background-color: var(--brand-blue) !important;
+}
+
+.badge.bg-secondary {
+    background-color: #eceff4 !important;
+    color: var(--muted) !important;
+}
+
+/* Bootstrap popovers, used across eCitizen / refund modules for inline detail hints */
+.popover {
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+}
+
+.popover-header {
+    background-color: #fff;
+    border-bottom: 1px solid var(--border-soft);
+    color: var(--ink);
+    font-weight: 700;
+    font-size: .85rem;
+    border-top-left-radius: var(--radius-sm);
+    border-top-right-radius: var(--radius-sm);
+}
+
+.popover-body {
+    color: var(--ink);
+    font-size: .85rem;
+    line-height: 1.5;
+}
+
+/* Legacy kartik/bootstrap3-style grid panels, in case a widget still emits them */
+.panel {
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+.panel-heading {
+    background-color: #fff;
+    border-bottom: 1px solid var(--border-soft);
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.panel-footer {
+    background-color: #fff;
+    border-top: 1px solid var(--border-soft);
 }
 
 /* Date range picker widget styling */
