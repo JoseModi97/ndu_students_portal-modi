@@ -46,7 +46,7 @@ $renderKvTable = static function (array $row, array $labels) use ($rowValue): st
 };
 
 $portal = $report['portal'];
-$smis = $report['smis'];
+$smis = $report['portalFinance'];
 $counts = $smis['counts'];
 ?>
 
@@ -140,26 +140,26 @@ $counts = $smis['counts'];
                         <td>The portal user resolves to a registration number.</td>
                     </tr>
                     <tr>
-                        <td>Student in SMIS</td>
-                        <td>Main SMIS DB</td>
+                        <td>Student finance record</td>
+                        <td>Portal DB</td>
                         <td><?= $statusBadge(!empty($smis['student'])) ?></td>
                         <td>The registration number exists in the main student table.</td>
                     </tr>
                     <tr>
                         <td>Academic progress</td>
-                        <td>Main SMIS DB</td>
+                        <td>Portal DB</td>
                         <td><?= $statusBadge(!empty($smis['academicProgress'])) ?></td>
                         <td>The student can be attached to fee transactions.</td>
                     </tr>
                     <tr>
                         <td>eCitizen payment mode</td>
-                        <td>Main SMIS DB</td>
+                        <td>Portal DB</td>
                         <td><?= $statusBadge(!empty($smis['paymentMode'])) ?></td>
                         <td>Payment mode 12 exists for eCitizen.</td>
                     </tr>
                     <tr>
                         <td>Settlement accounts</td>
-                        <td>Main SMIS DB</td>
+                        <td>Portal DB</td>
                         <td><?= $statusBadge(!empty($smis['bankAccounts'])) ?></td>
                         <td>There is a bank account available for the banking slip.</td>
                     </tr>
@@ -198,10 +198,10 @@ $counts = $smis['counts'];
             <div class="col-lg-6">
                 <div class="card card-primary card-outline">
                     <div class="card-header">
-                        <h3 class="card-title">Main SMIS DB data</h3>
+                        <h3 class="card-title">Portal finance data</h3>
                     </div>
                     <div class="card-body">
-                        <h5>SMIS student</h5>
+                        <h5>Portal student</h5>
                         <?= $renderKvTable($smis['student'], [
                             'student_id' => 'Student ID',
                             'student_number' => 'Student number',
@@ -293,8 +293,8 @@ $counts = $smis['counts'];
                     </details>
                 <?php endforeach; ?>
 
-                <h4 class="mt-4">Main SMIS DB SQL</h4>
-                <?php foreach ($report['sql']['smisDb'] as $label => $sql): ?>
+                <h4 class="mt-4">Portal finance SQL</h4>
+                <?php foreach ($report['sql']['portalFinance'] as $label => $sql): ?>
                     <details class="mb-2">
                         <summary><?= Html::encode($label) ?></summary>
                         <pre class="bg-light border p-3 mt-2"><code><?= Html::encode($sql) ?></code></pre>

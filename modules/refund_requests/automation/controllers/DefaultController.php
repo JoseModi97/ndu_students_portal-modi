@@ -110,9 +110,7 @@ class DefaultController extends BaseController
             : 0;
         // Caution money is never overridden: a real paid/posted caution amount
         // must exist before the student can request a caution refund.
-        $cautionBaseAmount = $this->module->overrideEligibility
-            ? $cautionFeePaid
-            : (($cautionFeePaid >= $expectedCaution) ? $cautionFeePaid : 0);
+        $cautionBaseAmount = $cautionFeePaid >= $expectedCaution ? $cautionFeePaid : 0;
         $cautionRemainingAmount = max(0, $cautionBaseAmount - $cautionReservedAmount);
         
         $hasExistingRequest = false;
@@ -146,9 +144,6 @@ class DefaultController extends BaseController
         $eligible = true;
         $reason = null;
 
-        /** @var \app\modules\refund_requests\Module $module */
-        $module = $this->module;
-
         if (!$clearancePassed) {
             $eligible = false;
             $reason = 'You must be CLEARED to access this feature. Current status: ' . ($user->clearance_status ?: 'PENDING');
@@ -159,11 +154,6 @@ class DefaultController extends BaseController
             $eligible = false;
             $balStr = Yii::$app->formatter->asCurrency($balance);
             $reason = "You have an outstanding fee balance of {$balStr}. All balances must be cleared to apply.";
-        }
-
-        if ($module->overrideEligibility) {
-            $eligible = true;
-            $reason = null;
         }
 
         return [
@@ -229,7 +219,7 @@ class DefaultController extends BaseController
 
     private function refundedRequestsByType(int $studentProgCurriculumId): array
     {
-        $smisRequests = \app\modules\refund_requests\models\RefundRequestOfficial::find()
+        $smisRequests = RefundRequest::find()
             ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
             ->andWhere('UPPER(refund_status) = :refunded', [':refunded' => 'REFUNDED'])
             ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
@@ -327,7 +317,7 @@ class DefaultController extends BaseController
             ->with(['refundType', 'bank'])
             ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
             ->all();
-        $smisRequests = \app\modules\refund_requests\models\RefundRequestOfficial::find()
+        $smisRequests = RefundRequest::find()
             ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
             ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
             ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED'])
@@ -599,7 +589,7 @@ class DefaultController extends BaseController
                 ->select('request_id')
                 ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
                 ->column(),
-            \app\modules\refund_requests\models\RefundRequestOfficial::find()
+            RefundRequest::find()
                 ->select('request_id')
                 ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
                 ->column()
@@ -701,7 +691,7 @@ class DefaultController extends BaseController
                 ])
                 ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
                 ->one();
-            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::find()
+            $smisRequest = RefundRequest::find()
                 ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
                 ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
                     ':approved' => 'APPROVED',
@@ -752,7 +742,6 @@ class DefaultController extends BaseController
             'expectedCautionFee' => $expectedCautionFee,
             'cautionReservedAmount' => $check['cautionReservedAmount'],
             'cautionRemainingAmount' => $check['cautionRemainingAmount'],
-            'overrideEligibility' => $this->module->overrideEligibility,
             'allLevels' => $allLevels,
             'refundTypes' => $refundTypes,
             'academicStatus' => $academicStatus,
@@ -883,8 +872,7 @@ class DefaultController extends BaseController
             $refundableAmount = (float)$activeRequestDetails['amount'];
         // Validation for CAUTION refund type
         } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
-            if (!$this->module->overrideEligibility
-                && $check['cautionFeePaid'] < $check['expectedCaution']) {
+            if ($check['cautionFeePaid'] < $check['expectedCaution']) {
                 $this->setFlash('danger', 'Requirement Not Met', 'You have not fully paid the CAUTION FEE required for this refund type.');
                 return $this->redirect(['index']);
             }
@@ -1132,7 +1120,7 @@ class DefaultController extends BaseController
             }
 
             if ($request) {
-                $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['request_id' => $request->request_id]);
+                $smisRequest = RefundRequest::findOne(['request_id' => $request->request_id]);
             }
 
             if ($request) {
@@ -1163,7 +1151,6 @@ class DefaultController extends BaseController
             'balance' => $balance,
             'cautionFeePaid' => $check['cautionFeePaid'],
             'expectedCautionFee' => $check['expectedCaution'],
-            'overrideEligibility' => $this->module->overrideEligibility,
             'eligible' => $check['eligible'],
             'reason' => $check['reason'],
             'cancelledVoucher' => $cancelledVoucher,

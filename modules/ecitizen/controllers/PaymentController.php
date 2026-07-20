@@ -9,7 +9,6 @@ use Yii;
 use yii\base\DynamicModel;
 use yii\data\ArrayDataProvider;
 use yii\filters\AccessControl;
-use yii\filters\HostControl;
 use yii\filters\VerbFilter;
 use yii\helpers\ArrayHelper;
 use yii\web\BadRequestHttpException;
@@ -37,11 +36,6 @@ final class PaymentController extends BaseController
     public function behaviors(): array
     {
         return [
-            'host' => [
-                'class' => HostControl::class,
-                'allowedHosts' => fn (): array => (array) ($this->ecitizenParams()['allowedPortalHosts'] ?? []),
-                'fallbackHostInfo' => (string) ($this->ecitizenParams()['callbackBaseUrl'] ?? ''),
-            ],
             'access' => [
                 'class' => AccessControl::class,
                 'rules' => [
@@ -120,9 +114,11 @@ final class PaymentController extends BaseController
     {
         $studentContext = $this->payments->resolveLoggedInStudent();
         $form = new PaymentForm();
-        $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
+        $configuredBankAccountId = $this->configuredBankAccountId();
         if (!empty($configuredBankAccountId)) {
             $form->bank_account_id = (string) $configuredBankAccountId;
+        } else {
+            $form->bank_account_id = $this->defaultSettlementBankAccountId();
         }
         $form->narration = PaymentForm::DEFAULT_NARRATION;
         $form->phone_number = $this->defaultPhoneNumber($studentContext);
@@ -149,15 +145,19 @@ final class PaymentController extends BaseController
         );
         $model = new PaymentForm();
         $studentContext = $this->payments->resolveLoggedInStudent();
-        $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
+        $configuredBankAccountId = $this->configuredBankAccountId();
 
         if (!empty($configuredBankAccountId)) {
             $model->bank_account_id = (string) $configuredBankAccountId;
+        } else {
+            $model->bank_account_id = $this->defaultSettlementBankAccountId();
         }
 
         $loaded = $model->load(Yii::$app->request->post());
         if (!empty($configuredBankAccountId)) {
             $model->bank_account_id = (string) $configuredBankAccountId;
+        } elseif (empty($model->bank_account_id)) {
+            $model->bank_account_id = $this->defaultSettlementBankAccountId();
         }
         $model->narration = PaymentForm::DEFAULT_NARRATION;
 
@@ -188,7 +188,7 @@ final class PaymentController extends BaseController
 
         try {
             if (!$this->payments->paymentModeExists()) {
-                throw new ServerErrorHttpException('eCitizen payment mode 12 is not configured in SMIS.');
+                throw new ServerErrorHttpException('eCitizen payment mode 12 is not configured in the portal database.');
             }
 
             $this->payments->gatewayConfig();
@@ -336,7 +336,7 @@ final class PaymentController extends BaseController
             return $this->asJson(['success' => false, 'message' => 'Unable to process the payment notification.']);
         }
 
-        return $this->asJson(['success' => true, 'payment_id' => $queued['payment_id'], 'sync_status' => 'queued']);
+        return $this->asJson(['success' => true, 'payment_id' => $queued['payment_id'], 'storage_status' => 'saved']);
     }
 
     public function actionSuccess(string $reference): Response
@@ -354,6 +354,7 @@ final class PaymentController extends BaseController
                 $studentContext['registrationNumber']
             );
         }
+
         unset($invoice);
         $invoiceFilterModel = new DynamicModel([
             'reference',
@@ -542,7 +543,7 @@ final class PaymentController extends BaseController
             }
 
             if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
-                $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your fee statement and is queued for SMIS sync.');
+                $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your portal fee statement.');
                 return $this->redirect(['invoices']);
             }
 
@@ -620,7 +621,7 @@ final class PaymentController extends BaseController
         }
 
         if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
-            $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your fee statement and is queued for SMIS sync.');
+            $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your portal fee statement.');
             return $this->redirect(['invoices']);
         }
 
@@ -656,7 +657,7 @@ final class PaymentController extends BaseController
             return $this->redirect(['invoices']);
         }
 
-        $this->setFlash('success', 'Payment credited', 'eCitizen confirmed the payment and credited your fee statement. SMIS posting will complete by sync.');
+        $this->setFlash('success', 'Payment credited', 'eCitizen confirmed the payment and credited your portal fee statement.');
         return $this->redirect(['invoices']);
     }
 
@@ -672,6 +673,31 @@ final class PaymentController extends BaseController
             $options[$account['brank_account_id']] = implode(' - ', $labelParts);
         }
         return $options;
+    }
+
+    private function configuredBankAccountId(): ?string
+    {
+        $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
+        if (empty($configuredBankAccountId)) {
+            return null;
+        }
+
+        $bankAccount = $this->payments->findBankAccount((int) $configuredBankAccountId);
+        if ($bankAccount === null) {
+            Yii::warning(
+                'Ignoring invalid eCitizen configured bankAccountId: ' . $configuredBankAccountId,
+                'ecitizen.payment'
+            );
+            return null;
+        }
+
+        return (string) $configuredBankAccountId;
+    }
+
+    private function defaultSettlementBankAccountId(): ?string
+    {
+        $bankAccount = $this->payments->defaultCoopBankAccount();
+        return $bankAccount === null ? null : (string) $bankAccount['brank_account_id'];
     }
 
     private function ecitizenParams(): array

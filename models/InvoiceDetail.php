@@ -34,11 +34,11 @@ class InvoiceDetail extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['trans_date', 'amount', 'user_id', 'invoice_detail_desc', 'last_updated'], 'required'],
-            [['trans_date', 'last_updated'], 'safe'],
+            [['trans_date', 'amount', 'user_id', 'invoice_detail_desc'], 'required'],
+            [['trans_date'], 'safe'],
             [['amount'], 'number'],
             [['sync_status'], 'boolean'],
-            [['invoice_id', 'charge_type_id'], 'string', 'max' => 100],
+            [['invoice_id', 'charge_type_id'], 'integer'],
             [['user_id'], 'string', 'max' => 30],
             [['invoice_detail_desc'], 'string', 'max' => 50],
             [['trans_code'], 'string', 'max' => 15],

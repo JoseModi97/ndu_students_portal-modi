@@ -21,6 +21,7 @@ use yii\db\ActiveRecord;
  * @property int $prom_status_id
  * @property bool|null $reporting_sync_status
  * @property int|null $prog_curriculum_semester_id
+ * @property bool|null $allow_registration
  */
 class StudentSemesterSessionProgress extends ActiveRecord
 {
@@ -42,7 +43,7 @@ class StudentSemesterSessionProgress extends ActiveRecord
             [['student_semester_session_id', 'semester_progress', 'academic_progress_id', 'sem_progress_number', 'billable', 'rep_status_id', 'prom_status_id', 'prog_curriculum_semester_id'], 'default', 'value' => null],
             [['student_semester_session_id', 'semester_progress', 'academic_progress_id', 'sem_progress_number', 'billable', 'rep_status_id', 'prom_status_id', 'prog_curriculum_semester_id'], 'integer'],
             [['registration_date'], 'safe'],
-            [['reporting_sync_status'], 'boolean'],
+            [['reporting_sync_status', 'allow_registration'], 'boolean'],
             [['promotion_status'], 'string', 'max' => 20],
             [['student_semester_session_id'], 'unique'],
             [['academic_progress_id'], 'exist', 'skipOnError' => true, 'targetClass' => AcademicProgress::class, 'targetAttribute' => ['academic_progress_id' => 'academic_progress_id']],

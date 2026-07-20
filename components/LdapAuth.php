@@ -13,6 +13,22 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
 {
     /**
      * @param string $username
+     * @return string|bool
+     * @throws Yii2LdapAuthException
+     */
+    private function findUserDn(string $username): string|bool
+    {
+        $entry = $this->searchUid($username);
+
+        if (!$entry) {
+            return false;
+        }
+
+        return $entry['distinguishedname'][0];
+    }
+
+    /**
+     * @param string $username
      * @param string $password
      * @param string|null $group
      *
@@ -21,13 +37,7 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
      */
     public function authenticate(string $username, string $password, ?string $group = null): bool
     {
-        $entry = $this->findUserEntry($username);
-
-        if (empty($entry)) {
-            return false;
-        }
-
-        $dn = $this->findUserEntry($username)['dn'];
+        $dn = $this->findUserDn($username);
 
         if (!@ldap_bind($this->getConnection(), $dn, $password)) {
             return false;
@@ -41,27 +51,6 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
     }
 
     /**
-     * @param string $username
-     * @return array|bool
-     * @throws Yii2LdapAuthException
-     */
-    public function findUserEntry(string $username): array|bool
-    {
-        $entry = $this->searchUid($username);
-
-        if (empty($entry)) {
-            return false;
-        }
-
-        $email = $entry['mail'][0] ?? null;
-
-        return [
-            'dn' => $entry['distinguishedname'][0],
-            'email' => $email
-        ];
-    }
-
-    /**
      * @param string $uid
      *
      * @return array|null Data from LDAP or null
@@ -69,10 +58,7 @@ final class LdapAuth extends \stmswitcher\Yii2LdapAuth\LdapAuth
      */
     public function searchUid(string $uid): ?array
     {
-        $uid = str_replace(['/', '\\'], '', $uid);
-
-        $filter = "(CN=$uid)";
-//        $filter = "(samaccountname=$uid)";
+        $filter = '(CN=' . ldap_escape($uid, '', LDAP_ESCAPE_FILTER) . ')';
 
         $result = ldap_search(
             $this->getConnection(),

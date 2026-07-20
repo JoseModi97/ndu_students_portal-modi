@@ -5,9 +5,11 @@
 
 namespace app\models;
 
+use app\helpers\SmisHelper;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use Yii;
+use yii\base\InvalidArgumentException;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
@@ -157,20 +159,6 @@ class User extends ActiveRecord implements IdentityInterface
     }
 
     /**
-     * @return string|null
-     */
-    public function getRegistration_number(): ?string
-    {
-        $studentProgramme = StudentProgCurriculum::find()
-            ->select('registration_number')
-            ->where(['adm_refno' => $this->adm_refno])
-            ->asArray()
-            ->one();
-
-        return $studentProgramme['registration_number'] ?? null;
-    }
-
-    /**
      * {@inheritdoc}
      */
     public function getAuthKey()
@@ -190,20 +178,23 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findByUsername(string $username): bool|array|ActiveRecord|null
     {
-        // @todo remove this after students have proper emails in the AD
-        $student = Student::find()->select(['student_id'])->where(['LIKE', 'student_number', '%' . $username . '%', false])->one();
-        $studentProg = StudentProgCurriculum::find()->select(['adm_refno'])->where(['student_id' => $student['student_id']])
-            ->asArray()->one();
-        $user = self::find()->where(['adm_refno' => $studentProg['adm_refno']])->one();
+        if (str_contains($username, '/')) {
+            $studentProg = StudentProgramme::find()->select(['adm_refno'])->where(['registration_number' => $username])
+                ->asArray()->one();
+
+            if (empty($studentProg)) {
+                return false;
+            }
+
+            $username = $studentProg['adm_refno'];
+        }
+
+        $user = self::find()->where(['adm_refno' => ltrim($username, '0')])->one();
+
         if (empty($user)) {
             return false;
         }
 
-        // This email must match one in the AD
-//        $user = self::find()->where(['primary_email' => $username])->one();
-//        if (empty($user)) {
-//            return false;
-//        }
         return $user;
     }
 

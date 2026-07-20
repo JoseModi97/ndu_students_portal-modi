@@ -8,7 +8,7 @@ use yii\helpers\Url;
 /** @var string $mode 'eligibility' | 'status' | 'not-eligible' */
 /** @var app\modules\refund_requests\models\User $user */
 /** @var app\modules\refund_requests\models\RefundRequest|null $request */
-/** @var app\modules\refund_requests\models\RefundRequestOfficial|null $smisRequest */
+/** @var app\modules\refund_requests\models\RefundRequest|null $smisRequest */
 /** @var app\modules\refund_requests\models\ApprovalProcess[]|null $approvals */
 /** @var app\modules\refund_requests\models\ApprovalLevel[] $allLevels */
 /** @var app\modules\refund_requests\models\RefundType[] $refundTypes */
@@ -20,7 +20,6 @@ use yii\helpers\Url;
 /** @var float|null $expectedCautionFee */
 /** @var float|null $cautionReservedAmount */
 /** @var float|null $cautionRemainingAmount */
-/** @var bool $overrideEligibility */
 /** @var app\modules\refund_requests\models\RefundRequest[] $previousRequests */
 /** @var array $refundedRequests */
 /** @var array $activeRequests */
@@ -96,7 +95,6 @@ $this->registerJs("
         var cautionReservedAmount = " . (float)$cautionReservedAmount . ";
         var cautionRemainingAmount = " . (float)$cautionRemainingAmount . ";
         var feeBalance = " . (float)$balance . ";
-        var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
         var clearanceStatus = {$clearanceStatusJson};
         var academicStatus = {$academicStatusJson};
         
@@ -156,21 +154,21 @@ $this->registerJs("
             }
 
             var warnings = [];
-            if (clearanceStatus !== 'CLEARED' && !overrideEligibility) {
+            if (clearanceStatus !== 'CLEARED') {
                 warnings.push({
                     message: 'You must be CLEARED to apply for this refund type. Current status: ' + clearanceStatus + '.',
                     source: 'smisportal'
                 });
             }
 
-            if (academicStatus !== 'GRADUATED' && academicStatus !== 'COMPLETED' && !overrideEligibility) {
+            if (academicStatus !== 'GRADUATED' && academicStatus !== 'COMPLETED') {
                 warnings.push({
                     message: 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' + academicStatus + '.',
                     source: 'smis'
                 });
             }
 
-            if (feeBalance > 0 && !overrideEligibility) {
+            if (feeBalance > 0) {
                 warnings.push({
                     message: 'You have an outstanding fee balance of ' + currencyFormatter.format(feeBalance) + '. All balances must be cleared to apply.',
                     source: 'smis'
@@ -181,7 +179,7 @@ $this->registerJs("
             if (typeText.includes('CAUTION')) {
                 var displayAmount = cautionRemainingAmount;
 
-                if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
+                if (cautionFeePaid < expectedCautionFee) {
                     warnings.push({
                         message: 'You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.',
                         source: 'smis'
@@ -227,7 +225,6 @@ $this->registerJs("
         var expectedCautionFee = " . (float)$expectedCautionFee . ";
         var cautionRemainingAmount = " . (float)$cautionRemainingAmount . ";
         var feeBalance = " . (float)$balance . ";
-        var overrideEligibility = " . ($overrideEligibility ? 'true' : 'false') . ";
         var clearanceStatus = {$clearanceStatusJson};
         var academicStatus = {$academicStatusJson};
         var currencyFormatter = new Intl.NumberFormat('en-KE', {
@@ -282,21 +279,21 @@ $this->registerJs("
         }
 
         var warnings = [];
-        if (clearanceStatus !== 'CLEARED' && !overrideEligibility) {
+        if (clearanceStatus !== 'CLEARED') {
             warnings.push({
                 message: 'You must be CLEARED to apply for this refund type. Current status: ' + clearanceStatus + '.',
                 source: 'smisportal'
             });
         }
 
-        if (academicStatus !== 'GRADUATED' && academicStatus !== 'COMPLETED' && !overrideEligibility) {
+        if (academicStatus !== 'GRADUATED' && academicStatus !== 'COMPLETED') {
             warnings.push({
                 message: 'Refund requests are only available for GRADUATED or COMPLETED students. Your current status: ' + academicStatus + '.',
                 source: 'smis'
             });
         }
 
-        if (feeBalance > 0 && !overrideEligibility) {
+        if (feeBalance > 0) {
             warnings.push({
                 message: 'You have an outstanding fee balance of ' + currencyFormatter.format(feeBalance) + '. All balances must be cleared to apply.',
                 source: 'smis'
@@ -305,7 +302,7 @@ $this->registerJs("
 
         if (typeText.includes('CAUTION')) {
             var displayAmount = cautionRemainingAmount;
-            if (cautionFeePaid < expectedCautionFee && !overrideEligibility) {
+            if (cautionFeePaid < expectedCautionFee) {
                 warnings.push({
                     message: 'You cannot apply for a Caution Refund because you have not fully paid the CAUTION FEE.',
                     source: 'smis'
@@ -474,62 +471,6 @@ $this->registerJs("
                         <?= Html::a('View Application Details', ['track', 'request_id' => $request->request_id], ['class' => 'cr-btn cr-btn--primary']) ?>
                     </div>
                 <?php else: ?>
-                    <?php if (false): // Requirements checklist rows intentionally hidden. ?>
-                    <div class="cr-status-row">
-                        <span class="cr-status-row__label">University Clearance</span>
-                        <span class="cr-status-row__value">
-                            <?php
-                            $cs = strtoupper((string)($user->clearance_status ?: 'PENDING'));
-                            $ov = (bool)$overrideEligibility;
-                            $csPassed = $cs === 'CLEARED';
-                            $csBadge = ($csPassed || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
-                            $csLabel = $csPassed ? 'CLEARED' : ($ov ? 'OVERRIDDEN (' . $cs . ')' : $cs);
-                            ?>
-                            <span class="cr-badge <?= $csBadge ?>"><?= Html::encode($csLabel) ?></span>
-                        </span>
-                    </div>
-                    <div class="cr-status-row">
-                        <span class="cr-status-row__label">Fee Balance</span>
-                        <span class="cr-status-row__value">
-                            <?php 
-                            $fb = (float)$balance;
-                            $ov = (bool)$overrideEligibility;
-                            $fbBadge = ($fb <= 0 || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
-                            $fbLabel = ($fb <= 0) ? 'CLEARED' : ($ov ? 'OVERRIDDEN' : 'HAS BALANCE');
-                            ?>
-                            <span class="cr-badge <?= $fbBadge ?>"><?= $fbLabel ?> (<?= Yii::$app->formatter->asCurrency($fb) ?>)</span>
-                            <small class="ms-2 text-muted" style="font-size: 0.75rem;">(Required: No balance)</small>
-                        </span>
-                    </div>
-                    <div class="cr-status-row">
-                        <span class="cr-status-row__label">Academic Status</span>
-                        <span class="cr-status-row__value">
-                            <?php 
-                            $as = strtoupper($academicStatus);
-                            $ov = (bool)$overrideEligibility;
-                            $asPassed = ($as === 'GRADUATED' || $as === 'COMPLETED');
-                            $asBadge = ($asPassed || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
-                            $asLabel = $asPassed ? $as : ($ov ? 'OVERRIDDEN (' . $as . ')' : $as);
-                            ?>
-                            <span class="cr-badge <?= $asBadge ?>"><?= Html::encode($asLabel) ?></span>
-                        </span>
-                    </div>
-
-                    <div class="cr-status-row">
-                        <span class="cr-status-row__label">Caution Money Payment</span>
-                        <span class="cr-status-row__value">
-                            <?php 
-                            $cp = (float)$cautionFeePaid;
-                            $ex = (float)$expectedCautionFee;
-                            $ov = (bool)$overrideEligibility;
-                            $cpBadge = ($cp >= $ex || $ov) ? 'cr-badge--approved' : 'cr-badge--rejected';
-                            $cpLabel = ($cp >= $ex) ? 'PAID' : ($ov ? 'OVERRIDDEN' : 'NOT PAID');
-                            ?>
-                            <span class="cr-badge <?= $cpBadge ?>"><?= $cpLabel ?></span>
-                        </span>
-                    </div>
-                    <?php endif; ?>
-
                     <div class="cr-section">
                         <?php if ($mode === 'eligibility'): ?>
                             <div class="cr-notice">

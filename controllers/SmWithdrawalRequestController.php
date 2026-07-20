@@ -17,7 +17,7 @@ class SmWithdrawalRequestController extends BaseController
     /**
      * @inheritDoc
      */
-    public function behaviors(): array
+    public function behaviors()
     {
         return array_merge(
             parent::behaviors(),
@@ -30,20 +30,6 @@ class SmWithdrawalRequestController extends BaseController
                 ],
             ]
         );
-    }
-
-    public function beforeAction($action): bool
-    {
-        if (parent::beforeAction($action)) {
-            if ($action->id == 'index') {
-                if (Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS) {
-                    $this->redirect(['/home']);
-                    return false;
-                }
-            }
-            return true;
-        }
-        return false;
     }
 
     /**

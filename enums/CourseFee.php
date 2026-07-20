@@ -25,12 +25,12 @@ enum CourseFee: string
     public function feeDescription(): string
     {
         return match ($this) {
-            self::FA => 'FIRST ATTEMPT',
-            self::SUPP => 'SUPPLEMENTARY FEES',
-            self::RETAKE => 'RETAKE',
-            self::SPECIAL => 'SPECIAL',
-            self::PROJECT => 'PROJECT',
-            self::TUITION => 'TUITION FEES'
+            self::FA => 'FIRST ATTEMPT FEE',
+            self::SUPP => 'SUPPLEMENTARY FEE',
+            self::RETAKE => 'RETAKE FEE',
+            self::SPECIAL => 'SPECIAL FEE',
+            self::PROJECT => 'PROJECT FEE',
+            self::TUITION => 'TUITION FEE'
         };
     }
 }

@@ -44,3 +44,12 @@ tests/_support/_generated
 /config/db.local.php
 
 /config/db_constants.php
+
+# local payment credentials
+/modules/ecitizen/config/credentials.php
+/modules/ecitizen/.env
+/modules/**/.env
+/modules/**/config/credentials.php
+
+# local application secrets
+/config/secrets.local.php

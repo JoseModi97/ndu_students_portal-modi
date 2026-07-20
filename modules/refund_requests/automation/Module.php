@@ -10,12 +10,6 @@ use yii\base\Module as BaseModule;
 class Module extends BaseModule
 {
     /**
-     * @var bool Whether to bypass clearance, academic-status, and fee-balance
-     * requirements. A refundable CAUTION MONEY record is always required.
-     */
-    public $overrideEligibility = true;
-
-    /**
      * {@inheritdoc}
      */
     public $controllerNamespace = 'app\modules\refund_requests\controllers';
@@ -23,13 +17,6 @@ class Module extends BaseModule
     /**
      * {@inheritdoc}
      */
-    public function init()
-    {
-        parent::init();
-
-        // custom initialization code goes here
-    }
-
     /**
      * @return \yii\db\Connection
      * @throws \yii\base\InvalidConfigException

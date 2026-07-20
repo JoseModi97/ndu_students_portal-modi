@@ -11,6 +11,7 @@ use yii\bootstrap5\Html;
  * @var array $invoiceFilterOptions
  */
 
+
 $this->title = $title;
 $this->registerCss(<<<CSS
 .ecitizen-invoices-table th,
@@ -177,6 +178,14 @@ $select2FilterOptions = static function (string $placeholder): array {
         ],
     ];
 };
+
+
+
+$value = str_replace('/', '', $registrationNumber);
+
+echo $value; // NR60500012022
+
+
 ?>
 
 <div class="content-header">
@@ -281,7 +290,6 @@ $select2FilterOptions = static function (string $placeholder): array {
                                     Html::a('Pay this invoice', ['invoice', 'trans_id' => $invoice['trans_id_token']], [
                                         'class' => 'btn btn-outline-primary btn-sm',
                                     ])
-                                        /*
                                         . Html::beginForm(['complete-payment', 'trans_id' => $invoice['trans_id_token']], 'post', [
                                             'class' => 'ecitizen-complete-payment-form',
                                             'data-confirm' => 'Check eCitizen for this invoice and credit it only if payment is confirmed?',
@@ -289,8 +297,7 @@ $select2FilterOptions = static function (string $placeholder): array {
                                         . Html::submitButton('Complete payment', [
                                             'class' => 'btn btn-outline-success btn-sm ecitizen-complete-payment-btn',
                                         ])
-                                        . Html::endForm()
-                                        */,
+                                        . Html::endForm(),
                                     ['class' => 'ecitizen-action-buttons']
                                 );
                             },

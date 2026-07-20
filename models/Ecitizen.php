@@ -2,8 +2,10 @@
 
 namespace app\models;
 
+use yii\db\ActiveRecord;
+
 /**
- * This is the model class for table "ecitizen".
+ * This is the model class for table "smisportal.ecitizen".
  *
  * @property int $payment_id
  * @property int|null $apiClientID
@@ -25,20 +27,14 @@ namespace app\models;
  * @property string|null $response
  * @property string|null $status
  */
-class Ecitizen extends \yii\db\ActiveRecord
+class Ecitizen extends ActiveRecord
 {
-    /**
-     * {@inheritdoc}
-     */
-    public static function tableName()
+    public static function tableName(): string
     {
-        return 'ecitizen';
+        return 'smisportal.ecitizen';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function rules()
+    public function rules(): array
     {
         return [
             [['apiClientID', 'secureHash', 'billDesc', 'billRefNumber', 'currency', 'serviceID', 'clientMSISDN', 'clientName', 'clientIDNumber', 'clientEmail', 'callBackURLOnSuccess', 'pictureURL', 'notificationURL', 'amountExpected', 'registration_number', 'response'], 'default', 'value' => null],
@@ -48,7 +44,9 @@ class Ecitizen extends \yii\db\ActiveRecord
             [['trans_date'], 'safe'],
             [['response'], 'string'],
             [['secureHash'], 'string', 'max' => 255],
-            [['billDesc', 'billRefNumber', 'clientName', 'clientEmail', 'callBackURLOnSuccess', 'pictureURL', 'notificationURL'], 'string', 'max' => 100],
+            [['billDesc', 'billRefNumber', 'clientName'], 'string', 'max' => 100],
+            [['clientEmail'], 'string', 'max' => 150],
+            [['callBackURLOnSuccess', 'pictureURL', 'notificationURL'], 'string', 'max' => 255],
             [['currency'], 'string', 'max' => 3],
             [['serviceID'], 'string', 'max' => 8],
             [['clientMSISDN'], 'string', 'max' => 20],
@@ -57,10 +55,7 @@ class Ecitizen extends \yii\db\ActiveRecord
         ];
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function attributeLabels()
+    public function attributeLabels(): array
     {
         return [
             'payment_id' => 'Payment ID',

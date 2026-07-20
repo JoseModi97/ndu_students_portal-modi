@@ -37,7 +37,7 @@ class FeeTransaction extends ActiveRecord
     public function rules(): array
     {
         return [
-            [['trans_id', 'academic_progress_id', 'trans_date', 'trans_type', 'trans_amount', 'user_id', 'progress_code'], 'required'],
+            [['academic_progress_id', 'trans_date', 'trans_type', 'trans_amount', 'user_id', 'progress_code'], 'required'],
             [['academic_progress_id', 'student_semester_session_id'], 'default', 'value' => null],
             [['academic_progress_id', 'student_semester_session_id'], 'integer'],
             [['trans_date'], 'safe'],

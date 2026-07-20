@@ -25,6 +25,7 @@ use app\models\Room;
 use app\models\Student;
 use app\models\StudentProgCurriculum;
 use app\services\BillStudent;
+use app\services\StudentToBill;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use kartik\mpdf\Pdf;
@@ -32,10 +33,15 @@ use Throwable;
 use Yii;
 use yii\data\ArrayDataProvider;
 use yii\db\ActiveQuery;
+use yii\db\Query;
 use yii\filters\AccessControl;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
+use app\models\FeeTransaction;
+use app\models\FeePayment;
+use app\models\Invoice;
+use app\models\InvoiceDetail;
 
 final class CoursesController extends BaseController
 {
@@ -53,7 +59,7 @@ final class CoursesController extends BaseController
             ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
             ->asArray()->one()['registration_number'];
 
-//        $this->billStudent = new BillStudent(new StudentToBill($regNumber));
+        $this->billStudent = new BillStudent(new StudentToBill($regNumber));
     }
 
     /**
@@ -76,20 +82,6 @@ final class CoursesController extends BaseController
         ];
     }
 
-    public function beforeAction($action): bool
-    {
-        if (parent::beforeAction($action)) {
-            if ($action->id == 'index') {
-                if (Yii::$app->user->identity->admission_status === parent::PRE_REGISTERED_STATUS) {
-                    $this->redirect(['/home']);
-                    return false;
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
     /**
      * @throws Exception
      * @todo Check for registration deadlines and display date
@@ -98,37 +90,39 @@ final class CoursesController extends BaseController
     {
         try {
             // Get the last academic session semester a student joined
-            $studentSemSessProgress = SmisHelper::latestAcademicSessionForAStudent();
+            $studentSemSessProgress = SmisHelper::latestAcademicSessionForAStudent(); //775
+//            print_r($studentSemSessProgress); exit;
 
             /**
              * If semester has ended i.e. a student is trying to register for courses in a semester whose end date is behind
              * the current date, inform them to join an active session first.
-             * Session are created by the admin before placing a student in one.
+             * The admin creates session before placing a student in one.
              */
-//            $progCurrSemId = $studentSemSessProgress['prog_curriculum_semester_id'];
             $progCurrSemGroupId = $studentSemSessProgress['prog_curriculum_semester_id'];
 
-//            $level = $studentSemSessProgress['academicProgress']['academicLevel']['academic_level'];
-//            $admittedStudent = AdmittedStudent::find()->select('study_centre_group_id')
-//                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
-//            $studyCenterGroupId = $admittedStudent['study_centre_group_id'];
-//            $currentDate = SmisHelper::formatDate('now', 'Y-m-d');
-
-//            $programmeCurriculumSemGroup = ProgCurrSemesterGroup::find()->select(['prog_curriculum_sem_group_id'])
-//                ->where(['prog_curriculum_semester_id' => $progCurrSemId])
-//                ->andWhere(['<=', 'start_date', $currentDate])
-//                ->andWhere(['>=', 'end_date', $currentDate])
-//                ->andWhere(['programme_level' => $level])
-//                ->andWhere(['study_centre_group_id' => $studyCenterGroupId])
-//                ->asArray()->one();
-
-            $programmeCurriculumSemGroup = ProgCurrSemesterGroup::find()->select(['prog_curriculum_sem_group_id'])
+            $programmeCurriculumSemGroup = ProgCurrSemesterGroup::find()->select(['prog_curriculum_sem_group_id', 'registration_deadline'])
                 ->andWhere(['prog_curriculum_sem_group_id' => $progCurrSemGroupId])
                 ->asArray()->one();
 
             if (empty($programmeCurriculumSemGroup)) {
                 $this->setFlash('danger', 'Timetable courses', 'Please join an active semester.');
                 return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
+            }
+
+            // Make sure the student raises/accepts an invoice to bill for sem admin fees before trying to register for courses
+            $regNumber = StudentProgCurriculum::find()->select('registration_number')
+                ->where(['adm_refno' => \Yii::$app->user->identity->adm_refno])
+                ->asArray()->one()['registration_number'];
+
+            $studentToBill = new StudentToBill($regNumber);
+
+            $partProgressCode = $studentToBill->academicYear . '-SEM' . $studentToBill->semester;
+            $invoice = Invoice::find()->where(['like', 'invoice_id', '%' . $partProgressCode . '%', false])->one();
+
+            if (!$invoice) {
+                $this->setFlash('danger', 'Raise Invoice',
+                    'You must raise and accept an invoice for this semster inorder to register for courses');
+                return $this->redirect(['/bill/raise-invoice']);
             }
 
             // Get courses in the timetable in the semester
@@ -174,7 +168,8 @@ final class CoursesController extends BaseController
                 'timetableCoursesProvider' => $timetableCoursesProvider,
                 'studentSemesterSessionId' => $studentSemSessProgress['student_semester_session_id'],
                 'currentSessionDetails' => $this->currentSessionDetails(),
-                'hasAvailableSessionToJoin' => SmisHelper::studentHasAvailableSessionToJoin()
+                'hasAvailableSessionToJoin' => SmisHelper::studentHasAvailableSessionToJoin(),
+                'regDeadline' => $programmeCurriculumSemGroup['registration_deadline']
             ]);
         } catch (Exception $ex) {
             $message = $ex->getMessage();
@@ -200,11 +195,14 @@ final class CoursesController extends BaseController
                 throw new Exception('You must report to your session inorder to register for courses');
             }
 
-            $post = Yii::$app->request->post();
-            $courses = $post['courses'];
+            $courses = Yii::$app->request->post('courses', []);
+            if (!is_array($courses) || empty($courses)) {
+                throw new Exception('No valid courses were submitted for registration.');
+            }
 
             $studentSemSessProgress = SmisHelper::latestAcademicSessionForAStudent();
             $studentSemesterSessionId = $studentSemSessProgress['student_semester_session_id'];
+            $progCurriculumSemGroupId = $studentSemSessProgress['prog_curriculum_semester_id'];
 
             $studentProgCurr = StudentProgCurriculum::find()->select(['student_id'])
                 ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])->asArray()->one();
@@ -213,7 +211,23 @@ final class CoursesController extends BaseController
                 ->where(['student_id' => $studentProgCurr['student_id']])->asArray()->one();
 
             foreach ($courses as $course) {
-                $timetableId = $course['timetableId'];
+                $timetableId = $course['timetableId'] ?? null;
+                $examType = $course['examType'] ?? null;
+                if (!is_scalar($timetableId) || !ctype_digit((string)$timetableId) || !is_string($examType) || $examType === '') {
+                    throw new Exception('One or more selected courses have invalid registration details.');
+                }
+
+                $timetableId = (int)$timetableId;
+                $timetableExists = ProgrammeCurriculumTimetable::find()
+                    ->where([
+                        'timetable_id' => $timetableId,
+                        'prog_curriculum_sem_group_id' => $progCurriculumSemGroupId
+                    ])
+                    ->exists();
+                if (!$timetableExists) {
+                    throw new Exception('One or more selected courses are not available in your current session.');
+                }
+
                 if ($this->isRegistrationConfirmed($timetableId)) {
                     continue;
                 }
@@ -221,8 +235,11 @@ final class CoursesController extends BaseController
                 $courseRegStatus = CourseRegistrationStatus::find()->where(['course_reg_status_name' => 'PROVISIONAL'])
                     ->asArray()->one();
 
-                $courseRegType = CourseRegistrationType::find()->where(['course_reg_type_code' => $course['examType']])
+                $courseRegType = CourseRegistrationType::find()->where(['course_reg_type_code' => $examType])
                     ->asArray()->one();
+                if (empty($courseRegType)) {
+                    throw new Exception('The selected exam type is not valid.');
+                }
 
                 $courseReg = CourseRegistration::find()->where([
                     'timetable_id' => $timetableId,
@@ -305,7 +322,7 @@ final class CoursesController extends BaseController
 
             $transaction->commit();
             $this->setFlash('success', 'Course registration', 'Course registration done successfully.');
-            return $this->redirect(['/courses']);
+            return $this->asJson(['success' => true]);
         } catch (Exception $ex) {
             $transaction->rollBack();
             $message = $ex->getMessage();
@@ -468,7 +485,7 @@ final class CoursesController extends BaseController
      */
     public function actionInvoice(): Response
     {
-        $post = Yii::$app->request->post();
+        $post = Yii::$app->request->post(); //dd('invoice');
         $marksheets = '';
         foreach ($post['timetableIds'] as $timetableId) {
             $timetable = ProgrammeCurriculumTimetable::find()
@@ -476,7 +493,7 @@ final class CoursesController extends BaseController
             if ($timetable) {
                 $marksheets .= $timetable['mrksheet_id'] . '.';
             }
-        }
+        }//dd($marksheets);
         return $this->redirect(['/bill/raise-invoice', 'marksheets' => rtrim($marksheets, '.')]);
     }
 
@@ -486,25 +503,50 @@ final class CoursesController extends BaseController
      */
     public function actionConfirm(): Response
     {
-        $transaction = Yii::$app->db->beginTransaction();
+        $transaction = Yii::$app->db->beginTransaction(); //print_r('confirm'); exit;
         try {
             $post = Yii::$app->request->post();
-            $timetableIds = $post['timetableIds']; // @todo remove when billing
-
+//            $timetableIds = $post['timetableIds']; // @todo remove when billing
 //            $payableFess = json_decode($post['payableFees'], true); // @todo return when billing
-//            $timetableIds = json_decode($post['timetableIds'], true); // @todo return when billing
+            $timetableIds = $post['timetableIds']; // @todo return when billing
+
+//            print_r($timetableIds); exit; // gives me one array element with id 426
 
             /**
              * Bill admin and course units fees
              */
-            // @todo uncomment below when active
+//            print_r($payableFess);
+            $semesterSessionId = SmisHelper::latestAcademicSessionForAStudent()['student_semester_session_id'];
+            $courses = (new Query())
+                ->select([
+                    'pct.timetable_id',
+                    'cs.course_code',
+                    'crt.course_reg_type_code'
+                ])
+                ->from('smisportal.cr_prog_curr_timetable pct')
+                ->innerJoin('smisportal.org_prog_curr_course pcc', 'pcc.prog_curriculum_course_id=pct.prog_curriculum_course_id')
+                ->innerJoin('smisportal.org_courses cs', 'cs.course_id=pcc.course_id')
+                ->innerJoin('smisportal.cr_course_registration cr', 'cr.timetable_id=pct.timetable_id')
+                ->innerJoin('smisportal.cr_course_reg_type crt', 'crt.course_reg_type_id=cr.course_registration_type_id')
+                ->where(['pct.timetable_id' => $timetableIds])
+                ->andWhere(['cr.student_semester_session_id' => $semesterSessionId])
+                ->all();
 
-//            $regNumber = StudentProgCurriculum::find()->select('registration_number')
-//                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
-//                ->asArray()->one()['registration_number'];
-//
-//            $billStudent = new BillStudent(new StudentToBill($regNumber));
-//            $billStudent->bill($payableFess);
+//            print_r($timetableIds); exit;
+
+            $coursesToBill = [];
+            foreach ($courses as $course) {
+                $coursesToBill[] = [
+                    'code' => $course['course_code'],
+                    'type' => $course['course_reg_type_code']
+                ];
+            }
+
+//            print_r($coursesToBill); exit;
+
+            $payableFess = $this->billStudent->billCourseRegistration($coursesToBill);
+
+            $this->billStudent->billZeroCourseFees($payableFess);
 
             // Get the last academic session semester a student joined
             $studentSemSessProgress = SmisHelper::latestAcademicSessionForAStudent();
@@ -512,6 +554,7 @@ final class CoursesController extends BaseController
 
             $courseRegStatus = CourseRegistrationStatus::find()->select(['course_reg_status_id'])
                 ->where(['course_reg_status_name' => 'CONFIRMED'])->asArray()->one();
+
 
             foreach ($timetableIds as $timetableId) {
                 $courseReg = CourseRegistration::find()->where([
@@ -712,6 +755,247 @@ final class CoursesController extends BaseController
         }
     }
 
+    public function actionFeeStatement(): string
+    {
+        try {
+            $name = Yii::$app->user->identity->surname . ' ' . Yii::$app->user->identity->other_names;
+
+            $studentProg = StudentProgCurriculum::find()
+                ->select(['registration_number'])
+                ->where(['adm_refno' => Yii::$app->user->identity->adm_refno])
+                ->asArray()
+                ->one();
+
+            if (empty($studentProg)) {
+                throw new ServerErrorHttpException('Student programme record not found.', 500);
+            }
+
+            $regNumber = $studentProg['registration_number'];
+
+//            print_r([$studentProg, $regNumber]); exit;
+
+            // -------------------------------------------------------
+            // 1. Fetch all fee transactions for this student
+            // -------------------------------------------------------
+            $transactions = FeeTransaction::find()
+                ->where(['LIKE', 'progress_code', $regNumber . '%', false])
+                ->orderBy(['trans_date' => SORT_ASC, 'trans_id' => SORT_ASC])
+                ->asArray()
+                ->all();
+
+            $ledgerDb = Yii::$app->db;
+            $ledgerSchema = 'smisportal';
+            if (empty($transactions)) {
+                $ledgerDb = Yii::$app->smisDb;
+                $ledgerSchema = 'smis';
+                $transactions = (new Query())
+                    ->from($ledgerSchema . '.fss_fee_transactions')
+                    ->where(['LIKE', 'progress_code', $regNumber . '%', false])
+                    ->orderBy(['trans_date' => SORT_ASC, 'trans_id' => SORT_ASC])
+                    ->all($ledgerDb);
+            }
+
+//            print_r($transactions); exit;
+
+            // -------------------------------------------------------
+            // 2. Fetch all invoices for this student
+            //    Linked via trans_id FK to fss_fee_transactions
+            //    Indexed by trans_id for quick lookup
+            // -------------------------------------------------------
+            $transIds = array_column($transactions, 'trans_id');
+            $invoiceMap = [];
+            if (!empty($transIds)) {
+                $invoices = (new Query())
+                    ->from($ledgerSchema . '.fss_invoice')
+                    ->where(['trans_id' => $transIds])
+                    ->all($ledgerDb);
+
+                foreach ($invoices as $invoice) {
+                    // key by trans_id so we can match to transaction
+                    $invoiceMap[$invoice['trans_id']] = $invoice;
+                }
+            }
+
+            // -------------------------------------------------------
+            // 3. Fetch all invoice details for those invoices
+            //    Linked via invoice_id (int8 FK to fss_invoice.id)
+            //    Indexed by invoice id for quick lookup
+            // -------------------------------------------------------
+            $invoiceIds = array_column($invoiceMap, 'id');
+            $invoiceDetails = [];
+            if (!empty($invoiceIds)) {
+                $details = (new Query())
+                    ->from($ledgerSchema . '.fss_invoice_details')
+                    ->where(['invoice_id' => $invoiceIds])
+                    ->orderBy(['invoice_id' => SORT_ASC, 'invoice_detail_id' => SORT_ASC])
+                    ->all($ledgerDb);
+
+                foreach ($details as $detail) {
+                    // key by invoice id (int8)
+                    $invoiceDetails[$detail['invoice_id']][] = $detail;
+                }
+            }
+
+            // -------------------------------------------------------
+            // 4. Fetch fee payments indexed by trans_id
+            //    Used to get receipt number for CR transactions
+            //    that have no matching invoice
+            // -------------------------------------------------------
+            $paymentMap = [];
+            if (!empty($transIds)) {
+                $payments = (new Query())
+                    ->from($ledgerSchema . '.fss_fee_payments')
+                    ->where(['trans_id' => $transIds])
+                    ->all($ledgerDb);
+
+                foreach ($payments as $payment) {
+                    $paymentMap[$payment['trans_id']] = $payment;
+                }
+            }
+
+            // -------------------------------------------------------
+            // 5. Build unified ledger rows
+            // -------------------------------------------------------
+            $ledgerRows = [];
+
+            foreach ($transactions as $txn) {
+                $dr = null;
+                $cr = null;
+
+                if ($txn['trans_type'] === 'DR') {
+                    $dr = $txn['trans_amount'];
+                } elseif ($txn['trans_type'] === 'CR') {
+                    $cr = $txn['trans_amount'];
+                }
+
+                // Extract academic year from progress_code
+                // progress_code format: NR605/0001/2022-2023/2024
+                // academic year is everything after the first hyphen
+                $academicYear = '';
+                $stripped = str_replace($regNumber . '-', '', trim($txn['progress_code']));
+                $progressParts = explode('-', $stripped);
+                if (!empty($progressParts)) {
+                    $academicYear = implode('-', $progressParts);
+                }
+
+                // Match transaction to invoice via trans_id
+                $matchedInvoice = $invoiceMap[$txn['trans_id']] ?? null;
+
+                // Get invoice details using invoice.id (int8)
+                $matchedDetails = [];
+                if ($matchedInvoice) {
+                    $matchedDetails = $invoiceDetails[$matchedInvoice['id']] ?? [];
+                }
+
+                // Extract semester label from invoice_id string
+                // e.g. NR605/0001/2022-2023/2024-SEM1 -> Semester 1
+                $semesterLabel = '';
+                if ($matchedInvoice) {
+                    if (preg_match('/SEM(\d+)$/i', $matchedInvoice['invoice_id'], $m)) {
+                        $semesterLabel = 'Semester ' . $m[1];
+                    }
+                }
+
+                // Determine Trans ID column value:
+                // 1. invoice_id (varchar) if invoice matched
+                // 2. receipt_number from fee payments if exists
+                // 3. blank
+                $transIdDisplay = '';
+                if ($matchedInvoice) {
+                    $transIdDisplay = $matchedInvoice['invoice_id'];
+                } elseif (isset($paymentMap[$txn['trans_id']])) {
+                    $transIdDisplay = $paymentMap[$txn['trans_id']]['receipt_number']
+                        ?? $paymentMap[$txn['trans_id']]['receipt_no']
+                        ?? '';
+                }
+
+                $ledgerRows[] = [
+                    'trans_id_display' => $transIdDisplay,
+                    'date'             => $txn['trans_date'],
+                    'type'             => $txn['trans_type'],
+                    'description'      => $txn['trans_desc'],
+                    'dr'               => $dr,
+                    'cr'               => $cr,
+                    'receipt_status'   => $txn['receipt_status'] ?? '',
+                    'academic_year'    => $academicYear,
+                    'semester'         => $semesterLabel,
+                    'invoice'          => $matchedInvoice,
+                    'details'          => $matchedDetails,
+                ];
+            }
+
+            // -------------------------------------------------------
+            // 6. Compute running balance
+            // -------------------------------------------------------
+            $runningBalance = 0;
+            foreach ($ledgerRows as &$row) {
+                if ($row['dr'] !== null) {
+                    $runningBalance += $row['dr'];
+                }
+                if ($row['cr'] !== null) {
+                    $runningBalance -= $row['cr'];
+                }
+                $row['balance'] = $runningBalance;
+            }
+            unset($row);
+
+            $totalDr = array_sum(array_filter(array_column($ledgerRows, 'dr')));
+            $totalCr = array_sum(array_filter(array_column($ledgerRows, 'cr')));
+            $netBalance = $totalDr - $totalCr;
+
+            $currentSessionDetails = $this->currentSessionDetails();
+
+            $content = $this->renderPartial('feeStatement', [
+                'name'                  => $name,
+                'regNumber'             => $regNumber,
+                'currentSessionDetails' => $currentSessionDetails,
+                'ledgerRows'            => $ledgerRows,
+                'invoiceDetails'        => $invoiceDetails,
+                'totalDr'               => $totalDr,
+                'totalCr'               => $totalCr,
+                'netBalance'            => $netBalance,
+            ]);
+
+            $pdf = new Pdf([
+                'filename'    => 'fee_statement_' . str_replace('/', '_', $regNumber),
+                'mode'        => Pdf::MODE_CORE,
+                'format'      => Pdf::FORMAT_A4,
+                'orientation' => Pdf::ORIENT_PORTRAIT,
+                'destination' => Pdf::DEST_BROWSER,
+                'content'     => $content,
+                'cssFile'     => '@vendor/kartik-v/yii2-mpdf/src/assets/kv-mpdf-bootstrap.min.css',
+                'cssInline'   => '
+                body { font-size: 11px; font-family: Arial, sans-serif; }
+                .header-title { font-size: 14px; font-weight: bold; text-align: center; }
+                .sub-title { font-size: 12px; text-align: center; margin-bottom: 4px; }
+                .ledger-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                .ledger-table th { background-color: #003366; color: #ffffff; padding: 5px 4px; font-size: 10px; }
+                .ledger-table td { padding: 4px; border-bottom: 1px solid #dddddd; font-size: 10px; vertical-align: top; }
+                .ledger-table tr.cr-row td { background-color: #f0fff0; }
+                .ledger-table tr.dr-row td { background-color: #fff8f0; }
+                .balance-credit { color: #006600; }
+                .balance-debit  { color: #cc0000; }
+                .amount { text-align: right; }
+                .text-right { text-align: right; }
+                .text-center { text-align: center; }
+            ',
+                'methods' => [
+                    'SetHeader' => ['NATIONAL DEFENCE UNIVERSITY OF KENYA||FEE STATEMENT'],
+                    'SetFooter' => ['PRINTED BY ' . $name . ' ON ' . SmisHelper::formatDate('now', 'd-m-Y') . '||Page {PAGENO}'],
+                ],
+            ]);
+
+            return $pdf->render();
+
+        } catch (Exception $ex) {
+            $message = $ex->getMessage();
+            if (YII_ENV_DEV) {
+                $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
+            }
+            throw new ServerErrorHttpException($message, 500);
+        }
+    }
+    
     /**
      * Check if a course registration is confirmed
      * @param string $timetableId
@@ -749,16 +1033,24 @@ final class CoursesController extends BaseController
     {
         // Get the last academic session semester a student joined
         $studentSemSessProgress = SmisHelper::latestAcademicSessionForAStudent();
-        $academicProgressId = $studentSemSessProgress['academic_progress_id'];
-        $progCurrSemGroupId = $studentSemSessProgress['prog_curriculum_semester_id'];
+        $academicProgressId = $studentSemSessProgress['academic_progress_id']; //2024
+        $progCurrSemGroupId = $studentSemSessProgress['prog_curriculum_semester_id']; //775
 
         $academicProgress = AcademicProgress::findOne($academicProgressId);
 
         $academicSession = AcademicSession::find()->select(['acad_session_name'])
             ->where(['acad_session_id' => $academicProgress->acad_session_id])->asArray()->one();
 
-        $programme = Programmes::find()->select(['prog_full_name'])
-            ->where(['prog_code' => Yii::$app->user->identity->uon_prog_code])->asArray()->one();
+        $programme = Programmes::find()->alias('p')
+            ->select(['p.prog_full_name'])
+            ->innerJoin('smisportal.org_programme_curriculum pc', 'pc.prog_id=p.prog_id')
+            ->innerJoin(
+                'smisportal.sm_student_programme_curriculum spc',
+                'spc.prog_curriculum_id=pc.prog_curriculum_id'
+            )
+            ->where(['spc.adm_refno' => Yii::$app->user->identity->adm_refno])
+            ->asArray()
+            ->one();
 
         $level = AcademicLevel::find()->select(['academic_level'])
             ->where(['academic_level_id' => $academicProgress->academic_level_id])->asArray()->one();
@@ -774,10 +1066,10 @@ final class CoursesController extends BaseController
             ->where(['acad_session_semester_id' => $progCurrSem['acad_session_semester_id']])->asArray()->one();
 
         return [
-            'academicSession' => $academicSession['acad_session_name'],
-            'programme' => $programme['prog_full_name'],
-            'level' => $level['academic_level'],
-            'semester' => $semester['semester_code']
+            'academicSession' => $academicSession['acad_session_name'], //2023/2024
+            'programme' => $programme['prog_full_name'], 
+            'level' => $level['academic_level'], //second year
+            'semester' => $semester['semester_code'] //1
         ];
     }
 }

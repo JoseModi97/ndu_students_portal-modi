@@ -3,7 +3,7 @@
  * Refund Request module styles aligned with the SMIS portal theme.
  */
 
-/* â€”â€”â€” Design tokens â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Design tokens —————————————————————————————————————————————————————— */
 :root {
   --cr-blue-50:   #F5F7FC;
   --cr-blue-100:  #E4E8F5;
@@ -38,7 +38,7 @@
   --cr-font: GT-America-Standard, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
-/* â€”â€”â€” Page wrapper â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Page wrapper —————————————————————————————————————————————————————————— */
 .cr-page {
   font-family: var(--cr-font);
   background: #fafafa;
@@ -51,6 +51,12 @@
   max-width: 1120px;
   margin: 0 auto;
   width: min(1120px, calc(100vw - 2rem));
+}
+
+.cr-page *,
+.cr-page *::before,
+.cr-page *::after {
+  box-sizing: border-box;
 }
 
 .cr-breadcrumb {
@@ -98,7 +104,7 @@
   padding: 0.32rem 0;
 }
 
-/* â€”â€”â€” Page header â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Page header ———————————————————————————————————————————————————————————— */
 .cr-header {
   text-align: left;
   margin-bottom: 1.5rem;
@@ -153,7 +159,7 @@
   font-weight: 700;
 }
 
-/* â€”â€”â€” Card â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */        
+/* ——— Card ————————————————————————————————————————————————————————————————————— */        
 .cr-card {
   background: var(--cr-white);
   border-radius: var(--cr-radius);
@@ -203,6 +209,19 @@
 
 .cr-card__body {
   padding: 1.5rem;
+}
+
+.cr-card .form-control,
+.cr-card .form-select,
+.cr-card input,
+.cr-card select,
+.cr-card textarea,
+.cr-card .select2-container {
+  max-width: 100%;
+}
+
+.cr-card .select2-container {
+  width: 100% !important;
 }
 
 .cr-table-responsive {
@@ -264,7 +283,7 @@
   width: 34px;
 }
 
-/* â€”â€”â€” Instructions / alert box â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Instructions / alert box ———————————————————————————————————————————————— */
 .cr-notice {
   background: var(--cr-white);
   border: 1px solid var(--cr-slate-200);
@@ -300,7 +319,7 @@
   color: var(--cr-slate-700);
 }
 
-/* â€”â€”â€” Form grid â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Form grid ———————————————————————————————————————————————————————————————— */
 .cr-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -315,7 +334,7 @@
   grid-column: 1 / -1;
 }
 
-/* â€”â€”â€” Form field â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Form field ——————————————————————————————————————————————————————————————— */
 .cr-field {
   display: flex;
   flex-direction: column;
@@ -367,7 +386,7 @@
   margin: 0;
 }
 
-/* â€”â€”â€” Declaration checkbox â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Declaration checkbox ————————————————————————————————————————————————————— */
 .cr-declaration {
   display: flex;
   align-items: flex-start;
@@ -393,7 +412,7 @@
   margin: 0;
 }
 
-/* â€”â€”â€” Submit button â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Submit button ———————————————————————————————————————————————————————————— */
 .cr-btn {
   display: inline-flex;
   align-items: center;
@@ -438,7 +457,15 @@
   background: var(--cr-blue-600);
 }
 
-/* â€”â€”â€” Status display â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+.cr-form-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* ——— Status display ——————————————————————————————————————————————————————————— */
 .cr-status-row {
   display: flex;
   align-items: flex-start;
@@ -489,7 +516,7 @@
   font-weight: 600 !important;
 }
 
-/* â€”â€”â€” Flash messages â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Flash messages —————————————————————————————————————————————————————————— */
 .cr-flash {
   border-radius: var(--cr-radius-sm);
   padding: 0.9rem 1.2rem;
@@ -558,7 +585,7 @@
   white-space: pre-wrap;
 }
 
-/* â€”â€”â€” Not-eligible info box â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Not-eligible info box ———————————————————————————————————————————————————— */
 .cr-info-box {
   text-align: center;
   padding: 3rem 2rem;
@@ -577,14 +604,14 @@
   line-height: 1.7;
 }
 
-/* â€”â€”â€” Section spacer inside card body â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Section spacer inside card body ———————————————————————————————————————— */
 .cr-section + .cr-section {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--cr-slate-200);
 }
 
-/* â€”â€”â€” Edit details link â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Edit details link ———————————————————————————————————————————————————————— */
 .cr-edit-link {
   font-size: 0.82rem;
   color: var(--cr-blue-600);
@@ -594,7 +621,7 @@
 
 .cr-edit-link:hover { text-decoration: underline; }
 
-/* â€”â€”â€” Inline validation error (replaces ActiveForm .help-block) â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Inline validation error (replaces ActiveForm .help-block) ——————— */
 .cr-error {
   display: block;
   font-size: 0.78rem;
@@ -637,7 +664,7 @@
   letter-spacing: normal;
 }
 
-/* â€”â€”â€” Timeline â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Timeline —————————————————————————————————————————————————————————————— */
 .cr-timeline {
   position: relative;
   padding-left: 2.5rem;
@@ -696,7 +723,7 @@
   border-right: 5px solid var(--cr-slate-50);
 }
 
-/* â€”â€”â€” Steps Tracker â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+/* ——— Steps Tracker —————————————————————————————————————————————————————————— */
 .cr-steps {
   display: flex;
   justify-content: space-between;
@@ -789,7 +816,137 @@
   .cr-step__line { display: none; }
 }
 
-/* â€”â€”â€” Popover Theme Overrides â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” */
+@media (max-width: 768px) {
+  .cr-page {
+    padding: 0.9rem 0.65rem 1.5rem;
+  }
+
+  .cr-container {
+    width: 100%;
+  }
+
+  .cr-breadcrumb {
+    gap: 0.35rem;
+    line-height: 1.35;
+    margin-bottom: 1rem;
+  }
+
+  .cr-breadcrumb a,
+  .cr-breadcrumb__item,
+  .cr-breadcrumb__current {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .cr-card {
+    margin-bottom: 1rem;
+  }
+
+  .cr-card__header {
+    align-items: flex-start;
+    padding: 0.8rem 1rem;
+  }
+
+  .cr-card__title {
+    line-height: 1.3;
+    min-width: 0;
+  }
+
+  .cr-card__body {
+    padding: 1rem;
+  }
+
+  .cr-form-grid {
+    grid-template-columns: 1fr;
+    gap: 0.95rem;
+  }
+
+  .cr-radio-list {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .cr-radio-item {
+    align-items: flex-start;
+  }
+
+  .cr-declaration {
+    padding: 0.9rem;
+  }
+
+  .cr-declaration label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cr-status-row {
+    display: block;
+    padding: 0.8rem 0;
+  }
+
+  .cr-status-row__label {
+    display: block;
+    margin-bottom: 0.3rem;
+    width: auto;
+  }
+
+  .cr-status-row__value {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cr-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .cr-form-actions .cr-btn,
+  .cr-form-actions button,
+  .cr-form-actions a {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .cr-page {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .cr-card__header {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .cr-card__body {
+    padding: 0.85rem;
+  }
+
+  .cr-card__header-icon {
+    height: 26px;
+    width: 26px;
+  }
+
+  .cr-card__title {
+    font-size: 0.98rem;
+  }
+
+  .cr-notice {
+    padding: 0.85rem;
+  }
+
+  .cr-btn {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+    white-space: normal;
+  }
+}
+
+/* ——— Popover Theme Overrides ————————————————————————————————————————————— */
 .popover {
   border: 1px solid var(--cr-slate-200);
   border-radius: var(--cr-radius);
@@ -819,4 +976,3 @@
 .bs-popover-auto[x-placement^=bottom] .arrow::after, .bs-popover-bottom .arrow::after { border-bottom-color: var(--cr-white); }
 .bs-popover-auto[x-placement^=left] .arrow::after, .bs-popover-left .arrow::after { border-left-color: var(--cr-white); }
 .bs-popover-auto[x-placement^=right] .arrow::after, .bs-popover-right .arrow::after { border-right-color: var(--cr-white); }
-

@@ -2,6 +2,46 @@
 
 This folder contains PHP CLI scripts for testing the current `refund_requests` module lifecycle. The scripts now target the active FSS refund tables used by the module:
 
+## Windows requirements
+
+- Windows PowerShell 5.1 or PowerShell 7
+- PHP 7.4+ with the extensions required by the main application
+- PostgreSQL connectivity to the databases configured by the application
+- Project Composer dependencies already installed in `vendor`
+
+Put `php.exe` on `PATH`. Alternatively, set its full path for the current PowerShell session:
+
+```powershell
+$env:PHP_EXE = 'C:\xampp\php\php.exe'
+```
+
+Run commands from the project root. The Windows runner finds the project root and the nested PHP scripts automatically:
+
+```powershell
+cd C:\path\to\smisportalndudev
+.\modules\refund_requests\automation\run.ps1 list
+.\modules\refund_requests\automation\run.ps1 eligibility
+.\modules\refund_requests\automation\run.ps1 apply mpesa
+```
+
+From Command Prompt, use the wrapper:
+
+```batch
+modules\refund_requests\automation\run.cmd list
+modules\refund_requests\automation\run.cmd eligibility
+modules\refund_requests\automation\run.cmd apply mpesa
+```
+
+If PowerShell blocks scripts, the `.cmd` wrapper uses a process-only execution-policy bypass. It does not change the machine policy.
+
+To run the complete lifecycle, including destructive cleanup, explicitly supply `-Force`:
+
+```powershell
+.\modules\refund_requests\automation\run.ps1 lifecycle -Force
+```
+
+Approval tasks remain interactive and will request decisions or comments in the console. The lifecycle stops immediately when a task returns a non-zero exit code.
+
 - Portal request table: `smisportal.fss_refund_requests`
 - SMIS sync table: `smis.fss_refund_requests`
 - Portal approval table: `smisportal.fss_refund_approval_process`
@@ -24,7 +64,7 @@ Deletes existing FSS refund requests, disapproved-request rows, approval-process
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step0_cleanup.php
+.\modules\refund_requests\automation\run.ps1 cleanup
 ```
 
 ### 2. `step1_eligibility.php`
@@ -34,7 +74,7 @@ Prepares the student for the module eligibility checks by setting clearance to `
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step1_eligibility.php
+.\modules\refund_requests\automation\run.ps1 eligibility
 ```
 
 ### 3. `step2_apply.php`
@@ -44,13 +84,13 @@ Creates a valid pending `CAUTION` refund request in `smisportal.fss_refund_reque
 Default usage creates a Bank payment request with mandatory bank, branch, account number, `refund_status = NOT REFUNDED`, and `declaration_status = 1`:
 
 ```powershell
-php modules\refund_requests\automation\step2_apply.php
+.\modules\refund_requests\automation\run.ps1 apply
 ```
 
 To create an M-PESA payment request instead:
 
 ```powershell
-php modules\refund_requests\automation\step2_apply.php mpesa
+.\modules\refund_requests\automation\run.ps1 apply mpesa
 ```
 
 ### 4. `step3_approve_level1.php`
@@ -60,7 +100,7 @@ Prompts for an approval decision for Level 1, then records that decision in both
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step3_approve_level1.php
+.\modules\refund_requests\automation\run.ps1 approve1
 ```
 
 ### 5. `step4_approve_level2.php`
@@ -70,7 +110,7 @@ Prompts for an approval decision for Level 2, then records only that Level 2 dec
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step4_approve_level2.php
+.\modules\refund_requests\automation\run.ps1 approve2
 ```
 
 ### 6. `step4_finalize.php`
@@ -80,7 +120,7 @@ Prompts for an approval decision for the final approval level, then records only
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step4_finalize.php
+.\modules\refund_requests\automation\run.ps1 finalize
 ```
 
 ### 7. `step5_post_caution_refund.php`
@@ -90,7 +130,7 @@ Posts the latest fully approved, unposted `CAUTION` request for the target stude
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step5_post_caution_refund.php
+.\modules\refund_requests\automation\run.ps1 post
 ```
 
 ### 8. `step6_save_paid_refund_voucher.php`
@@ -107,7 +147,7 @@ Linked `smis.fss_refund_requests` rows are already marked `REFUNDED` during post
 Usage:
 
 ```powershell
-php modules\refund_requests\automation\step6_save_paid_refund_voucher.php
+.\modules\refund_requests\automation\run.ps1 paid
 ```
 
 ## Utility Scripts
@@ -117,7 +157,7 @@ php modules\refund_requests\automation\step6_save_paid_refund_voucher.php
 Prints the latest FSS refund request for the target student, including refund type, bank/branch labels, refund batch rows and payment status, cancelled voucher rows, SMIS posting fee transactions, and any matching disapproved-request rows when available.
 
 ```powershell
-php modules\refund_requests\automation\debug_record.php
+.\modules\refund_requests\automation\run.ps1 debug
 ```
 
 ### `verify_accuracy.php`
@@ -125,7 +165,7 @@ php modules\refund_requests\automation\debug_record.php
 Prints the SMIS fee balance, caution posting fee transactions, SMIS academic status, and portal clearance status used by the eligibility flow.
 
 ```powershell
-php modules\refund_requests\automation\verify_accuracy.php
+.\modules\refund_requests\automation\run.ps1 verify
 ```
 
 ### `check_status.php`
@@ -133,7 +173,7 @@ php modules\refund_requests\automation\verify_accuracy.php
 Prints a quick clearance-status summary and latest refund request approval/refund/voucher status for the target student, including batch `status` and `date_paid` when a voucher exists.
 
 ```powershell
-php modules\refund_requests\automation\check_status.php
+.\modules\refund_requests\automation\run.ps1 status
 ```
 
 ### `check_bank_reference_data.php`
@@ -141,7 +181,7 @@ php modules\refund_requests\automation\check_status.php
 Prints SMIS and Portal row counts and maximum primary-key values for `fss_banks` and `fss_bank_branches`.
 
 ```powershell
-php modules\refund_requests\automation\check_bank_reference_data.php
+.\modules\refund_requests\automation\run.ps1 checkbanks
 ```
 
 ### `seed_bank_reference_data.php`
@@ -149,7 +189,7 @@ php modules\refund_requests\automation\check_bank_reference_data.php
 Restores missing Portal banks and bank branches from the authoritative SMIS reference tables. It preserves the SMIS primary keys, refreshes existing matching rows, repairs table sequences, and is safe to run repeatedly. The script refuses to seed if an SMIS source table is empty.
 
 ```powershell
-php modules\refund_requests\automation\automation\seed_bank_reference_data.php
+.\modules\refund_requests\automation\run.ps1 seedbanks
 ```
 
 ### `sync_student_status_cli.php`
@@ -157,7 +197,7 @@ php modules\refund_requests\automation\automation\seed_bank_reference_data.php
 Interactive CLI tool to synchronize student academic statuses across SMIS and Portal.
 
 ```powershell
-php modules\refund_requests\automation\sync_student_status_cli.php
+.\modules\refund_requests\automation\run.ps1 syncstatus
 ```
 
 ## Tracking the Changes

@@ -42,63 +42,70 @@ class BaseController extends Controller
      *
      * @throws BadRequestHttpException
      */
-    public function beforeAction($action): bool
-    {
-        if (parent::beforeAction($action)) {
-            if (!Yii::$app->user->isGuest) {
-                $identity = Yii::$app->user->identity;
-
-                $controllerId = Yii::$app->controller->id;
-                $actionId = Yii::$app->controller->action->id;
-
-                // These controllers/actions are accessible even when user profile is incomplete
-                $exemptedControllers = Yii::$app->params['accessibleControllersIfProfileIncomplete'];
-                $exemptedActions = Yii::$app->params['accessibleActionsIfProfileIncomplete'];
-
-                $profileMustBeComplete = true;
-
-                if (in_array($controllerId, $exemptedControllers) || in_array($actionId, $exemptedActions)) {
-                    $profileMustBeComplete = false;
-                }
-
-                if ($profileMustBeComplete) {
-                    /**
-                     * The following fields can be updated by the student. So if they are not provided we'll ask the
-                     * student to provide them.
-                     */
-                    $profileComplete = true;
-                    if (empty($identity->post_code)) {
-                        $profileComplete = false;
-                    } elseif (empty($identity->post_address)) {
-                        $profileComplete = false;
-                    } elseif (empty($identity->town)) {
-                        $profileComplete = false;
-                    } elseif (empty($identity->blood_group)) {
-                        $profileComplete = false;
-                    } elseif (empty($identity->date_of_birth) ||
-                        !in_array($identity->blood_group, ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'])) {
-                        $profileComplete = false;
-                    } elseif (strtolower($identity->nationality) === 'kenyan' && empty($identity->national_id)) {
-                        // For Kenyans, passport is optional. National ID is mandatory.
-                        $profileComplete = false;
-                    } elseif (strtolower($identity->nationality) !== 'kenyan' && empty($identity->passport_no)) {
-                        // For non-nationals, passport is mandatory. National ID is optional.
-                        $profileComplete = false;
-                    } elseif (empty($identity->primary_phone_no)) {
-                        $profileComplete = false;
-                    }
-
-                    if (!$profileComplete) {
-                        $this->setFlash('danger', 'Account settings', 'You must complete your profile before you continue.');
-                        $this->redirect(['/account/index']);
-                        return false;
-                    }
-
-                    /**
-                     * @note for now the requirement to verify provided emails is paused
-                     * @todo return email verification later
-                     * All provided emails must be verified
-                     */
+//    public function beforeAction($action): bool
+//    {
+//        if (parent::beforeAction($action)) {
+//            if (!Yii::$app->user->isGuest) {
+//                $identity = Yii::$app->user->identity;
+//
+//                $controllerId = Yii::$app->controller->id;
+//                $actionId = Yii::$app->controller->action->id;
+//
+//                // These controllers/actions are accessible even when user profile is incomplete
+//                $exemptedControllers = Yii::$app->params['accessibleControllersIfProfileIncomplete'];
+//                $exemptedActions = Yii::$app->params['accessibleActionsIfProfileIncomplete'];
+//
+//                $profileMustBeComplete = true;
+//
+//                if(in_array($controllerId, $exemptedControllers) || in_array($actionId, $exemptedActions)) {
+//                    $profileMustBeComplete = false;
+//                }
+//
+//                if ($profileMustBeComplete) {
+//                    /**
+//                     * Check if user's default/forgotten password has been updated.
+//                     * We require that these be updated to a password user will remember and also make sure it meets the set requirements.
+//                     */
+//                    if (empty($identity->password_changed_date)) {
+//                        $this->setFlash('danger', 'Update password', 'You must change your password before you continue.');
+//                        $this->redirect(['/account/index']);
+//                        return false;
+//                    }
+//
+//                    /**
+//                     * Check if user profile is complete.
+//                     * All mandatory fields that can be updated from the user's interface must be present.
+//                     */
+//                    $profileComplete = true;
+//                    if (empty($identity->post_code)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->post_address)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->town)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->service)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->service_number)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->blood_group)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->date_of_birth)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->nationality)) {
+//                        $profileComplete = false;
+//                    } elseif (empty($identity->sponsor)) {
+//                        $profileComplete = false;
+//                    }
+//
+//                    if (!$profileComplete) {
+//                        $this->setFlash('danger', 'Account settings', 'You must complete your profile before you continue.');
+//                        $this->redirect(['/account/index']);
+//                        return false;
+//                    }
+//
+//                    /**
+//                     * All provided emails must be verified
+//                     */
 //                    $emailVerified = true;
 //                    if (empty($identity->primary_email)) {
 //                        $emailVerified = false;
@@ -107,17 +114,18 @@ class BaseController extends Controller
 //                    } elseif (!empty($identity->alternative_email) && empty($identity->secondary_email_verified_date)) {
 //                        $emailVerified = false;
 //                    }
+//
 //                    if (!$emailVerified) {
 //                        $this->setFlash('danger', 'Account settings', 'You must verify all your emails before you continue.');
 //                        $this->redirect(['/account/index']);
 //                        return false;
 //                    }
-                }
-            }
-            return true;
-        }
-        return false;
-    }
+//                }
+//            }
+//            return true;
+//        }
+//        return false;
+//    }
 
     /**
      * @param string $type

@@ -6,6 +6,7 @@
 namespace app\controllers;
 
 use app\helpers\SmisHelper;
+use app\models\AdmittedStudent;
 use app\models\NameChange;
 use app\models\search\NameChangeRequests;
 use app\models\Sponsor;
@@ -48,11 +49,11 @@ class AccountController extends BaseController
      */
     public function beforeAction($action): bool
     {
-        if (parent::beforeAction($action)) {
+        if(parent::beforeAction($action)){
             $identity = Yii::$app->user->identity;
-            if ($action->id == 'list-name-change') {
-                if ($identity->admission_status === parent::PRE_REGISTERED_STATUS) {
-                    $this->redirect(['/home']);
+            if($action->id == 'list-name-change'){
+                if($identity->admission_status === parent::PRE_REGISTERED_STATUS){
+                    $this->redirect(['/home/index']);
                     return false;
                 }
             }
@@ -79,8 +80,8 @@ class AccountController extends BaseController
     public function actionUpdateProfile(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try {
-            $post = Yii::$app->request->post(); //dd($post);
+        try{
+            $post = Yii::$app->request->post();
 
             $admRefno = Yii::$app->user->identity->adm_refno;
 
@@ -88,7 +89,7 @@ class AccountController extends BaseController
             $this->updateProfile($user, $post);
 
             // If student is registered, also update the student table
-            if (Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS) {
+            if(Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS){
                 $studentProgramme = StudentProgramme::find()->where(['adm_refno' => $admRefno])->one();
                 $student = Student::findOne($studentProgramme->student_id);
                 $this->updateProfile($student, $post);
@@ -99,10 +100,10 @@ class AccountController extends BaseController
             $transaction->commit();
             $this->setFlash('success', 'Profile', 'Profile updated successfully.');
             return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV){
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -117,26 +118,29 @@ class AccountController extends BaseController
      */
     private function updateProfile(User|Student $profile, array $post): void
     {
-        $profile->date_of_birth = SmisHelper::formatDate($post['dateOfBirth'], 'Y-m-d');
-
-        $profile->passport_no = $post['passportNumber'];
-        if ($profile instanceof User) { // Admitted students
-            $profile->national_id = $post['nationalIdNumber'] ?? null;
-            $profile->birth_cert_no = $post['birthCertificateNumber'];
-        } else { // Registered students
-            $profile->id_no = $post['nationalIdNumber'] ?? null;
-        }
-
         $profile->primary_phone_no = $post['primaryPhone'];
         $profile->alternative_phone_no = $post['secondaryPhone'];
         $profile->post_address = $post['postAddress'];
         $profile->post_code = $post['postCode'];
         $profile->town = $post['town'];
+        $profile->service = $post['service'];
+        $profile->service_number = $post['serviceNumber'];
+//        $profile->sponsor = $post['sponsor'];
+        $profile->sponsor = 1;
+        $profile->nationality = $post['nationality'];
         $profile->blood_group = $post['bloodGroup'];
+        $profile->date_of_birth = SmisHelper::formatDate($post['dateOfBirth'], 'Y-m-d');
+        $profile->passport_no = $post['passportNumber'];
+        if($profile instanceof User){
+            $profile->national_id = $post['nationalIdNumber'];
+            $profile->birth_cert_no = $post['birthCertificateNumber'];
+        }else{
+            $profile->id_no = $post['nationalIdNumber'];
+        }
 
-        if (!$profile->save()) {
+        if(!$profile->save()){
             $errorMessage = 'Profile not updated.';
-            if (!$profile->validate()) {
+            if(!$profile->validate()){
                 $errorMessage = SmisHelper::getModelErrors($profile->getErrors());
             }
             throw new Exception($errorMessage);
@@ -149,23 +153,23 @@ class AccountController extends BaseController
     public function actionUpdatePassword(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try {
+        try{
             $post = Yii::$app->request->post();
             $admRefno = Yii::$app->user->identity->adm_refno;
             $user = User::findOne($admRefno);
 
-            if (!$user->validatePassword($post['oldPassword'])) {
+            if(!$user->validatePassword($post['oldPassword'])){
                 return $this->asJson(['success' => false, 'message' => 'Incorrect password']);
             }
 
             $user->password = Yii::$app->getSecurity()->generatePasswordHash($post['newPassword']);
             $user->password_changed_date = SmisHelper::formatDate('now', 'Y-m-d');
-            if (!$user->save()) {
-                if (!$user->validate()) {
+            if(!$user->save()){
+                if(!$user->validate()){
                     $transaction->rollBack();
                     $errorMessage = SmisHelper::getModelErrors($user->getErrors());
                     return $this->asJson(['success' => false, 'message' => $errorMessage]);
-                } else {
+                }else{
                     throw new Exception('Password not updated.');
                 }
             }
@@ -174,10 +178,10 @@ class AccountController extends BaseController
 
             $transaction->commit();
             return $this->asJson(['success' => true, 'message' => 'Password changed successfully.']);
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV){
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -190,7 +194,7 @@ class AccountController extends BaseController
     public function actionUpdateEmail(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try {
+        try{
             $post = Yii::$app->request->post();
             $admRefno = Yii::$app->user->identity->adm_refno;
             $user = User::findOne($admRefno);
@@ -198,7 +202,7 @@ class AccountController extends BaseController
             $primaryEmail = $post['primaryEmail'];
             $secondaryEmail = $post['secondaryEmail'];
 
-            if (!empty($primaryEmail)) {
+            if(!empty($primaryEmail)){
                 $user->primary_email = $primaryEmail;
                 $user->primary_email_verified_date = null;
                 $primaryEmailToken = Yii::$app->getSecurity()->generateRandomString();
@@ -208,46 +212,46 @@ class AccountController extends BaseController
             $user->alternative_email = $secondaryEmail;
             $user->secondary_email_verified_date = null;
             $user->secondary_email_salt = null;
-            if (!empty($secondaryEmail)) {
+            if(!empty($secondaryEmail)){
                 $secondaryEmailToken = Yii::$app->getSecurity()->generateRandomString();
                 $user->secondary_email_salt = Yii::$app->security->generatePasswordHash($secondaryEmailToken);
             }
 
             // If student is registered, also update the student table
-            if (Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS) {
+            if(Yii::$app->user->identity->admission_status === parent::REGISTERED_STATUS){
                 $studentProgramme = StudentProgramme::find()->where(['adm_refno' => $admRefno])->one();
                 $student = Student::findOne($studentProgramme->student_id);
 
-                if (!empty($primaryEmail)) {
+                if(!empty($primaryEmail)){
                     $student->primary_email = $primaryEmail;
                 }
                 $student->alternative_email = $secondaryEmail;
 
-                if (!$student->save()) {
-                    if (!$student->validate()) {
+                if(!$student->save()){
+                    if(!$student->validate()){
                         $transaction->rollBack();
                         $errorMessage = SmisHelper::getModelErrors($student->getErrors());
                         return $this->asJson(['success' => false, 'message' => $errorMessage]);
-                    } else {
+                    }else{
                         throw new Exception('Emails not updated.');
                     }
                 }
             }
 
-            if ($user->save()) {
+            if($user->save()){
                 // Send instructions on how to verify the updated email
-                if (!empty($primaryEmail)) {
+                if(!empty($primaryEmail)) {
                     $this->sendEmailChangeVerification($user->surname, $user->primary_email, $user->primary_email_salt);
                 }
-                if (!empty($secondaryEmail)) {
+                if(!empty($secondaryEmail)) {
                     $this->sendEmailChangeVerification($user->surname, $user->alternative_email, $user->secondary_email_salt);
                 }
-            } else {
-                if (!$user->validate()) {
+            }else{
+                if(!$user->validate()){
                     $transaction->rollBack();
                     $errorMessage = SmisHelper::getModelErrors($user->getErrors());
                     return $this->asJson(['success' => false, 'message' => $errorMessage]);
-                } else {
+                }else{
                     throw new Exception('Emails not updated.');
                 }
             }
@@ -257,10 +261,10 @@ class AccountController extends BaseController
             $transaction->commit();
             $this->setFlash('success', 'Emails', 'Follow the instructions sent to your inbox to verify your email address.');
             return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV){
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -284,12 +288,12 @@ class AccountController extends BaseController
 
         $canCreateRequest = false;
         $requestsCount = NameChange::find()->where(['student_id' => $studentId])->count();
-        if ($requestsCount == 0) {
+        if($requestsCount == 0){
             $canCreateRequest = true;
-        } else {
+        }else{
             $rejectRequestsCount = NameChange::find()
                 ->where(['student_id' => $studentId, 'status' => 'REJECTED'])->count();
-            if ($rejectRequestsCount == $requestsCount) {
+            if($rejectRequestsCount == $requestsCount){
                 $canCreateRequest = true;
             }
         }
@@ -309,14 +313,14 @@ class AccountController extends BaseController
      */
     public function actionCreateNameChange(): string
     {
-        try {
+        try{
             return $this->render('createNameChange', [
                 'title' => $this->createPageTitle('change name'),
                 'user' => User::findOne(Yii::$app->user->identity->adm_refno)
             ]);
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV) {
                 $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -331,20 +335,20 @@ class AccountController extends BaseController
      */
     public function actionEditNameChange(string $requestId): string
     {
-        try {
-            if (empty($requestId)) {
+        try{
+            if(empty($requestId)){
                 throw new Exception('Wrongly formed url');
             }
 
             $nameChange = NameChange::findOne($requestId);
-            if (!$nameChange) {
+            if(!$nameChange){
                 throw new Exception('Wrongly formed url');
             }
 
             $studentProgramme = StudentProgramme::find()->select(['adm_refno'])
                 ->where(['student_id' => $nameChange->student_id])->one();
 
-            if ($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno) {
+            if($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno){
                 throw new Exception('Wrongly formed url');
             }
 
@@ -352,9 +356,9 @@ class AccountController extends BaseController
                 'title' => $this->createPageTitle('change name'),
                 'nameChange' => $nameChange
             ]);
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV) {
                 $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -368,7 +372,7 @@ class AccountController extends BaseController
     public function actionStoreNameChange(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try {
+        try{
             $post = Yii::$app->request->post();
 
             $studentProgramme = StudentProgramme::find()->select(['student_id', 'registration_number'])
@@ -386,12 +390,12 @@ class AccountController extends BaseController
             $nameChange->request_date = SmisHelper::formatDate('now', 'Y-m-d');
             $nameChange->status = 'PENDING';
 
-            if (!$nameChange->save()) {
-                if (!$nameChange->validate()) {
+            if(!$nameChange->save()){
+                if(!$nameChange->validate()){
                     $transaction->rollBack();
                     $errorMessage = SmisHelper::getModelErrors($nameChange->getErrors());
                     return $this->asJson(['success' => false, 'message' => $errorMessage]);
-                } else {
+                }else{
                     throw new Exception('Name change request not created.');
                 }
             }
@@ -399,17 +403,17 @@ class AccountController extends BaseController
             $docUrl = $this->uploadNameChangeDocs($nameChange->name_change_id, $regNumber, $_FILES['document']);
 
             $countUpdated = NameChange::updateAll(['document_url' => $docUrl], 'name_change_id = ' . $nameChange->name_change_id);
-            if ($countUpdated === 0) {
+            if($countUpdated === 0){
                 throw new Exception('Name change request not created.');
             }
 
             $transaction->commit();
             $this->setFlash('success', 'Change name', 'Request to change name has been submitted successfully.');
             return $this->redirect(['/account/list-name-change']);
-        } catch (Exception $ex) {
+        }catch(Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV){
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -423,11 +427,11 @@ class AccountController extends BaseController
     public function actionUpdateNameChange(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try {
+        try{
             $post = Yii::$app->request->post();
 
             $nameChange = NameChange::findOne($post['id']);
-            if (!$nameChange) {
+            if(!$nameChange){
                 throw new Exception('Wrongly formed parameters');
             }
 
@@ -435,12 +439,12 @@ class AccountController extends BaseController
                 ->where(['student_id' => $nameChange->student_id])->one();
             $regNumber = $studentProgramme['registration_number'];
 
-            if ($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno) {
+            if($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno){
                 throw new Exception('Wrongly formed parameters');
             }
 
             $file = $_FILES['document'];
-            if ($file['error'] === 0) {
+            if($file['error'] === 0){
                 $docUrl = $this->uploadNameChangeDocs($nameChange->name_change_id, $regNumber, $file);
                 $nameChange->document_url = $docUrl;
             }
@@ -450,12 +454,12 @@ class AccountController extends BaseController
             $nameChange->reason = $post['reason'];
             $nameChange->request_date = SmisHelper::formatDate('now', 'Y-m-d');
 
-            if (!$nameChange->save()) {
-                if (!$nameChange->validate()) {
+            if(!$nameChange->save()){
+                if(!$nameChange->validate()){
                     $transaction->rollBack();
                     $errorMessage = SmisHelper::getModelErrors($nameChange->getErrors());
                     return $this->asJson(['success' => false, 'message' => $errorMessage]);
-                } else {
+                }else{
                     throw new Exception('Name change request not updated.');
                 }
             }
@@ -463,10 +467,10 @@ class AccountController extends BaseController
             $transaction->commit();
             $this->setFlash('success', 'Change name', 'Request to change name has been updated successfully.');
             return $this->redirect(Yii::$app->request->referrer ?: Yii::$app->homeUrl);
-        } catch (Exception $ex) {
+        }catch(Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV){
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -480,20 +484,20 @@ class AccountController extends BaseController
      */
     public function actionDownloadNameChangeDoc(string $requestId): Response|\yii\console\Response
     {
-        try {
-            if (empty($requestId)) {
+        try{
+            if(empty($requestId)){
                 throw new Exception('Wrongly formed url');
             }
 
             $nameChange = NameChange::findOne($requestId);
-            if (!$nameChange) {
+            if(!$nameChange){
                 throw new Exception('Wrongly formed url');
             }
 
             $studentProgramme = StudentProgramme::find()->select(['adm_refno'])
                 ->where(['student_id' => $nameChange->student_id])->one();
 
-            if ($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno) {
+            if($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno){
                 throw new Exception('Wrongly formed url');
             }
 
@@ -502,9 +506,9 @@ class AccountController extends BaseController
             $docParts = explode('/', $nameChange->document_url);
 
             return Yii::$app->response->sendFile($filepath, $docParts[2], ['inline' => true]);
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV) {
                 $message = $ex->getMessage() . ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             throw new ServerErrorHttpException($message, 500);
@@ -518,18 +522,18 @@ class AccountController extends BaseController
     public function actionDeleteNameChange(): Response
     {
         $transaction = Yii::$app->db->beginTransaction();
-        try {
+        try{
             $post = Yii::$app->request->post();
             $nameChange = NameChange::findOne($post['id']);
 
-            if ($nameChange->status !== 'PENDING') {
+            if($nameChange->status !== 'PENDING'){
                 throw new Exception('Name request failed to delete.');
             }
 
             $studentProgramme = StudentProgramme::find()->select(['adm_refno'])
                 ->where(['student_id' => $nameChange->student_id])->one();
 
-            if ($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno) {
+            if($studentProgramme->adm_refno != Yii::$app->user->identity->adm_refno){
                 throw new Exception('Name request failed to delete.');
             }
 
@@ -537,10 +541,10 @@ class AccountController extends BaseController
 
             $docPath = Yii::getAlias('@changeNameDocsUploadDir') . $docParts[0] . '/' . $docParts[1] . '/';
 
-            if (is_dir($docPath)) {
+            if(is_dir($docPath)){
                 $fileNames = array_diff(scandir($docPath), ['.', '..']);
-                if (!empty($fileNames)) {
-                    foreach ($fileNames as $fileName) {
+                if(!empty($fileNames)){
+                    foreach ($fileNames as $fileName){
                         $filePath = $docPath . $fileName;
                         if (!unlink($filePath)) {
                             throw new Exception('Can not be delete file due to an error');
@@ -549,18 +553,18 @@ class AccountController extends BaseController
                 }
             }
 
-            if (!$nameChange->delete()) {
+            if(!$nameChange->delete()){
                 $transaction->rollBack();
                 return $this->asJson(['success' => false, 'message' => 'Supporting documents not deleted']);
-            } else {
+            }else{
                 $transaction->commit();
                 $this->setFlash('success', 'Name change', 'Name change request deleted successfully.');
                 return $this->redirect(['/account/list-name-change']);
             }
-        } catch (Exception $ex) {
+        }catch (Exception $ex){
             $transaction->rollBack();
             $message = $ex->getMessage();
-            if (YII_ENV_DEV) {
+            if(YII_ENV_DEV){
                 $message .= ' File: ' . $ex->getFile() . ' Line: ' . $ex->getLine();
             }
             return $this->asJson(['success' => false, 'message' => $message]);
@@ -599,7 +603,7 @@ class AccountController extends BaseController
      */
     private function uploadNameChangeDocs(string $requestId, string $regNumber, array $file): string
     {
-        if ($file['error'] !== 0) {
+        if($file['error'] !== 0){
             throw new Exception('File error code: ' . $file['error']);
         }
 
@@ -613,36 +617,36 @@ class AccountController extends BaseController
         $path = Yii::getAlias('@changeNameDocsUploadDir');
         $path .= str_replace('/', '_', $regNumber) . '/' . $requestId . '/';
 
-        if (is_dir($path)) {
+        if(is_dir($path)){
             /**
              * If a document already exists, delete and re-upload
              */
             $fileNames = array_diff(scandir($path), ['.', '..']);
-            if (!empty($fileNames)) {
-                foreach ($fileNames as $fileName) {
+            if(!empty($fileNames)){
+                foreach ($fileNames as $fileName){
                     if (!unlink($path . $fileName)) {
                         throw new Exception('cannot be unlink file due to an error');
                     }
                 }
             }
-        } else {
-            if (!mkdir($path, 0777, true)) {
+        }else{
+            if(!mkdir($path, 0777, true)){
                 throw new Exception('Failed to create uploads directory.');
             }
         }
 
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        if ($ext != 'pdf') {
+        if($ext != 'pdf'){
             throw new Exception($ext . ' files are not allowed.');
         }
 
         $newFileName = strtolower(pathinfo($file['name'], PATHINFO_FILENAME));
-        $newFileName = preg_replace('/\s/', '_', $newFileName);
+        $newFileName = preg_replace('/\s/','_', $newFileName);
         $newFileName .= '.' . $ext;
 
         $destinationFile = $path . $newFileName;
 
-        if (!move_uploaded_file($file['tmp_name'], $destinationFile)) {
+        if(!move_uploaded_file($file['tmp_name'], $destinationFile)){
             throw new Exception('Document not uploaded.');
         }
 
@@ -656,9 +660,9 @@ class AccountController extends BaseController
     {
         $user = User::findOne($admRefno);
         $user->profile_sync_status = false;
-        if (!$user->save()) {
+        if(!$user->save()){
             $errorMessage = 'Profile edit sync flag not updated.';
-            if (!$user->validate()) {
+            if(!$user->validate()){
                 $errorMessage = SmisHelper::getModelErrors($user->getErrors());
             }
             throw new Exception($errorMessage);

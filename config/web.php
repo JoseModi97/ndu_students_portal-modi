@@ -8,6 +8,17 @@ use yii\symfonymailer\Mailer;
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
 $smisDb = require __DIR__ . '/smis_db.php';
+$secretsFile = __DIR__ . '/secrets.local.php';
+$localSecrets = is_file($secretsFile) ? require $secretsFile : [];
+$secret = static function (string $environmentKey, string $localKey) use ($localSecrets): string {
+    $environmentValue = getenv($environmentKey);
+    $value = $environmentValue !== false ? $environmentValue : ($localSecrets[$localKey] ?? '');
+    if (!is_string($value) || trim($value) === '') {
+        throw new \yii\base\InvalidConfigException("Missing required application secret: {$environmentKey}.");
+    }
+
+    return $value;
+};
 
 $config = [
     'id' => 'basic',
@@ -22,11 +33,47 @@ $config = [
     ],
     'components' => [
         'request' => [
-            // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
-            'cookieValidationKey' => 'D2CakKO1su98Fck8Q0JsQE-dp3i9mrs6',
+            'cookieValidationKey' => $secret('APP_COOKIE_VALIDATION_KEY', 'cookieValidationKey'),
+            'enableCookieValidation' => true,
+            'csrfCookie' => [
+                'httpOnly' => true,
+                'secure' => true,
+                'sameSite' => 'Lax',
+            ],
+        ],
+        'response' => [
+            'on beforeSend' => static function (\yii\base\Event $event): void {
+                /** @var \yii\web\Response $response */
+                $response = $event->sender;
+                $headers = $response->headers;
+                if (!$headers->has('X-Frame-Options')) {
+                    $headers->set('X-Frame-Options', 'SAMEORIGIN');
+                }
+                if (!$headers->has('X-Content-Type-Options')) {
+                    $headers->set('X-Content-Type-Options', 'nosniff');
+                }
+                if (!$headers->has('Referrer-Policy')) {
+                    $headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+                }
+                if (!$headers->has('Permissions-Policy')) {
+                    $headers->set('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
+                }
+                if (Yii::$app->request->isSecureConnection && !$headers->has('Strict-Transport-Security')) {
+                    $headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+                }
+            },
         ],
         'session' => [
             'class' => 'yii\web\Session',
+            'useStrictMode' => true,
+            'cookieParams' => [
+                'lifetime' => 0,
+                'path' => '/',
+                'domain' => '',
+                'secure' => true,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ],
         ],
         'cache' => [
             'class' => 'yii\caching\FileCache',
@@ -40,11 +87,11 @@ $config = [
         'ldapAuth' => [
             'class' => 'app\components\LdapAuth',
             'host' => 'dc1.ad.uonbi.ac.ke',
-            'port' => 389,
-            'protocol' => 'ldap://',
+            'port' => 636,
+            'protocol' => 'ldaps://',
             'baseDn' => 'DC=AD,DC=UONBI,DC=AC,DC=KE',
             'searchUserName' => 'CN=pwdappuser,CN=Users,DC=AD,DC=UONBI,DC=AC,DC=KE',
-            'searchUserPassword' => 'Kenya@2030',
+            'searchUserPassword' => $secret('LDAP_SEARCH_USER_PASSWORD', 'ldapSearchUserPassword'),
             'ldapVersion' => 3,
             'followReferrals' => false,
             'timeout' => 10,
@@ -61,9 +108,7 @@ $config = [
             'viewPath' => '@app/mail',
             'useFileTransport' => false,
             'transport' => [
-                'dsn' => 'smtp://d38acd23973124:4badb45ed6fd76@smtp.mailtrap.io:2525?encryption=tls&auth_mode=login',
-//                'dsn' => 'gmail://smisadmin@uonbi.ac.ke:lziunystxuhwunjh@default',
-//                'dsn' => 'gmail://ndukenyadev@uonbi.ac.ke:jbycuzbmswtoahpg@default'
+                'dsn' => $secret('MAILER_DSN', 'mailerDsn'),
             ]
         ],
         'log' => [
@@ -155,6 +200,7 @@ $config = [
     'modules' => [
         'gridview' => ['class' => 'kartik\grid\Module'],
         'ecitizen' => require __DIR__ . '/../modules/ecitizen/config/module.php',
+	'caution-refund' => ['class' => 'app\modules\caution_refund\Module'],
 	'refund-requests' => ['class' => 'app\modules\refund_requests\Module'],
     ],
 ];
@@ -177,4 +223,3 @@ if (YII_ENV_DEV) {
 }
 
 return $config;
-

@@ -49,12 +49,12 @@ AppAsset::register($this);
 
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
-            <?php
+            <?php // @todo revert and check for truthy after testing
             if (SmisHelper::studentHasAvailableSessionToJoin()):?>
                 <li class="nav-item">
                     <a id="report-to-session" class="nav-link btn btn-success"
-                       href="<?= Url::to(['/bill/raise-invoice']);?>">
-                        <i class="nav-icon fa fa-calendar-check" aria-hidden="true"></i>
+                       href="<?= Url::to(['/semester-session-progress/join-session']);?>">
+                        <i class="nav-icon fa fa-registered" aria-hidden="true"></i>
                         Report to session
                     </a>
                 </li>
@@ -88,83 +88,64 @@ AppAsset::register($this);
 <!-- ./wrapper -->
 
 <?php
-$flashType = '';
-$flashTitle = '';
-$flashIcon = '';
+$flashMap = [
+    'success' => [Growl::TYPE_SUCCESS, 'Well done!', 'fas fa-check-circle'],
+    'danger' => [Growl::TYPE_DANGER, 'Oh snap!', 'fas fa-times-circle'],
+    'error' => [Growl::TYPE_DANGER, 'Oh snap!', 'fas fa-times-circle'],
+    'warning' => [Growl::TYPE_WARNING, 'Heads up!', 'fas fa-exclamation-triangle'],
+    'info' => [Growl::TYPE_INFO, 'Notice', 'fas fa-info-circle'],
+];
+$renderFlash = static function (array $flash) use ($flashMap): void {
+    $type = $flash['type'] ?? 'info';
+    [$flashType, $fallbackTitle, $flashIcon] = $flashMap[$type] ?? $flashMap['info'];
+
+    try {
+        echo Growl::widget([
+            'type' => $flashType,
+            'title' => $flash['title'] ?? $fallbackTitle,
+            'icon' => $flashIcon,
+            'body' => $flash['message'] ?? '',
+            'showSeparator' => true,
+            'delay' => 0,
+            'closeButton' => null,
+            'pluginOptions' => [
+                'showProgressbar' => false,
+                'placement' => [
+                    'from' => 'bottom',
+                    'align' => 'right',
+                ]
+            ]
+        ]);
+    } catch (Exception $e) {
+    }
+};
 $flashes = Yii::$app->session->getAllFlashes();
 if (!empty($flashes)) {
-    if (!empty($flashes['new'])) {
-        $flashMessage = $flashes['new']['message'];
-
-        if ($flashes['new']['type'] === 'success') {
-            $flashType = Growl::TYPE_SUCCESS;
-            $flashTitle = 'Well done!';
-            $flashIcon = 'fa fa-check-circle';
-        }
-
-        if ($flashes['new']['type'] === 'danger') {
-            $flashType = Growl::TYPE_DANGER;
-            $flashTitle = 'Oh snap!';
-            $flashIcon = 'fa fa-times-circle';
-        }
-
-        try {
-            echo Growl::widget([
-                'type' => $flashType,
-                'title' => $flashTitle,
-                'icon' => $flashIcon,
-                'body' => $flashMessage,
-                'showSeparator' => true,
-                'delay' => 0,
-                'closeButton' => null,
-                'pluginOptions' => [
-                    'showProgressbar' => false,
-                    'placement' => [
-                        'from' => 'bottom',
-                        'align' => 'right',
-                    ]
-                ]
-            ]);
-        } catch (Exception $e) {
-        }
+    if (!empty($flashes['new']) && is_array($flashes['new'])) {
+        $renderFlash($flashes['new']);
     }
 
     if (!empty($flashes['added'])) {
         foreach ($flashes['added'] as $addedFlash) {
-            $flashMessage = $addedFlash['message'];
-            if ($addedFlash['type'] === 'success') {
-                $flashType = Growl::TYPE_SUCCESS;
-                $flashTitle = 'Well done!';
-                $flashIcon = 'fas fa-check-circle';
-            }
-            if ($addedFlash['type'] === 'danger') {
-                $flashType = Growl::TYPE_DANGER;
-                $flashTitle = 'Oh snap!';
-                $flashIcon = 'fas fa-times-circle';
-            }
-
-            try {
-                echo Growl::widget([
-                    'type' => $flashType,
-                    'title' => $flashTitle,
-                    'icon' => $flashIcon,
-                    'body' => $flashMessage,
-                    'showSeparator' => true,
-                    'delay' => 0,
-                    'pluginOptions' => [
-                        'showProgressbar' => false,
-                        'placement' => [
-                            'from' => 'bottom',
-                            'align' => 'right',
-                        ]
-                    ]
-                ]);
-            } catch (Exception $e) {
+            if (is_array($addedFlash)) {
+                $renderFlash($addedFlash);
             }
         }
     }
 }
 ?>
+
+<?php $this->registerJs(<<<JS
+$(document).on('click', '#report-to-session', function (e) {
+    e.preventDefault();
+    var url = $(this).attr('href');
+
+    if (confirm('Are you sure you want to report to this session?')) {
+        window.location.href = url;
+    }
+});
+JS
+); ?>
 
 <?php
 $this->endBody()

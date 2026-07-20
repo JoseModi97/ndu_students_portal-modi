@@ -163,9 +163,9 @@ class SmisHelper
      */
     public static function studentHasAvailableSessionToJoin(): array|ActiveRecord|bool
     {
-        $admRefNo = Yii::$app->user->identity->adm_refno;
+        $admRefNo = Yii::$app->user->identity->adm_refno;//5293
         $studentProgCurr = StudentProgCurriculum::find()->select(['student_prog_curriculum_id'])
-            ->where(['adm_refno' => $admRefNo])->asArray()->one();
+            ->where(['adm_refno' => $admRefNo])->asArray()->one();//210
 
         if (empty($studentProgCurr)) {
             return false;
@@ -200,9 +200,9 @@ class SmisHelper
      */
     public static function latestAcademicSessionForAStudent(): array|ActiveRecord|null
     {
-        $admRefNo = Yii::$app->user->identity->adm_refno;
+        $admRefNo = Yii::$app->user->identity->adm_refno; //5293
         $studentProgCurr = StudentProgCurriculum::find()->select(['student_prog_curriculum_id'])
-            ->where(['adm_refno' => $admRefNo])->asArray()->one();
+            ->where(['adm_refno' => $admRefNo])->asArray()->one(); //210
 
         // Get the last academic session semester a student joined
         return StudentSemesterSessionProgress::find()->alias('sp')
@@ -214,10 +214,14 @@ class SmisHelper
             ->joinWith(['academicProgress ap' => function (ActiveQuery $q) {
                 $q->select([
                     'ap.academic_progress_id',
-                    'ap.academic_level_id'
+                    'ap.academic_level_id',
+                    'ap.current_status'
                 ]);
             }], true, 'INNER JOIN')
-            ->where(['ap.student_prog_curriculum_id' => $studentProgCurr['student_prog_curriculum_id']])
+            ->where([
+                'ap.student_prog_curriculum_id' => $studentProgCurr['student_prog_curriculum_id'],
+                'ap.current_status' => 1
+            ])
             ->joinWith(['academicProgress.academicLevel al' => function (ActiveQuery $q) {
                 $q->select([
                     'al.academic_level_id',

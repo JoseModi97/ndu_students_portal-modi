@@ -153,7 +153,8 @@ $this->title = $title;
 
 <?php
 //$confirmCoursesUrl = Url::to(['/courses/invoice']);
-$confirmCoursesUrl = Url::to(['/courses/confirm']); // @todo revert to above when billing
+
+$confirmCoursesUrl = Url::to(['/courses/confirm']);
 
 $confirmCoursesJs = <<< JS
 const confirmCoursesUrl = '$confirmCoursesUrl';

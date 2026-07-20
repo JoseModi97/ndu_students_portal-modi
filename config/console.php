@@ -34,6 +34,10 @@ $config = [
         'smisDb' => $smisDb,
     ],
     'params' => $params,
+    'modules' => [
+        'ecitizen' => require __DIR__ . '/../modules/ecitizen/config/module.php',
+        'refund-requests' => ['class' => 'app\modules\refund_requests\Module'],
+    ],
     'controllerMap' => [
         'migrate' => [
             'class' => 'yii\console\controllers\MigrateController',

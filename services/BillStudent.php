@@ -16,7 +16,6 @@ use app\models\FeeItem;
 use app\models\FeeTransaction;
 use app\models\Invoice;
 use app\models\InvoiceDetail;
-use app\models\Programmes;
 use Exception;
 use JetBrains\PhpStorm\ArrayShape;
 use yii\db\Query;
@@ -31,6 +30,8 @@ use yii\web\UnprocessableEntityHttpException;
  */
 final class BillStudent
 {
+    private bool $followUpRegistration = false;
+
     public function __construct(private readonly StudentToBill $student)
     {
     }
@@ -44,7 +45,7 @@ final class BillStudent
      */
     public function payableFees(array $courses): array
     {
-        $followUpRegistration = false;
+        $this->followUpRegistration = false; //print_r(111); exit;
 
         /**
          * A student is billed the semester registration fees before joining into a session.
@@ -59,15 +60,20 @@ final class BillStudent
          * Therefore, we have no course units charges hence for follow-ups, the student is billed nothing
          */
 
-        $invoiceId = '%';
-        $invoiceId .= $this->student->regNumber . '-' . $this->student->academicYear;
-        if (!$this->student->isBilledAnnually) {
-            $invoiceId .= '-SEM' . $this->student->semester;
+        $invoiceProgressCode = '%';
+        $invoiceProgressCode .= $this->student->regNumber . '-' . $this->student->academicYear;
+//        if (!$this->student->isBilledAnnually) {
+//            $invoiceProgressCode .= '-SEM' . $this->student->semester;
+//        }
+        if ($this->student->tuitionFeeBilledPerSemester()) {
+            $invoiceProgressCode .= '-SEM' . $this->student->semester;
         }
-        $invoiceId .= '%';
+        $invoiceProgressCode .= '%'; //dd($invoiceId);
 //        dd($invoiceId);
 
-        $invoiceDetails = InvoiceDetail::find()->where(['LIKE', 'invoice_id', $invoiceId, false])->asArray()->all();
+//        print_r($invoiceProgressCode); exit;
+
+        $invoiceDetails = InvoiceDetail::find()->where(['LIKE', 'invoice_progress_code', $invoiceProgressCode, false])->asArray()->all();
 //        dd($invoiceDetails);
         if (!empty($invoiceDetails)) {
             foreach ($invoiceDetails as $key => $detail) {
@@ -78,27 +84,33 @@ final class BillStudent
         }
 
         if (!empty($invoiceDetails)) {
-            $followUpRegistration = true;
+            $this->followUpRegistration = true;
         }
 //        dd($invoiceDetails);
 //        dd($followUpRegistration);
 
-        $adminFees = $this->payableAdminFees();
+        $adminFees = $this->payableAdminFees(); //print_r($adminFees); exit;
         $adminFeesTotal = $adminFees['total'];
 
 //        dd($this->student->isInATeachingSemester);
         // Admin fees are not applicable at follow-up registrations
         // Admin fees are not applicable in a supplementary semester
-        if ($followUpRegistration || !$this->student->isInATeachingSemester) {
+        if ($this->followUpRegistration || !$this->student->isInATeachingSemester) {
             $adminFeesTotal = 0;
             $adminFees = [];
         }
 
-//        dd($adminFees);
+//        dd($adminFees);  
+
+// print_r('nnnnnn'); exit;
 
         // Only calculate for courses not yet invoiced
-        $courseFees = $this->payableCourseFees($courses, $followUpRegistration);
-        //dd($courseFees);
+        // @todo we hide this for now
+//        $courseFees = $this->payableCourseFees($courses, $this->followUpRegistration);
+
+
+
+//        print_r($courseFees); exit;
 
         // For programs billed per semester we have a tuition fee
         // This fee is billed together with other admin fees needed during the initial course registration
@@ -112,11 +124,58 @@ final class BillStudent
         //dd($courseFees);
 
         return [
-            //'followUpRegistration' => $followUpRegistration,
             'adminFees' => $adminFees,
-            'courseFees' => $courseFees,
-            'total' => $adminFeesTotal + $courseFees['total'],
-            //'total' => $followUpRegistration ? $courseFees['total'] : $adminFees['total'] + $courseFees['total']
+//            'courseFees' => $courseFees,
+//            'total' => $adminFeesTotal + $courseFees['total'],
+        ];
+    }
+
+    /**
+     * @throws NotFoundHttpException
+     */
+    public function billCourseRegistration(array $courses): array
+    {
+        $fees = $this->fees(FeeType::COURSE->value);
+
+        $courseCharges = [];
+        $totalCourseCharges = 0;
+
+        foreach ($courses as $course) {
+            $courseFee = CourseFee::tryFrom($course['type']);
+
+            if ($courseFee === null) {
+                throw new NotFoundHttpException('This program\'s ' . $course['type'] . ' fee is not set');
+            }
+
+            $description = strtolower(str_replace(' ', '', $courseFee->feeDescription()));
+
+            $matchedFee = null;
+            foreach ($fees as $fee) {
+                if ($fee['frequency'] !== ChargeFrequency::UNIT->value) {
+                    continue;
+                }
+
+                if (strtolower(str_replace(' ', '', $fee['description'])) === $description) {
+                    $matchedFee = $fee;
+                    break;
+                }
+            }
+
+            $courseCharges[] = [
+                'chargeTypeId' => $matchedFee['charge_type_id'] ?? null,
+                'description' => $matchedFee['description'] ?? $courseFee->feeDescription(),
+                'amount' => $matchedFee['amount_charged'] ?? 0,
+                'type' => $course['type'],
+                'code' => $course['code'],
+            ];
+
+            $totalCourseCharges += $matchedFee['amount_charged'] ?? 0;
+        }
+
+        return [
+            'adminFees' => ['items' => [], 'total' => 0],
+            'courseFees' => ['items' => $courseCharges, 'total' => $totalCourseCharges],
+            'total' => $totalCourseCharges,
         ];
     }
 
@@ -127,17 +186,31 @@ final class BillStudent
      */
     public function bill(array $payableFees): void
     {
-//                    dd($payableFees);
+//                    print_r($payableFees); exit;
         $totalToPay = (int)$payableFees['total'];
 
         if ($this->isBalanceSufficient($totalToPay)) {
-            $invoice = $this->storeInvoice($totalToPay);
-            $this->storeTransaction($invoice);
+            $feeTransaction = $this->storeTransaction($totalToPay);
+            $invoice = $this->storeInvoice($feeTransaction);
             $this->storeInvoiceDetails($invoice, $payableFees);
         } else {
-            throw new UnprocessableEntityHttpException('You have insufficient balance');
-        }
+            throw new UnprocessableEntityHttpException('Your balance is insufficient. Please top up to at least 50% of the total amount payable to proceed.');        }
     }
+
+    /**
+     * @throws UnprocessableEntityHttpException
+     * @throws ServerErrorHttpException
+     * @throws Exception
+     */
+    public function billZeroCourseFees(array $payableFees): void
+    {
+        $totalToPay = (int)$payableFees['total'];
+
+        $feeTransaction = $this->storeTransaction($totalToPay);
+        $invoice = $this->storeInvoice($feeTransaction);
+        $this->storeInvoiceDetails($invoice, $payableFees);
+    }
+
 
     /**
      * @param array $payableFees
@@ -145,43 +218,57 @@ final class BillStudent
      */
     public function detailedFeeItemsToBill(array $payableFees): array
     {
-        /**
-         * Billing is done in two or three steps:
-         * First, we bill the admin (semester registration) fees
-         * Second, we bill admin + course (units/tuition) fees during course registration
-         * Third, we may bill follow-up course registration
-         */
-        $adminFeesItems = [];
-        $courseFeesItems = [];
-        if (array_key_exists('adminFees', $payableFees) && !empty($payableFees['adminFees'])) {
-            $adminFeesItems = array_merge($payableFees['adminFees']['items']);
-        }
-
-        if (array_key_exists('courseFees', $payableFees) && !empty($payableFees['courseFees'])) {
-            $courseFeesItems = array_merge($payableFees['courseFees']['items']);
-        }
+        $adminFeesItems = $payableFees['adminFees']['items'] ?? [];
+        $courseFeesItems = $payableFees['courseFees']['items'] ?? [];
 
         return array_merge($adminFeesItems, $courseFeesItems);
     }
 
+//    public function detailedFeeItemsToBill(array $payableFees): array
+//    {
+//        /**
+//         * Billing is done in two or three steps:
+//         * First, we bill the admin (semester registration) fees
+//         * Second, we bill admin + course (units/tuition) fees during course registration
+//         * Third, we may bill follow-up course registration
+//         */
+//        $adminFeesItems = [];
+//        $courseFeesItems = [];
+//        if (array_key_exists('adminFees', $payableFees) && !empty($payableFees['adminFees'])) {
+//            $adminFeesItems = array_merge($payableFees['adminFees']['items']);
+//        }
+//
+//        if (array_key_exists('courseFees', $payableFees) && !empty($payableFees['courseFees'])) {
+//            $courseFeesItems = array_merge($payableFees['courseFees']['items']);
+//        }
+//
+////        print_r([$courseFeesItems]); exit;
+//
+//        return array_merge($adminFeesItems, $courseFeesItems);
+//    }
+
     /**
-     * Check if student has enough balance to be deducted the amount payable
+     * Check if a student has enough balances to be deducted the amount payable
      * @param int $amountPayable
      * @return bool
      */
     public function isBalanceSufficient(int $amountPayable): bool
     {
+        // Some students may be allowed to register with no full payments yet
+        if($this->student->allowRegistration){
+            return true;
+        }
+
         $totals = $this->totalTransactions();
 
         if (empty($totals)) {
             return false;
         }
 
-        if (($totals['credits'] - $totals['debits']) < $amountPayable) {
-            return false;
-        }
+        $balance = $totals['credits'] - $totals['debits'];
+        $minimumRequired = $amountPayable * 0.5;
 
-        return true;
+        return $balance >= $minimumRequired;
     }
 
     /**
@@ -193,23 +280,31 @@ final class BillStudent
             ->select(['trans_amount', 'trans_type'])
             ->from('smisportal.fss_fee_transactions')
             ->where(['LIKE', 'progress_code', $this->student->regNumber . '%', false])
-            ->all();
+            ->all();//dd($transactions);
 
-        if (empty($transactions)) {
-            return false;
-        }
+//        print_r([9888, $transactions]); exit;
+
 
         $credits = 0;
         $debits = 0;
-        foreach ($transactions as $transaction) {
-            if ($transaction['trans_type'] === InvoiceType::CR->value) {
-                $credits += $transaction['trans_amount'];
-            }
 
-            if ($transaction['trans_type'] === InvoiceType::DR->value) {
-                $debits += $transaction['trans_amount'];
+        if (!empty($transactions)) {
+
+            foreach ($transactions as $transaction) {
+                if ($transaction['trans_type'] === InvoiceType::CR->value) {
+                    $credits += (int)$transaction['trans_amount'];
+                }
+
+                if ($transaction['trans_type'] === InvoiceType::DR->value) {
+                    $debits += (int)$transaction['trans_amount'];
+                }
             }
         }
+
+//        print_r([
+//            'credits' => $credits,
+//            'debits' => $debits
+//        ]); exit;
 
         return [
             'credits' => $credits,
@@ -220,63 +315,49 @@ final class BillStudent
     /**
      * @throws Exception
      */
-    private function storeInvoice(int $amount): Invoice
+    private function storeInvoice(FeeTransaction $feeTransaction): Invoice
     {
         $invoice = new Invoice();
         $invoice->invoice_id = $this->student->regNumber . '-' . $this->student->academicYear . '-SEM' . $this->student->semester;
         $invoice->invoice_desc = 'FEES PAYABLE FOR SEM ' . $this->student->semester;
-        $invoice->invoice_date = SmisHelper::formatDate('now', 'Y-m-d');
+        $invoice->invoice_date = $feeTransaction->trans_date;
         $invoice->last_update = $invoice->invoice_date;
         $invoice->user_id = $this->student->regNumber;
         $invoice->invoice_status = InvoiceStatus::FIRST->value;
-        $invoice->amount = $amount;
+        $invoice->amount = $feeTransaction->trans_amount;
         $invoice->exchange_rate = 1;
         $invoice->sync_status = false;
         $invoice->reg_number = $this->student->regNumber;
-        $invoice->semester_id = $invoice->invoice_id;
+        $invoice->trans_id = $feeTransaction->trans_id;
 
-        if ($invoice->save()) {
-            // Prepend the invoice pk to the invoice_id of the just created invoice and update it
-            $invoice->invoice_id = $invoice->id . '-' . $invoice->invoice_id;
-            if (!$invoice->save()) {
-                $this->checkForInvoiceStoreErrors($invoice);
+        if (!$invoice->save()) {
+            if (!$invoice->validate()) {
+                throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($invoice->getErrors()));
+            } else {
+                throw new ServerErrorHttpException('An error occurred while creating invoice');
             }
-        } else {
-            $this->checkForInvoiceStoreErrors($invoice);
         }
 
         return $invoice;
     }
 
     /**
+     * @param int $amount
+     * @return FeeTransaction
      * @throws ServerErrorHttpException
      * @throws UnprocessableEntityHttpException
+     * @throws Exception
      */
-    private function checkForInvoiceStoreErrors(Invoice $invoice)
+    private function storeTransaction(int $amount): FeeTransaction
     {
-        if (!$invoice->validate()) {
-            throw new UnprocessableEntityHttpException(SmisHelper::getModelErrors($invoice->getErrors()));
-        } else {
-            throw new ServerErrorHttpException('An error occurred while creating invoice');
-        }
-    }
-
-    /**
-     * @param Invoice $invoice
-     * @return void
-     * @throws ServerErrorHttpException
-     * @throws UnprocessableEntityHttpException
-     */
-    private function storeTransaction(Invoice $invoice): void
-    {
+        $date = SmisHelper::formatDate('now', 'Y-m-d');
         $transaction = new FeeTransaction();
-        $transaction->trans_id = $invoice->invoice_id;
         $transaction->academic_progress_id = $this->student->progressId;
-        $transaction->trans_date = $invoice->invoice_date;
+        $transaction->trans_date = $date;
         $transaction->trans_type = InvoiceType::DR->value;
-        $transaction->trans_amount = $invoice->amount;
-        $transaction->trans_desc = $invoice->invoice_desc;
-        $transaction->user_id = $invoice->user_id;
+        $transaction->trans_amount = $amount;
+        $transaction->trans_desc = 'FEES PAYABLE FOR SEM ' . $this->student->semester;
+        $transaction->user_id = $this->student->regNumber;
         $transaction->receipt_status = ReceiptStatus::INVOICED->value; // @todo value to set to be clarified
         $transaction->exchange_rate = 1;
         $transaction->progress_code = $this->student->regNumber . '-' . $this->student->academicYear;
@@ -290,6 +371,8 @@ final class BillStudent
                 throw new ServerErrorHttpException('An error occurred while creating transaction details');
             }
         }
+
+        return $transaction;
     }
 
     /**
@@ -301,28 +384,26 @@ final class BillStudent
      */
     private function storeInvoiceDetails(Invoice $invoice, array $payableFees): void
     {
+        // dd($invoice);
         $feeItems = $this->detailedFeeItemsToBill($payableFees);
-//        dd($feeItems);
 
         foreach ($feeItems as $feeItem) {
             $detail = new InvoiceDetail();
-            $detail->invoice_id = $invoice->invoice_id;
+            $detail->invoice_id = $invoice->id;
+            $detail->invoice_progress_code = $invoice->invoice_id;
             $detail->trans_date = $invoice->invoice_date;;
-            $detail->last_updated = $invoice->invoice_date;;
             $detail->amount = $feeItem['amount'];
             $detail->user_id = $invoice->user_id;
-            $detail->charge_type_id = $invoice->invoice_id; // @todo value to set to be clarified
+            if(!empty($feeItem['chargeTypeId'])){
+                $detail->charge_type_id = (int)$feeItem['chargeTypeId'];
+            }
             $detail->sync_status = false;
 
-            if (array_key_exists('type', $feeItem)) { // course fees
-                $detail->invoice_detail_desc = $feeItem['type']; // reg type e.g. FA, PROJECT
-                $detail->trans_code = $feeItem['desc']; // course code e.g. SMA101
-            } else { // admin fees
-                $detail->invoice_detail_desc = $feeItem['desc']; // fee desc e.g. Library fees
-                $detail->trans_code = FeeItem::find()->select('fee_code_alias')
-                    ->where(['fee_description' => $feeItem['desc']])
-                    ->asArray()->one()['fee_code_alias'];
+            $description = $feeItem['description']; // reg type e.g. FA, PROJECT
+            if (!empty($feeItem['code'])) {
+                $description = $feeItem['code'] . ' - ' . $description;
             }
+            $detail->invoice_detail_desc = $description;
 
             if (!$detail->save()) {
                 if (!$detail->validate()) {
@@ -335,6 +416,26 @@ final class BillStudent
     }
 
     /**
+     * @throws NotFoundHttpException
+     */
+    public function payableReportingFees(): array
+    {
+        $regFees = $this->payableRegFees();
+        $adminFees = $this->payableAdminFees();
+        $courseFees = $this->payableCourseFees($this->followUpRegistration);
+
+        // Registration fees are just another admin fee category, so fold them in here
+        $adminFees['items'] = array_merge($regFees['adminFees']['items'], $adminFees['items']);
+        $adminFees['total'] += $regFees['total'];
+
+        return [
+            'adminFees' => $adminFees,
+            'courseFees' => $courseFees,
+            'total' => $adminFees['total'] + $courseFees['total'],
+        ];
+    }
+
+    /**
      * @return array
      */
     #[ArrayShape(['items' => "array", 'total' => "int"])]
@@ -342,13 +443,16 @@ final class BillStudent
     {
         $adminFees = $this->fees(FeeType::ADMIN->value);
 
-        // Remove the registration fees.
-        // This is charged outside this routine when a student joins in the semester session.
+        // @todo for now semester reporting is free
         foreach ($adminFees as $key => $adminFee) {
             if ($adminFee['fee_description'] === AdminFee::REGISTRATION_FEES->value) {
                 unset($adminFees[$key]);
             }
         }
+
+        //dd($adminFees);
+
+//        print_r($adminFees); exit;
 
         $total = 0;
         $adminCharges = [];
@@ -357,44 +461,54 @@ final class BillStudent
         // Note that some fees are charged once but not needed to be billed in the course of a student's progression journey.
         // Fees like gown and cap during graduation. We take note of these types and assign them a priority of 2.
         // We assume that these will be charged outside this work flow.
-        foreach ($adminFees as $adminFee) {
+        foreach ($adminFees as $key => $adminFee) {
             if ($adminFee['frequency'] === ChargeFrequency::ONCE->value &&
                 $this->student->level === 1 &&
                 $this->student->isInAFirstSemester) {
 
                 $total += $adminFee['amount_charged'];
                 $adminCharges[] = [
-                    'desc' => $adminFee['fee_description'],
+                    'chargeTypeId' => $adminFee['charge_type_id'],
+                    'description' => $adminFee['fee_description'],
                     'amount' => $adminFee['amount_charged']
                 ];
+
+                unset($adminFees[$key]);
             }
         }
 
-        foreach ($adminFees as $adminFee) {
-            if ($this->student->isBilledAnnually) {
-                if ($this->student->isInAFirstSemester) {
-                    if ($adminFee['frequency'] === ChargeFrequency::ANNUAL->value) {
-                        $adminCharges[] = [
-                            'desc' => $adminFee['fee_description'],
-                            'amount' => $adminFee['amount_charged']
-                        ];
+        foreach ($adminFees as $key => $adminFee) {
 
-                        $total += $adminFee['amount_charged'];
-                    }
-                } else {
-                    $total = 0;
-                }
-            } else {
-                if ($adminFee['frequency'] === ChargeFrequency::SEMESTER->value) {
+            if ($this->student->isInAFirstSemester) {
+                if ($adminFee['frequency'] === ChargeFrequency::ANNUAL->value) {
                     $adminCharges[] = [
-                        'desc' => $adminFee['fee_description'],
+                        'chargeTypeId' => $adminFee['charge_type_id'],
+                        'description' => $adminFee['fee_description'],
                         'amount' => $adminFee['amount_charged']
                     ];
 
                     $total += $adminFee['amount_charged'];
                 }
             }
+
+            if($adminFee['frequency'] == ChargeFrequency::SEMESTER->value){
+
+                if($adminFee['semester'] == $this->student->semester && $adminFee['level_of_study'] == $this->student->level){
+                    $adminCharges[] = [
+                        'chargeTypeId' => $adminFee['charge_type_id'],
+                        'description' => $adminFee['fee_description'],
+                        'amount' => $adminFee['amount_charged'],
+                        'level' => $adminFee['level_of_study'],
+                        'semester' => $adminFee['semester']
+                    ];
+
+                    $total += $adminFee['amount_charged'];
+                }
+
+            }
         }
+
+//        print_r($adminCharges); exit;
 
         return [
             'items' => $adminCharges,
@@ -402,41 +516,60 @@ final class BillStudent
         ];
     }
 
+
     /**
-     * @param array $courses
+     * @throws NotFoundHttpException
+     */
+    public function payableRegFees(): array
+    {
+        $adminFees = $this->fees(FeeType::ADMIN->value);
+
+//        print_r($adminFees); exit;
+
+//        print_r([$this->student->semester, $this->student->level]); exit;
+
+        $payableFees = [];
+        foreach ($adminFees as $key => $adminFee) {
+//            print_r([$this->student->semester, $this->student->level]); exit;
+            if ($adminFee['fee_description'] === AdminFee::REGISTRATION_FEES->value) {
+//                print_r([$this->student->semester, $this->student->level]); exit;
+                if($adminFee['semester'] == $this->student->semester && $adminFee['level_of_study'] == $this->student->level) {
+                    $payableFees = [
+                        'adminFees' => [
+                            'items' => [
+                                [
+                                    'chargeTypeId' => $adminFee['charge_type_id'],
+                                    'description' => AdminFee::REGISTRATION_FEES->value,
+                                    'amount' => $adminFee['amount_charged']
+                                ]
+                            ],
+                            'total' => $adminFee['amount_charged'] // Total amount charged for the admin fees items
+                        ],
+                        'total' => $adminFee['amount_charged'] // Grand total
+                    ];
+                }
+            }
+        }
+
+        if(empty($payableFees)) {
+            throw new NotFoundHttpException('This program\'s Semester Registration fee is not set');
+        }
+
+        return $payableFees;
+    }
+
+    /**
      * @param bool $followUpRegistration
      * @return array
      * @throws NotFoundHttpException
      */
     #[ArrayShape(['items' => "array", 'total' => "int|mixed"])]
-    private function payableCourseFees(array $courses, bool $followUpRegistration): array
+    private function payableCourseFees(bool $followUpRegistration): array
     {
         $fees = $this->fees(FeeType::COURSE->value);
 
-        $tempFees = [];
-        foreach ($fees as $fee) {
-            $tempFees[$fee['fee_description']] = $fee['amount_charged'];
-        }
-
-        $totalUnitAmount = 0;
-        $tuitionAmount = 0;
         $courseCharges = [];
-        foreach ($courses as $course) {
-            // To always make sure that the course coming in can be billed, only allow students to register for units that
-            // have their charges already defined
-            try {
-                $courseFee = CourseFee::tryFrom($course['type']);
-                $unitAmount = $tempFees[$courseFee->feeDescription()];
-                $courseCharges[] = [
-                    'desc' => $course['code'],
-                    'amount' => $unitAmount,
-                    'type' => $course['type']
-                ];
-                $totalUnitAmount += $unitAmount;
-            } catch (Exception $ex) {
-                throw new NotFoundHttpException('This program\'s ' . $course['type'] . ' fee is not set');
-            }
-        }
+        $totalCourseCharges = 0;
 
         /**
          * Tuition fee is charged under the following terms:
@@ -444,22 +577,97 @@ final class BillStudent
          * must be the initial registration
          * student must be in a teaching semester
          */
-        if (!$this->student->isBilledAnnually && !$followUpRegistration && $this->student->isInATeachingSemester) {
-            try {
-                $tuitionAmount = (int)$tempFees[CourseFee::tryFrom('TUITION')->feeDescription()];
-                $courseCharges['tuition'] = [
-                    'desc' => 'TUITION',
-                    'amount' => $tuitionAmount,
-                    'type' => 'TUITION'
-                ];
-            } catch (Exception $ex) {
+//        $followUpRegistration = false;
+        if ($this->student->tuitionFeeBilledPerSemester() && !$followUpRegistration && $this->student->isInATeachingSemester) {
+            $tuitionDescription = strtolower(str_replace(' ', '', CourseFee::tryFrom('TUITION')->feeDescription()));
+            $tuitionFee = null;
+            foreach ($fees as $key => $fee) { //print_r($fees); exit;
+                if($fee['semester'] == $this->student->semester && $fee['level_of_study'] == $this->student->level){
+                    if (strtolower(str_replace(' ', '', $fee['fee_description'])) === $tuitionDescription) {
+                        $tuitionFee = $fee;
+                        unset($fees[$key]);
+                        break;
+                    }
+                }
+            }
+
+            if ($tuitionFee === null) {
                 throw new NotFoundHttpException('This program\'s TUITION fee is not set');
+            }
+
+            $courseCharges['tuition'] = [
+                'chargeTypeId' => $tuitionFee['charge_type_id'],
+                'description' => $tuitionFee['fee_description'],
+                'amount' => $tuitionFee['amount_charged'],
+                'type' => 'TUITION',
+            ];
+
+            $totalCourseCharges += $tuitionFee['amount_charged'];
+
+
+        }
+//        print_r($courseCharges); exit;
+
+        foreach ($fees as $fee) {
+            if($fee['frequency'] == ChargeFrequency::SEMESTER->value){
+
+                if($fee['semester'] == $this->student->semester && $fee['level_of_study'] == $this->student->level){
+                    $courseCharges[] = [
+                        'chargeTypeId' => $fee['charge_type_id'],
+                        'description' => $fee['fee_description'],
+                        'amount' => $fee['amount_charged'],
+                        'level' => $fee['level_of_study'],
+                        'semester' => $fee['semester'],
+                        'type'=> 'COURSE'
+                    ];
+
+                    $totalCourseCharges += $fee['amount_charged'];
+                }
+
             }
         }
 
+        // @todo for now we dont raise invoice for course reg fees
+//        foreach ($courses as $course) {
+//            // Only allow students to register for units that have their charges already defined
+//            $courseFee = CourseFee::tryFrom($course['type']);
+//
+//            if ($courseFee === null) {
+//                throw new NotFoundHttpException('This program\'s ' . $course['type'] . ' fee is not set');
+//            }
+//
+//            $description = strtolower(str_replace(' ', '', $courseFee->feeDescription()));
+//
+//            // Look for a per-unit fee matching this course type. If the program isn't
+//            // billed per unit (e.g. it's billed via a block TUITION fee instead),
+//            // no match will be found, and we bill 0 for this course entry.
+//            $matchedFee = null;
+//            foreach ($fees as $fee) {
+//                if ($fee['frequency'] !== ChargeFrequency::UNIT->value) {
+//                    continue;
+//                } //print_r($fee); exit;
+//
+//                if (strtolower(str_replace(' ', '', $fee['description'])) === $description) {
+//                    $matchedFee = $fee;
+//                    break;
+//                }
+//            }
+//
+//            $courseCharges[] = [
+//                'chargeTypeId' => $matchedFee['charge_type_id'] ?? null,
+//                'description' => $matchedFee['description'] ?? $courseFee->feeDescription(),
+//                'amount' => $matchedFee['amount_charged'] ?? 0,
+//                'type' => $course['type'],
+//            ];
+//
+//            $totalCourseCharges += $matchedFee['amount_charged'] ?? 0;
+//        }
+
+//        print_r($courseCharges); exit;
+
         return [
             'items' => $courseCharges,
-            'total' => $totalUnitAmount + $tuitionAmount
+            'total' => $totalCourseCharges
         ];
     }
 
@@ -469,8 +677,15 @@ final class BillStudent
      */
     private function fees(string $feeType): array
     {
+//        print_r($feeType); exit;
+
+//        print_r($this->student->progCurrId); exit;
+
         $fees = (new Query())->select([
+            'pcc.charge_type_id',
+            'pcc.prog_curr_id',
             'fi.fee_description',
+            'fi.fee_type',
             'pcc.amount_charged',
             'pcc.level_of_study',
             'pcc.semester',
@@ -478,20 +693,18 @@ final class BillStudent
         ])
             ->from('smisportal.fss_prog_curr_charges pcc')
             ->innerJoin('smisportal.fss_fee_items fi', 'fi.fee_code=pcc.fee_code')
-            ->innerJoin('smisportal.fss_billing_frequency bf', 'bf.billing_frequency_id=pcc.billing_frequency_id')
+            ->innerJoin('smisportal.fs_billing_frequency bf', 'bf.billing_frequency_id=pcc.billing_frequency_id')
             ->where([
                 'pcc.prog_curr_id' => $this->student->progCurrId,
                 'pcc.acad_session_id' => $this->student->academicSessionId,
                 'fi.fee_type' => $feeType,
                 'fi.priority' => FeePriority::PRIORITY_1->value,
-                'fi.publish' => FeeStatus::PUBLISHED->value
-            ]);
-        if (!$this->student->isBilledAnnually) {
-            $fees->andWhere([
+                'fi.publish' => FeeStatus::PUBLISHED->value,
                 'pcc.level_of_study' => $this->student->level,
                 'pcc.semester' => $this->student->semester
             ]);
-        }
+
+//        print_r($fees->all()); exit;
 
         return $fees->all();
     }

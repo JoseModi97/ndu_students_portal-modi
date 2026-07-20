@@ -12,6 +12,7 @@
  * @var string $studentSemesterSessionId
  * @var string[] $currentSessionDetails
  * @var bool $hasAvailableSessionToJoin
+ * @var string $regDeadline
  */
 
 use app\models\ClassGroup;
@@ -64,13 +65,23 @@ $this->title = $title;
                                 </ol>
                             </li>
                         </ul>
-                        <div class="bg-warning text-center" style="margin-bottom: 20px; padding: 20px 0;border-radius: .25rem">
-                            <?php if($hasAvailableSessionToJoin):?>
-                                You must report to your session inorder to register for courses
-                            <?php else:?>
-                                Only confirmed courses will be examined and displayed on the exam card
-                            <?php endif;?>
-                        </div>
+                  
+                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+    <div class="bg-warning text-center" style="flex: 1; padding: 20px 0; border-radius: .25rem">
+        <?php if($hasAvailableSessionToJoin):?>
+            You must report to your session in order to register for courses
+        <?php else:?>
+            Only confirmed courses will be examined and displayed on the exam card
+        <?php endif;?>
+    </div>
+
+    <?php if (!empty($regDeadline)): ?>
+    <div class="bg-warning text-center" style="flex: 1; padding: 20px 0; border-radius: .25rem">
+        <strong>Registration Deadline:</strong> <?= date('d-m-Y', strtotime($regDeadline)) ?>
+    </div>
+    <?php endif; ?>
+</div>
+
                         <div class="course-registration">
                             <div class="loader"></div>
                             <div class="error-display alert text-center" role="alert"></div>
@@ -148,7 +159,8 @@ $this->title = $title;
 
                         $courseReg = CourseRegistration::find()->select(['course_reg_status_id'])->where([
                             'timetable_id' => $model['timetable_id'],
-                            'registration_number' => $regNumber
+                            'student_semester_session_id' => $studentSemesterSessionId,
+                            'registration_number' => $regNumber['registration_number']
                         ])->asArray()->one();
 
                         if (empty($courseReg)) {
@@ -280,16 +292,15 @@ courseRegistrationErrorDisplay.hide();
 */
 $('#register-for-courses-grid-pjax').on('click', '#register-for-course-btn', function (e){
     e.preventDefault();
-    if(getSelectedIds('#register-for-courses-grid').length === 0){
+    const selectedTimetableIds = getSelectedIds('#register-for-courses-grid');
+    if(selectedTimetableIds.length === 0){
         alert('No courses have been selected.');
     }else{
         let courses = [];
         let missingExamType = false;
-        $('table > tbody').find('tr.table-danger').each(function (e){
-            let examTypeInput = $(this).find('.exam-type');
-            let name = examTypeInput.attr('name');
-            let timetableId = name.split('-')[1];
-            if(examTypeInput.val() === ''){
+        selectedTimetableIds.forEach(function (timetableId) {
+            let examTypeInput = $('#timetable-' + timetableId + '-exam-type');
+            if(examTypeInput.length === 0 || !examTypeInput.val()){
                 missingExamType = true;
                 return;
             }else{
@@ -313,7 +324,9 @@ $('#register-for-courses-grid-pjax').on('click', '#register-for-course-btn', fun
                     data: {'courses' : courses}
                 }).done(function (data){
                     courseRegistrationLoader.hide();
-                     if(!data.success){
+                     if(data.success){
+                        window.location.reload();
+                     }else{
                         courseRegistrationErrorDisplay.html(data.message) 
                         courseRegistrationErrorDisplay.show();
                      }

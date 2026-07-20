@@ -12,7 +12,6 @@ use yii\helpers\Url;
 /** @var float $balance */
 /** @var float $cautionFeePaid */
 /** @var float $expectedCautionFee */
-/** @var bool $overrideEligibility */
 /** @var bool $eligible */
 /** @var string|null $reason */
 /** @var array|null $cancelledVoucher */
@@ -43,21 +42,13 @@ foreach ($allLevels as $level) {
         break;
     }
 }
-$isRefunded = $request && (
-    strtoupper((string)($request->refund_status ?? '')) === 'REFUNDED'
-    || strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED'
-);
+$isRefunded = $request && strtoupper((string)$request->refund_status) === 'REFUNDED';
 $isApproved = !$isCancelled && ($requestStatus === 'APPROVED' || $isWorkflowApproved || $isRefunded);
 $requestStatusLabel = $isCancelled ? 'CANCELLED' : ($isRefunded ? 'PAID' : ($isRejected ? 'NOT APPROVED' : ($isApproved ? 'APPROVED' : $requestStatus)));
 $referenceNo = $request ? '#REF-' . str_pad($request->request_id, 5, '0', STR_PAD_LEFT) : null;
 $requestRefundAmount = 0.0;
 if ($request) {
-    $requestRefundAmount = (float)(
-        ($smisRequest->amount_approved ?? null)
-        ?: ($request->amount_approved ?? null)
-        ?: ($smisRequest->amount_requested ?? null)
-        ?: ($request->amount_requested ?? 0)
-    );
+    $requestRefundAmount = (float)($request->amount_approved ?: $request->amount_requested);
 }
 $cautionPaidAmount = $isRefunded && $requestRefundAmount > 0
     ? $requestRefundAmount
@@ -139,11 +130,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                                 <?php
                                 $itemStatus = strtoupper((string)$item->approval_status);
                                 $itemIsRefunded = strtoupper((string)($item->refund_status ?? '')) === 'REFUNDED';
-                                $itemIsOfficialRefunded = $request
-                                    && $smisRequest
-                                    && (int)$request->request_id === (int)$item->request_id
-                                    && strtoupper((string)($smisRequest->refund_status ?? '')) === 'REFUNDED';
-                                $itemStatusLabel = ($itemIsRefunded || $itemIsOfficialRefunded)
+                                $itemStatusLabel = $itemIsRefunded
                                     ? 'PAID'
                                     : ($itemStatus === 'NOT APPROVED' ? 'NOT APPROVED' : $itemStatus);
                                 $itemClass = $request && (int)$request->request_id === (int)$item->request_id ? 'cr-btn--primary' : 'cr-btn--secondary';
@@ -367,14 +354,7 @@ $progressPercent = min(100, max(0, $progressPercent));
                             </div>
                         <?php endif; ?>
 
-                        <?php if ($overrideEligibility && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
-                            <div style="background: var(--cr-teal-50); border: 1px solid var(--cr-teal-100); border-radius: 8px; padding: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;">
-                                <div style="color: var(--cr-teal-600); font-size: 0.9rem;">✔️</div>
-                                <div style="font-size: 0.75rem; color: var(--cr-teal-800); line-height: 1.4;">
-                                    <strong>Override Enabled:</strong> Requirements for full caution fee payment are currently bypassed for this process.
-                                </div>
-                            </div>
-                        <?php elseif (!$overrideEligibility && $cautionFeePaid < $expectedCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
+                        <?php if ($cautionFeePaid < $expectedCautionFee && (!$request || strtoupper($request->refundType->refund_type_name) === 'CAUTION')): ?>
                             <div style="background: var(--cr-red-50); border: 1px solid var(--cr-red-100); border-radius: 8px; padding: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;">
                                 <div style="color: var(--cr-red); font-size: 0.9rem;">⚠️</div>
                                 <div style="font-size: 0.75rem; color: var(--cr-red-800); line-height: 1.4;">

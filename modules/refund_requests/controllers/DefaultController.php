@@ -9,6 +9,13 @@ use app\modules\refund_requests\models\ApprovalLevel;
 use app\modules\refund_requests\models\RefundRequest;
 use app\modules\refund_requests\models\ApprovalProcess;
 use app\modules\refund_requests\models\User;
+use app\modules\refund_requests\models\AcademicProgress;
+use app\modules\refund_requests\models\CancelledVoucher;
+use app\modules\refund_requests\models\DisapprovedRefundRequest;
+use app\modules\refund_requests\models\FeeTransaction;
+use app\modules\refund_requests\models\InvoiceDetail;
+use app\modules\refund_requests\models\StudentProgCurriculum;
+use app\modules\refund_requests\models\StudentStatus;
 use Yii;
 use yii\filters\AccessControl;
 use yii\web\Response;
@@ -86,16 +93,20 @@ class DefaultController extends BaseController
             ];
         }
 
-        // Normalize registration number: convert dashes to slashes for DB consistency with SMIS
+        // Normalize registration number: convert dashes to slashes for database consistency.
         $normalizedRegNo = str_replace('-', '/', $regNumber);
 
-        // Fetch Academic Status from authoritative SMIS database
-        $smisStudentData = (new \yii\db\Query())
-            ->select(['s.status', 'spc.status_id', 'spc.student_prog_curriculum_id', 'spc.prog_curriculum_id'])
-            ->from('smis.sm_student_programme_curriculum spc')
-            ->leftJoin('smis.sm_student_status s', 'spc.status_id = s.status_id')
-            ->where(['spc.registration_number' => $normalizedRegNo])
-            ->one(Yii::$app->smisDb);
+        // Fetch academic status from the portal database.
+        $studentProgramme = StudentProgCurriculum::find()
+            ->with('status')
+            ->where(['registration_number' => $normalizedRegNo])
+            ->one();
+        $smisStudentData = $studentProgramme === null ? [] : [
+            'status' => $studentProgramme->status->status ?? null,
+            'status_id' => $studentProgramme->status_id,
+            'student_prog_curriculum_id' => $studentProgramme->student_prog_curriculum_id,
+            'prog_curriculum_id' => $studentProgramme->prog_curriculum_id,
+        ];
 
         $academicStatus = $smisStudentData['status'] ?? 'UNKNOWN';
         $studentProgCurriculumId = !empty($smisStudentData['student_prog_curriculum_id'])
@@ -108,9 +119,7 @@ class DefaultController extends BaseController
         $cautionReservedAmount = ($studentProgCurriculumId !== null && $cautionTypeId !== null)
             ? $this->reservedRefundAmount($studentProgCurriculumId, $cautionTypeId)
             : 0;
-        $cautionBaseAmount = $this->module->overrideEligibility
-            ? max($cautionFeePaid, $expectedCaution)
-            : (($cautionFeePaid >= $expectedCaution) ? $cautionFeePaid : 0);
+        $cautionBaseAmount = $cautionFeePaid >= $expectedCaution ? $cautionFeePaid : 0;
         $cautionRemainingAmount = max(0, $cautionBaseAmount - $cautionReservedAmount);
         
         $hasExistingRequest = false;
@@ -123,16 +132,6 @@ class DefaultController extends BaseController
                 ])
                 ->exists();
                 
-            if (!$hasExistingRequest) {
-                $hasExistingRequest = (new \yii\db\Query())
-                    ->from('smis.fss_refund_requests')
-                    ->where(['student_prog_curriculum_id' => $smisStudentData['student_prog_curriculum_id']])
-                    ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
-                        ':approved' => 'APPROVED',
-                        ':notApproved' => 'NOT APPROVED',
-                    ])
-                    ->exists(Yii::$app->smisDb);
-            }
         }
 
         $allowedStatuses = ['GRADUATED', 'COMPLETED'];
@@ -144,9 +143,6 @@ class DefaultController extends BaseController
         $eligible = true;
         $reason = null;
 
-        /** @var \app\modules\refund_requests\Module $module */
-        $module = $this->module;
-
         if (!$clearancePassed) {
             $eligible = false;
             $reason = 'You must be CLEARED to access this feature. Current status: ' . ($user->clearance_status ?: 'PENDING');
@@ -157,11 +153,6 @@ class DefaultController extends BaseController
             $eligible = false;
             $balStr = Yii::$app->formatter->asCurrency($balance);
             $reason = "You have an outstanding fee balance of {$balStr}. All balances must be cleared to apply.";
-        }
-
-        if ($module->overrideEligibility) {
-            $eligible = true;
-            $reason = null;
         }
 
         return [
@@ -196,30 +187,22 @@ class DefaultController extends BaseController
     private function reservedRefundAmount(int $studentProgCurriculumId, int $refundTypeId): float
     {
         $rows = [];
-        $sources = [
-            [Yii::$app->db, 'smisportal.fss_refund_requests'],
-            [Yii::$app->smisDb, 'smis.fss_refund_requests'],
-        ];
-
-        foreach ($sources as [$db, $table]) {
-            $sourceRows = (new \yii\db\Query())
+        $sourceRows = RefundRequest::find()
                 ->select(['request_id', 'approval_status', 'amount_requested', 'amount_approved'])
-                ->from($table)
                 ->where([
                     'student_prog_curriculum_id' => $studentProgCurriculumId,
                     'refund_type' => $refundTypeId,
                 ])
                 ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
-                ->all($db);
+                ->asArray()->all();
 
-            foreach ($sourceRows as $row) {
+        foreach ($sourceRows as $row) {
                 $requestId = (string)$row['request_id'];
                 $amount = strtoupper((string)$row['approval_status']) === 'APPROVED' && (float)$row['amount_approved'] > 0
                     ? (float)$row['amount_approved']
                     : (float)$row['amount_requested'];
 
                 $rows[$requestId] = max($rows[$requestId] ?? 0, $amount);
-            }
         }
 
         return array_sum($rows);
@@ -227,52 +210,40 @@ class DefaultController extends BaseController
 
     private function refundedRequestsByType(int $studentProgCurriculumId): array
     {
-        $smisRequests = \app\modules\refund_requests\models\RefundRequestOfficial::find()
+        $requests = RefundRequest::find()
             ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
             ->andWhere('UPPER(refund_status) = :refunded', [':refunded' => 'REFUNDED'])
+            ->with(['refundType', 'bank'])
             ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
             ->all();
 
-        if (!$smisRequests) {
-            return [];
-        }
-
-        $refundTypes = \app\modules\refund_requests\models\RefundType::find()
-            ->indexBy('refund_type_id')
-            ->all();
         $refundedRequests = [];
 
-        foreach ($smisRequests as $smisRequest) {
-            $refundTypeId = (int)$smisRequest->refund_type;
+        foreach ($requests as $request) {
+            $refundTypeId = (int)$request->refund_type;
             if (isset($refundedRequests[$refundTypeId])) {
                 continue;
             }
 
-            $portalRequest = RefundRequest::find()
-                ->where(['request_id' => $smisRequest->request_id])
-                ->with(['refundType', 'bank'])
-                ->one();
-            $refundType = $portalRequest ? ($portalRequest->refundType ?? null) : null;
-            $refundType = $refundType ?? ($refundTypes[$refundTypeId] ?? null);
-            $paymentMethod = strtoupper((string)($portalRequest ? $portalRequest->payment_method : ''));
+            $paymentMethod = strtoupper((string)$request->payment_method);
             $paymentLabel = $paymentMethod === 'MPESA'
                 ? 'M-PESA'
                 : ($paymentMethod === 'BANK' ? 'Bank Transfer' : 'Payment Method');
             $paymentDetail = '';
 
             if ($paymentMethod === 'MPESA') {
-                $paymentDetail = 'Mobile: ' . (($portalRequest ? $portalRequest->mobile_no : null) ?: $smisRequest->mobile_no);
+                $paymentDetail = 'Mobile: ' . $request->mobile_no;
             } elseif ($paymentMethod === 'BANK') {
-                $bankName = ($portalRequest && $portalRequest->bank) ? $portalRequest->bank->bank_name : 'Bank account';
-                $paymentDetail = $bankName . ' (Acc: ' . (($portalRequest ? $portalRequest->account_no : null) ?: $smisRequest->account_no) . ')';
+                $bankName = $request->bank->bank_name ?? 'Bank account';
+                $paymentDetail = $bankName . ' (Acc: ' . $request->account_no . ')';
             }
 
             $refundedRequests[$refundTypeId] = [
-                'requestId' => (int)$smisRequest->request_id,
-                'referenceNo' => '#REF-' . str_pad((string)$smisRequest->request_id, 5, '0', STR_PAD_LEFT),
-                'refundType' => $refundType->displayName ?? $refundType->refund_type_name ?? 'Refund',
-                'amount' => (float)($smisRequest->amount_approved ?: $smisRequest->amount_requested),
-                'voucherNo' => $smisRequest->voucher_no,
+                'requestId' => (int)$request->request_id,
+                'referenceNo' => '#REF-' . str_pad((string)$request->request_id, 5, '0', STR_PAD_LEFT),
+                'refundType' => $request->refundType->displayName ?? $request->refundType->refund_type_name ?? 'Refund',
+                'amount' => (float)($request->amount_approved ?: $request->amount_requested),
+                'voucherNo' => $request->voucher_no,
                 'paymentLabel' => $paymentLabel,
                 'paymentDetail' => $paymentDetail,
             ];
@@ -288,14 +259,7 @@ class DefaultController extends BaseController
             $refundedRequests
         )));
 
-        $sources = [
-            [Yii::$app->db, 'smisportal.fss_refund_requests'],
-            [Yii::$app->smisDb, 'smis.fss_refund_requests'],
-        ];
-
-        foreach ($sources as [$db, $table]) {
-            $query = (new \yii\db\Query())
-                ->from($table)
+        $query = RefundRequest::find()
                 ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
                 ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
                 ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED']);
@@ -304,12 +268,7 @@ class DefaultController extends BaseController
                 $query->andWhere(['not in', 'request_id', $refundedRequestIds]);
             }
 
-            if ($query->exists($db)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $query->exists();
     }
 
     private function activeRequestsByType(int $studentProgCurriculumId, array $refundedRequests): array
@@ -324,15 +283,6 @@ class DefaultController extends BaseController
             ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED'])
             ->with(['refundType', 'bank'])
             ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-            ->all();
-        $smisRequests = \app\modules\refund_requests\models\RefundRequestOfficial::find()
-            ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
-            ->andWhere('UPPER(approval_status) <> :notApproved', [':notApproved' => 'NOT APPROVED'])
-            ->andWhere('UPPER(COALESCE(refund_status, \'\')) <> :refunded', [':refunded' => 'REFUNDED'])
-            ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-            ->all();
-        $refundTypes = \app\modules\refund_requests\models\RefundType::find()
-            ->indexBy('refund_type_id')
             ->all();
 
         $allLevels = ApprovalLevel::find()->orderBy(['approval_order' => SORT_ASC])->all();
@@ -398,64 +348,6 @@ class DefaultController extends BaseController
             ];
         }
 
-        foreach ($smisRequests as $smisRequest) {
-            if (isset($refundedRequestIds[(int)$smisRequest->request_id])) {
-                continue;
-            }
-
-            $refundTypeId = (int)$smisRequest->refund_type;
-            $portalRequest = null;
-            foreach ($requests as $request) {
-                if ((int)$request->request_id === (int)$smisRequest->request_id) {
-                    $portalRequest = $request;
-                    break;
-                }
-            }
-
-            $existing = $activeRequests[$refundTypeId] ?? null;
-            if ($existing !== null && (int)$existing['requestId'] !== (int)$smisRequest->request_id) {
-                $existingTime = strtotime((string)($existing['applicationDate'] ?? '')) ?: 0;
-                $smisTime = strtotime((string)$smisRequest->application_date) ?: 0;
-                if ($existingTime > $smisTime) {
-                    continue;
-                }
-            }
-
-            $refundType = $portalRequest ? ($portalRequest->refundType ?? null) : null;
-            $refundType = $refundType ?? ($refundTypes[$refundTypeId] ?? null);
-            $paymentMethod = strtoupper((string)($portalRequest ? $portalRequest->payment_method : ''));
-            $paymentLabel = $paymentMethod === 'MPESA'
-                ? 'M-PESA'
-                : ($paymentMethod === 'BANK' ? 'Bank Transfer' : 'Payment Method');
-            $paymentDetail = '';
-
-            if ($paymentMethod === 'MPESA') {
-                $paymentDetail = 'Mobile: ' . (($portalRequest ? $portalRequest->mobile_no : null) ?: $smisRequest->mobile_no);
-            } elseif ($paymentMethod === 'BANK') {
-                $bank = ($portalRequest && $portalRequest->bank) ? $portalRequest->bank : null;
-                if ($bank === null && $smisRequest->bank_id) {
-                    $bank = Bank::findOne((int)$smisRequest->bank_id);
-                }
-                $bankName = $bank ? $bank->bank_name : 'Bank account';
-                $paymentDetail = $bankName . ' (Acc: ' . (($portalRequest ? $portalRequest->account_no : null) ?: $smisRequest->account_no) . ')';
-            }
-
-            $activeRequests[$refundTypeId] = [
-                'requestId' => (int)$smisRequest->request_id,
-                'referenceNo' => '#REF-' . str_pad((string)$smisRequest->request_id, 5, '0', STR_PAD_LEFT),
-                'refundType' => $refundType->displayName ?? $refundType->refund_type_name ?? 'Refund',
-                'amount' => (float)($smisRequest->amount_approved ?: $smisRequest->amount_requested),
-                'amountLabel' => $refundType && strtoupper((string)$refundType->refund_type_name) === 'CAUTION'
-                    ? 'Caution Amount'
-                    : 'Requested Amount',
-                'applicationDate' => $smisRequest->application_date,
-                'statusLabel' => strtoupper((string)$smisRequest->approval_status),
-                'voucherNo' => $smisRequest->voucher_no,
-                'paymentLabel' => $paymentLabel,
-                'paymentDetail' => $paymentDetail,
-            ];
-        }
-
         return $activeRequests;
     }
 
@@ -506,8 +398,7 @@ class DefaultController extends BaseController
             return 0.0;
         }
 
-        $directTransactionQuery = (new \yii\db\Query())
-            ->from('smis.fss_fee_transactions ft')
+        $directTransactionQuery = FeeTransaction::find()->alias('ft')
             ->where(['ft.trans_type' => $transactionType])
             ->andWhere($studentFilter)
             ->andWhere(new \yii\db\Expression('UPPER(TRIM(ft.trans_desc)) = :cautionDescription'))
@@ -516,38 +407,50 @@ class DefaultController extends BaseController
         if ($excludeRefundPostingEntries) {
             // Posting a caution refund creates a matching DR " CAUTION MONEY" entry.
             // Do not mistake that accounting entry for newly refundable caution money.
-            $directTransactionQuery->andWhere(new \yii\db\Expression(
-                "NOT EXISTS (
-                    SELECT 1
-                    FROM smis.fss_fee_transactions refund_ft
-                    WHERE refund_ft.trans_type = 'CR'
-                      AND UPPER(TRIM(refund_ft.trans_desc)) LIKE 'CAUTION REFUND%'
-                      AND refund_ft.trans_amount = ft.trans_amount
-                      AND refund_ft.trans_date = ft.trans_date
-                      AND refund_ft.academic_progress_id = ft.academic_progress_id
-                      AND refund_ft.progress_code = ft.progress_code
-                )"
-            ));
+            $refundPostings = FeeTransaction::find()
+                ->select(['trans_amount', 'trans_date', 'academic_progress_id', 'progress_code'])
+                ->where(['trans_type' => 'CR'])
+                ->andWhere(['LIKE', new \yii\db\Expression('UPPER(TRIM([[trans_desc]]))'), 'CAUTION REFUND%', false])
+                ->asArray()->all();
+            $postingKeys = [];
+            foreach ($refundPostings as $posting) {
+                $postingKeys[$this->transactionMatchKey($posting)] = true;
+            }
+            $directTransactionAmount = 0.0;
+            foreach ($directTransactionQuery->asArray()->all() as $transaction) {
+                if (!isset($postingKeys[$this->transactionMatchKey($transaction)])) {
+                    $directTransactionAmount += (float)$transaction['trans_amount'];
+                }
+            }
+        } else {
+            $directTransactionAmount = (float)$directTransactionQuery->sum('ft.trans_amount');
         }
-
-        $directTransactionAmount = (float)$directTransactionQuery->sum('ft.trans_amount', Yii::$app->smisDb);
 
         if ($transactionType !== 'DR') {
             return $directTransactionAmount;
         }
 
-        $feePayableCautionAmount = (float)((new \yii\db\Query())
-            ->from('smis.fss_fee_transactions ft')
-            ->innerJoin('smis.fss_invoice fi', 'fi.trans_id = ft.trans_id')
-            ->innerJoin('smis.fss_invoice_details fid', 'fid.invoice_id = fi.id')
+        $feePayableCautionAmount = (float)(FeeTransaction::find()->alias('ft')
+            ->innerJoin('smisportal.fss_invoice fi', 'fi.trans_id = ft.trans_id')
+            ->innerJoin('smisportal.fss_invoice_details fid', 'fid.invoice_id = fi.id')
             ->where(['ft.trans_type' => $transactionType])
             ->andWhere($studentFilter)
             ->andWhere(new \yii\db\Expression('UPPER(TRIM(ft.trans_desc)) <> :cautionDescription'))
             ->andWhere(new \yii\db\Expression('UPPER(TRIM(fid.invoice_detail_desc)) = :cautionDescription'))
             ->addParams([':cautionDescription' => 'CAUTION MONEY'])
-            ->sum('fid.amount', Yii::$app->smisDb));
+            ->sum('fid.amount', Yii::$app->db));
 
         return $directTransactionAmount + $feePayableCautionAmount;
+    }
+
+    private function transactionMatchKey(array $transaction): string
+    {
+        return implode('|', [
+            $transaction['trans_amount'] ?? '',
+            $transaction['trans_date'] ?? '',
+            $transaction['academic_progress_id'] ?? '',
+            $transaction['progress_code'] ?? '',
+        ]);
     }
 
     private function sumCautionInvoiceDetails(string $regNumber): float
@@ -557,25 +460,23 @@ class DefaultController extends BaseController
             return 0.0;
         }
 
-        return (float)(new \yii\db\Query())
-            ->from('smis.fss_invoice_details fid')
-            ->innerJoin('smis.fss_invoice fi', 'fi.id = fid.invoice_id')
-            ->innerJoin('smis.fss_fee_transactions fft', 'fft.trans_id = fi.trans_id')
+        return (float)InvoiceDetail::find()->alias('fid')
+            ->innerJoin('smisportal.fss_invoice fi', 'fi.id = fid.invoice_id')
+            ->innerJoin('smisportal.fss_fee_transactions fft', 'fft.trans_id = fi.trans_id')
             ->where(['fi.reg_number' => $regNumbers])
             ->andWhere(new \yii\db\Expression(
                 'UPPER(TRIM(fid.invoice_detail_desc)) = :cautionDescription',
                 [':cautionDescription' => 'CAUTION MONEY']
             ))
-            ->sum('fid.amount', Yii::$app->smisDb);
+            ->sum('fid.amount');
     }
 
     private function academicProgressIds(int $studentProgCurriculumId): array
     {
-        return array_map('intval', (new \yii\db\Query())
+        return array_map('intval', AcademicProgress::find()
             ->select('academic_progress_id')
-            ->from('smis.sm_academic_progress')
             ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
-            ->column(Yii::$app->smisDb));
+            ->column());
     }
 
     private function registrationNumberVariants(string $regNumber): array
@@ -589,16 +490,10 @@ class DefaultController extends BaseController
         ])));
     }
 
-    private function latestCancelledVoucherForRequest(?RefundRequest $request, $smisRequest = null): ?array
+    private function latestCancelledVoucherForRequest(?RefundRequest $request): ?array
     {
-        $requestIds = array_values(array_unique(array_filter([
-            $request ? (int)$request->request_id : null,
-            $smisRequest ? (int)$smisRequest->request_id : null,
-        ])));
-        $voucherNos = array_values(array_unique(array_filter([
-            $request && $request->voucher_no ? (int)$request->voucher_no : null,
-            $smisRequest && $smisRequest->voucher_no ? (int)$smisRequest->voucher_no : null,
-        ])));
+        $requestIds = $request ? [(int)$request->request_id] : [];
+        $voucherNos = $request && $request->voucher_no ? [(int)$request->voucher_no] : [];
 
         return $this->latestCancelledVoucher($requestIds, $voucherNos);
     }
@@ -609,46 +504,29 @@ class DefaultController extends BaseController
             return null;
         }
 
-        $requestIds = array_values(array_unique(array_filter(array_merge(
-            RefundRequest::find()
-                ->select('request_id')
-                ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
-                ->column(),
-            \app\modules\refund_requests\models\RefundRequestOfficial::find()
-                ->select('request_id')
-                ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
-                ->column()
-        ))));
+        $requestIds = RefundRequest::find()
+            ->select('request_id')
+            ->where(['student_prog_curriculum_id' => $studentProgCurriculumId])
+            ->column();
 
         return $this->latestCancelledVoucher($requestIds, []);
     }
 
     private function latestCancelledVoucher(array $requestIds, array $voucherNos): ?array
     {
-        $sources = [
-            [Yii::$app->db, 'smisportal.fss_cancelled_vouchers'],
-            [Yii::$app->smisDb, 'smis.fss_cancelled_vouchers'],
-        ];
         $matches = [];
-
-        foreach ($sources as [$db, $tableName]) {
-            $table = $db->getTableSchema($tableName, true);
-            if ($table === null) {
-                continue;
-            }
-
-            $query = (new \yii\db\Query())->from($tableName);
+        $table = CancelledVoucher::getTableSchema();
+        if ($table !== null) {
+            $query = CancelledVoucher::find();
             if ($requestIds && in_array('request_id', $table->columnNames, true)) {
                 $query->where(['request_id' => $requestIds]);
             } elseif ($voucherNos) {
                 $query->where(['voucher_no' => $voucherNos]);
             } else {
-                continue;
+                return null;
             }
 
-            foreach ($query->all($db) as $row) {
-                $matches[] = $row;
-            }
+            $matches = $query->asArray()->all();
         }
 
         if (!$matches) {
@@ -680,21 +558,18 @@ class DefaultController extends BaseController
         $expectedCautionFee = $check['expectedCaution'];
 
         // Normalize reg number for portal update
-        $normalizedRegNo = str_replace('-', '/', $regNumber);
-
         // Synchronize student status to portal if it differs
         if (!empty($check['smisStudentData'])) {
-            $portalStatusId = (new \yii\db\Query())
+            $portalStatusId = StudentStatus::find()
                 ->select(['status_id'])
-                ->from('smisportal.sm_student_status')
                 ->where(['status' => $academicStatus])
                 ->scalar();
             
             if ($portalStatusId) {
-                Yii::$app->db->createCommand()->update('smisportal.sm_student_programme_curriculum',
+                StudentProgCurriculum::updateAll(
                     ['status_id' => $portalStatusId],
-                    ['registration_number' => $regNumber] // Keep portal reg number format if it's dashes
-                )->execute();
+                    ['registration_number' => $regNumber]
+                );
             }
         }
 
@@ -702,21 +577,12 @@ class DefaultController extends BaseController
         $refundTypes = \app\modules\refund_requests\models\RefundType::find()->where(['refund_type_status' => true])->all();
         
         $existingRequest = null;
-        $smisRequest = null;
         $previousRequests = [];
         $refundedRequests = [];
         $activeRequests = [];
         $cancelledVoucher = null;
         if ($check['student_prog_curriculum_id']) {
             $existingRequest = RefundRequest::find()
-                ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
-                ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
-                    ':approved' => 'APPROVED',
-                    ':notApproved' => 'NOT APPROVED',
-                ])
-                ->orderBy(['application_date' => SORT_DESC, 'request_id' => SORT_DESC])
-                ->one();
-            $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::find()
                 ->where(['student_prog_curriculum_id' => $check['student_prog_curriculum_id']])
                 ->andWhere('UPPER(approval_status) NOT IN (:approved, :notApproved)', [
                     ':approved' => 'APPROVED',
@@ -767,7 +633,6 @@ class DefaultController extends BaseController
             'expectedCautionFee' => $expectedCautionFee,
             'cautionReservedAmount' => $check['cautionReservedAmount'],
             'cautionRemainingAmount' => $check['cautionRemainingAmount'],
-            'overrideEligibility' => $this->module->overrideEligibility,
             'allLevels' => $allLevels,
             'refundTypes' => $refundTypes,
             'academicStatus' => $academicStatus,
@@ -775,6 +640,7 @@ class DefaultController extends BaseController
             'refundedRequests' => $refundedRequests,
             'activeRequests' => $activeRequests,
             'cancelledVoucher' => $cancelledVoucher,
+            'request' => $existingRequest,
         ]);
     }
 
@@ -787,11 +653,10 @@ class DefaultController extends BaseController
     {
         $normalizedRegNo = str_replace('-', '/', $regNumber);
 
-        $transactions = (new \yii\db\Query())
+        $transactions = FeeTransaction::find()
             ->select(['trans_amount', 'trans_type'])
-            ->from('smis.fss_fee_transactions')
             ->where(['LIKE', 'progress_code', $normalizedRegNo . '%', false])
-            ->all(Yii::$app->smisDb);
+            ->asArray()->all();
 
         $credits = 0;
         $debits = 0;
@@ -929,8 +794,7 @@ class DefaultController extends BaseController
             $refundableAmount = (float)$activeRequestDetails['amount'];
         // Validation for CAUTION refund type
         } elseif ($refundType && strtoupper($refundType->refund_type_name) === 'CAUTION') {
-            if (!$this->module->overrideEligibility
-                && $check['cautionFeePaid'] < $check['expectedCaution']) {
+            if ($check['cautionFeePaid'] < $check['expectedCaution']) {
                 $this->setFlash('danger', 'Requirement Not Met', 'You have not fully paid the CAUTION FEE required for this refund type.');
                 return $this->redirect(['index']);
             }
@@ -1025,7 +889,7 @@ class DefaultController extends BaseController
                         ? ($isPostingRejection
                             ? 'Your updated application has been submitted and will be returned to posting.'
                             : 'Your updated application has been submitted and will restart approval from Level 1.')
-                        : 'Your application has been submitted successfully and will be synchronized soon.';
+                        : 'Your application has been submitted successfully.';
                     $this->setFlash('success', 'Refund Request', $message);
                     return $this->redirect(['index']);
                 } else {
@@ -1068,72 +932,39 @@ class DefaultController extends BaseController
 
     private function markDisapprovedRequestActioned(int $requestId): void
     {
-        foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-            if ($db->getTableSchema($schema . '.fss_refund_requests_disapproved', true) === null) {
-                continue;
-            }
-
-            $db->createCommand()
-                ->update(
-                    $schema . '.fss_refund_requests_disapproved',
-                    [
+        if (DisapprovedRefundRequest::getTableSchema() !== null) {
+            DisapprovedRefundRequest::updateAll([
                         'action_flag' => true,
                         'date_reinstated' => date('Y-m-d H:i:s'),
                         'reinstatement_remarks' => 'Student updated rejected refund request.',
                         'reinstated_by' => Yii::$app->user->id,
-                    ],
-                    ['request_id' => $requestId]
-                )
-                ->execute();
+                    ], ['request_id' => $requestId]);
         }
     }
 
     private function isPostingWindowDisapproval(int $requestId): bool
     {
-        foreach ([[Yii::$app->db, 'smisportal'], [Yii::$app->smisDb, 'smis']] as [$db, $schema]) {
-            $table = $db->getTableSchema($schema . '.fss_refund_requests_disapproved', true);
-            if ($table === null) {
-                continue;
-            }
-
-            $originCondition = in_array('rejection_origin', $table->columnNames, true)
-                ? "(UPPER(COALESCE(d.rejection_origin, '')) = 'POSTING_WINDOW' OR UPPER(COALESCE(d.remarks, '')) = 'CANCELLED AT POSTING WINDOW')"
-                : "UPPER(COALESCE(d.remarks, '')) = 'CANCELLED AT POSTING WINDOW'";
-
-            $latestRowCondition = in_array('disapproved_refund_id', $table->columnNames, true)
-                ? "NOT EXISTS (
-                    SELECT 1
-                    FROM {$schema}.fss_refund_requests_disapproved newer
-                    WHERE newer.request_id = d.request_id
-                      AND (
-                          newer.approval_date > d.approval_date
-                          OR (
-                              newer.approval_date = d.approval_date
-                              AND newer.disapproved_refund_id > d.disapproved_refund_id
-                          )
-                      )
-                )"
-                : "NOT EXISTS (
-                    SELECT 1
-                    FROM {$schema}.fss_refund_requests_disapproved newer
-                    WHERE newer.request_id = d.request_id
-                      AND newer.approval_date > d.approval_date
-                )";
-
-            $exists = (new \yii\db\Query())
-                ->from($schema . '.fss_refund_requests_disapproved d')
-                ->where(['d.request_id' => $requestId])
-                ->andWhere('UPPER(COALESCE(d.approval_status, \'\')) = :status', [':status' => 'NOT APPROVED'])
-                ->andWhere($originCondition)
-                ->andWhere($latestRowCondition)
-                ->exists($db);
-
-            if ($exists) {
-                return true;
-            }
+        $table = DisapprovedRefundRequest::getTableSchema();
+        if ($table === null) {
+            return false;
         }
 
-        return false;
+        $order = ['approval_date' => SORT_DESC];
+        if (in_array('disapproved_refund_id', $table->columnNames, true)) {
+            $order['disapproved_refund_id'] = SORT_DESC;
+        }
+        $latest = DisapprovedRefundRequest::find()
+            ->where(['request_id' => $requestId])
+            ->orderBy($order)
+            ->one();
+
+        return $latest !== null
+            && strtoupper((string)$latest->approval_status) === 'NOT APPROVED'
+            && (
+                (in_array('rejection_origin', $table->columnNames, true)
+                    && strtoupper((string)$latest->rejection_origin) === 'POSTING_WINDOW')
+                || strtoupper((string)$latest->remarks) === 'CANCELLED AT POSTING WINDOW'
+            );
     }
 
     /**
@@ -1186,7 +1017,6 @@ class DefaultController extends BaseController
         $check = $this->checkEligibility($user);
 
         $request = null;
-        $smisRequest = null;
         $approvals = [];
         $requests = [];
         if ($check['student_prog_curriculum_id']) {
@@ -1216,10 +1046,6 @@ class DefaultController extends BaseController
             }
 
             if ($request) {
-                $smisRequest = \app\modules\refund_requests\models\RefundRequestOfficial::findOne(['request_id' => $request->request_id]);
-            }
-
-            if ($request) {
                 $approvals = ApprovalProcess::find()
                     ->where(['request_id' => $request->request_id])
                     ->andWhere('approval_date >= :application_date', [':application_date' => $request->application_date])
@@ -1235,19 +1061,17 @@ class DefaultController extends BaseController
 
         $allLevels = ApprovalLevel::find()->orderBy(['approval_order' => SORT_ASC])->all();
         $balance = $regNumber ? $this->calculateFeeBalance($regNumber) : 0;
-        $cancelledVoucher = $this->latestCancelledVoucherForRequest($request, $smisRequest);
+        $cancelledVoucher = $this->latestCancelledVoucherForRequest($request);
 
         return $this->render('track', [
             'user' => $user,
             'request' => $request,
             'requests' => $requests,
-            'smisRequest' => $smisRequest,
             'approvals' => $approvals,
             'allLevels' => $allLevels,
             'balance' => $balance,
             'cautionFeePaid' => $check['cautionFeePaid'],
             'expectedCautionFee' => $check['expectedCaution'],
-            'overrideEligibility' => $this->module->overrideEligibility,
             'eligible' => $check['eligible'],
             'reason' => $check['reason'],
             'cancelledVoucher' => $cancelledVoucher,

@@ -15,6 +15,7 @@
  * @var array $timetableIds
  */
 
+use yii\helpers\Html;
 use yii\helpers\Json;
 use yii\helpers\Url;
 
@@ -70,6 +71,24 @@ use yii\helpers\Url;
                                 <div class="error-display alert text-center" role="alert"></div>
                             </div>
                             <div class="pull-right" style="margin-bottom: 10px;">
+                                <?= Html::a(
+                                        '<i class="fas fa-file-invoice-dollar"></i> Download Invoice PDF',
+                                        Url::to(['/bill/raise-invoice-pdf']),
+                                        [
+                                                'class' => 'btn btn-info btn-sm',
+                                                'target' => '_blank',
+                                                'data-pjax' => '0',
+                                                'style' => 'margin-right: 5px;'
+                                        ]
+                                ) ?>
+                                <?= Html::a(
+                                        '<i class="fas fa-credit-card"></i> Pay via eCitizen',
+                                        Url::to(['/ecitizen/payment/index']),
+                                        [
+                                                'class' => 'btn btn-warning btn-sm',
+                                                'style' => 'margin-right: 5px;'
+                                        ]
+                                ) ?>
                                 <button id="pay" class="btn btn-success">Accept invoice</button>
                             </div>
                             <table class="table table-bordered">
@@ -92,11 +111,11 @@ use yii\helpers\Url;
                                             <td><?=
                                                 array_key_exists('type', $feeItem) ? $feeItem['type'] : 'ADMINISTRATIVE'
                                                 ?></td>
-                                            <td><?= $feeItem['desc'] ?></td>
+                                            <td><?= $feeItem['description'] ?></td>
                                             <td><?= Yii::$app->formatter->asCurrency($feeItem['amount']) ?></td>
                                         </tr>
                                         <?php
-                                        $total += $feeItem['amount'];
+                                        $total += (int)$feeItem['amount'];
                                         $count++;
                                     endforeach;
                                 endif; ?>
@@ -115,8 +134,8 @@ use yii\helpers\Url;
 
 <?php
 $billingUrl = '';
-if ($invoiceFor === 'semesterRegistration') {
-    $billingUrl = Url::to(['/semester-session-progress/join-session']);
+if ($invoiceFor === 'normalFees') {
+    $billingUrl = Url::to(['/bill/accept-invoice']);
 } elseif ($invoiceFor === 'courseRegistration') {
     $billingUrl = Url::to(['/courses/confirm']);
 }
@@ -130,7 +149,7 @@ const timetableIds = '$timetableIdsJson';
 const paymentLoader = $('.prog-charges > .loader');
 paymentLoader.html(loader);
 paymentLoader.hide();
-const paymentErrorDisplay =  $('.prog-charges > .error-display');
+const paymentErrorDisplay = $('.prog-charges > .error-display');
 paymentErrorDisplay.hide();
 
 $('#pay').click(function (e){
@@ -160,8 +179,3 @@ $('#pay').click(function (e){
 });
 JS;
 $this->registerJs($payJs, yii\web\View::POS_READY);
-
-
-
-
-

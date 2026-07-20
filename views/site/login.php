@@ -41,15 +41,14 @@ $this->title = $title;
                 echo $form->field($model, 'username')
                     ->textInput(['class' => 'form-control'])
                     ->label('Username', ['class' => 'required-control-label'])
-                    ->hint('Type in your registration number', ['id' => 'username-hint', 'tag' => 'small', 'class' => 'text-muted']);
+                    ->hint('Type in your registration/admission reference number', ['id' => 'username-hint', 'tag' => 'small', 'class' => 'text-muted']);
 
                 echo $form->field($model, 'password')
                     ->textInput([
                         'type' => 'password',
                         'class' => 'form-control'
                     ])
-                    ->label('Password', ['class' => 'required-control-label'])
-                    ->hint('Type in your AD portal password', ['id' => 'password-hint', 'tag' => 'small', 'class' => 'text-muted']);
+                    ->label('Password', ['class' => 'required-control-label']);
                 ?>
 
                 <div class="row">
@@ -61,10 +60,10 @@ $this->title = $title;
                 <?php ActiveForm::end(); ?>
 
                 <p class="mb-1" style="margin-top: 20px;">
-                    <a href="<?=Yii::$app->params['changePasswordUrl']?>" class="btn-link" target="_blank">
-                        I forgot my password</a>
+                    <?php
+                    echo Html::a('I forgot my password', ['/site/forgot-password'], ['title' => 'I forgot my password', 'class' => 'btn-link']);
+                    ?>
                 </p>
-
             </div>
         </div>
         <!-- /.login-card-body -->
