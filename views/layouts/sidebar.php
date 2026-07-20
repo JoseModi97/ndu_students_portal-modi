@@ -10,6 +10,15 @@ use yii\helpers\Url;
 
 <!-- Main Sidebar Container -->
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
+    <!-- Brand Logo -->
+    <a href="<?= Url::to(['/site/index']); ?>" class="brand-link">
+        <img src="<?= Yii::getAlias('@web'); ?>/img/ndu-arms.png" alt="NDU logo" class="brand-image">
+        <span class="brand-text">
+            NDU Student Portal
+            <small>National Defence University-Kenya</small>
+        </span>
+    </a>
+
     <!-- Sidebar -->
     <div class="sidebar">
         <!-- Sidebar user panel (optional) -->

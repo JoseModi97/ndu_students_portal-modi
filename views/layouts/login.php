@@ -31,7 +31,33 @@ AppAsset::register($this);
 <body class="hold-transition login-page">
 <?php $this->beginBody() ?>
 
-<?= $content ?>
+<div class="auth-shell">
+    <aside class="auth-illustration" aria-hidden="true">
+        <div class="auth-illustration-media"></div>
+        <div class="auth-illustration-overlay"></div>
+        <span class="auth-blob auth-blob-a"></span>
+        <span class="auth-blob auth-blob-b"></span>
+        <span class="auth-blob auth-blob-c"></span>
+        <div class="auth-illustration-content">
+            <img src="<?= Yii::getAlias('@web'); ?>/img/ndu-arms.png" alt="" class="auth-illustration-crest">
+            <h2>National Defence University&#8209;Kenya</h2>
+            <p>Access your registration, fees, results and academic records in one secure place.</p>
+        </div>
+    </aside>
+
+    <main class="auth-panel">
+        <div class="auth-panel-scroll">
+            <div class="auth-panel-inner">
+                <div class="auth-brand">
+                    <img src="<?= Yii::getAlias('@web'); ?>/img/ndu-arms.png" alt="NDU logo" class="auth-brand-logo">
+                    <span class="auth-brand-name">NDU Student Portal</span>
+                </div>
+
+                <?= $content ?>
+            </div>
+        </div>
+    </main>
+</div>
 
 <?php
 foreach (Yii::$app->session->getAllFlashes() as $flash) {
@@ -78,11 +104,8 @@ $img = Yii::getAlias('@web') . '/img/ndu-model.jpg';
 
 $this->registerCss(
     <<<CSS
-body{
+.auth-illustration-media{
 background-image: url('$img');
-background-position: center;
-background-repeat: no-repeat;
-background-size: cover;
 }
 CSS
 );
