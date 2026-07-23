@@ -34,6 +34,20 @@ AppAsset::register($this);
 <body class="hold-transition login-page">
 <?php $this->beginBody() ?>
 
+<header class="site-top-header">
+    <div class="site-top-header-inner">
+        <a href="<?= Yii::getAlias('@web'); ?>" class="site-top-header-logo">
+            <img src="<?= Yii::getAlias('@web'); ?>/img/ndu-eng-logo.png" alt="National Defence University-Kenya">
+        </a>
+        <div class="site-top-header-brand">
+            <h1 class="site-top-header-title">National Defence University&#8209;Kenya</h1>
+            <p class="site-top-header-tagline">Wisdom. Excellence. Service</p>
+        </div>
+        <img src="<?= Yii::getAlias('@web'); ?>/img/ndu-at5.png" alt="" class="site-top-header-anniversary" aria-hidden="true">
+    </div>
+    <span class="site-top-header-stripe" aria-hidden="true"></span>
+</header>
+
 <div class="auth-shell">
     <aside class="auth-illustration" aria-hidden="true">
         <div class="auth-illustration-media"></div>
