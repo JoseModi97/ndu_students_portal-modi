@@ -980,7 +980,8 @@ label {
    ========================================================= */
 body.login-page {
     background-color: var(--ink) !important;
-    height: auto;
+    height: 100vh;
+    height: 100dvh;
     min-height: 100vh;
     min-height: 100dvh;
     padding: 0;
