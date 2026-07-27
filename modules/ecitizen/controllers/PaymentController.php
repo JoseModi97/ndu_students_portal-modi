@@ -320,7 +320,7 @@ final class PaymentController extends BaseController
         }
 
         try {
-            $transId = $this->payments->postPaidBankingSlip(
+            $queued = $this->payments->queuePaidRequestForSync(
                 $notification['reference'],
                 $notification['amount'],
                 $notification['paymentDate'],
@@ -336,7 +336,7 @@ final class PaymentController extends BaseController
             return $this->asJson(['success' => false, 'message' => 'Unable to process the payment notification.']);
         }
 
-        return $this->asJson(['success' => true, 'trans_id' => $transId, 'storage_status' => 'posted']);
+        return $this->asJson(['success' => true, 'payment_id' => $queued['payment_id'], 'storage_status' => 'saved']);
     }
 
     public function actionSuccess(string $reference): Response
@@ -644,7 +644,7 @@ final class PaymentController extends BaseController
         }
 
         try {
-            $this->payments->postPaidBankingSlip(
+            $this->payments->queuePaidRequestForSync(
                 $reference,
                 $this->payments->paidAmount($statusPayload) ?? (float) $invoice['deposit_amount'],
                 $this->payments->paymentDate($statusPayload),
@@ -652,12 +652,12 @@ final class PaymentController extends BaseController
                 $statusPayload
             );
         } catch (\Throwable $exception) {
-            Yii::error('Unable to post eCitizen invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
-            $this->setFlash('danger', 'Posting failed', 'eCitizen confirmed payment, but the finance posting failed. Please contact the administrator.');
+            Yii::error('Unable to queue eCitizen invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            $this->setFlash('danger', 'Crediting failed', 'eCitizen confirmed payment, but the fee statement credit failed. Please contact the administrator.');
             return $this->redirect(['invoices']);
         }
 
-        $this->setFlash('success', 'Payment posted', 'eCitizen confirmed the payment and posted it to your portal fee statement.');
+        $this->setFlash('success', 'Payment credited', 'eCitizen confirmed the payment and credited your portal fee statement.');
         return $this->redirect(['invoices']);
     }
 
