@@ -39,10 +39,12 @@ class PaymentService
     private const PORTAL_ECITIZEN_TRANS_ID_OFFSET = 900000000000;
 
     private Connection $db;
+    private SmisSyncService $smisSync;
 
     public function __construct()
     {
         $this->db = $this->portalDb();
+        $this->smisSync = new SmisSyncService();
     }
 
     private function module(): Module
@@ -319,6 +321,8 @@ class PaymentService
             }
             $priority++;
         }
+
+        $this->smisSync->mirrorPaymentTypes($catalog);
     }
 
     public function serviceIdForPaymentType(int $paymentTypeId): string
@@ -852,6 +856,7 @@ class PaymentService
             }
 
             $transaction->commit();
+            $this->smisSync->mirrorEcitizenState($payment->toArray());
             return ['trans_id' => (int) $payment->payment_id, 'reference' => $reference];
         } catch (\Throwable $exception) {
             $transaction->rollBack();
@@ -903,6 +908,8 @@ class PaymentService
                 ], ['payment_id' => $request['payment_id']]);
                 $transaction->commit();
 
+                $this->mirrorCreditedRequestToSmis($request, $amount, $paymentDate, $gatewayReference, $metadata);
+
                 return [
                     'payment_id' => (int) $request['payment_id'],
                     'reference' => $reference,
@@ -928,6 +935,8 @@ class PaymentService
 
             $transaction->commit();
 
+            $this->mirrorCreditedRequestToSmis($request, $amount, $paymentDate, $gatewayReference, $metadata);
+
             return [
                 'payment_id' => (int) $request['payment_id'],
                 'reference' => $reference,
@@ -935,6 +944,27 @@ class PaymentService
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             throw $exception;
+        }
+    }
+
+    private function mirrorCreditedRequestToSmis(
+        array $request,
+        float $amount,
+        string $paymentDate,
+        string $gatewayReference,
+        array $metadata
+    ): void {
+        $freshRow = Ecitizen::find()
+            ->where(['payment_id' => $request['payment_id']])
+            ->asArray()
+            ->one($this->portalDb());
+        if ($freshRow) {
+            $this->smisSync->mirrorEcitizenState($freshRow);
+        }
+
+        $sharedTransId = (int) ($metadata['portal_fee_trans_id'] ?? 0);
+        if ($sharedTransId > 0) {
+            $this->smisSync->mirrorFeeCredit($request, $amount, $paymentDate, $gatewayReference, $metadata, $sharedTransId);
         }
     }
 
@@ -1021,11 +1051,24 @@ class PaymentService
             throw $exception;
         }
 
+        $this->mirrorEcitizenRowByPaymentId((int) $request['payment_id']);
+
         return [
             'reference' => $reference,
             'remote_status' => $remoteStatus,
             'reconciliation_status' => $reconciliationStatus,
         ];
+    }
+
+    private function mirrorEcitizenRowByPaymentId(int $paymentId): void
+    {
+        $freshRow = Ecitizen::find()
+            ->where(['payment_id' => $paymentId])
+            ->asArray()
+            ->one($this->portalDb());
+        if ($freshRow) {
+            $this->smisSync->mirrorEcitizenState($freshRow);
+        }
     }
 
     public function classifyReconciliationPayload(array $request, array $payload): array
@@ -1063,6 +1106,7 @@ class PaymentService
                 'status' => 'Settled',
             ]);
             $transaction->commit();
+            $this->mirrorEcitizenRowByPaymentId($paymentId);
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             Yii::warning(
@@ -1117,16 +1161,27 @@ class PaymentService
                 'sync_error' => substr($message, 0, 1000),
             ], ['billRefNumber' => $reference]);
             $transaction->commit();
+            $this->mirrorEcitizenRowByReference($reference);
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             Yii::warning('Unable to mark eCitizen sync failed for ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
         }
     }
 
-    public function postPaidBankingSlip(string $reference, float $amount, string $paymentDate, string $gatewayReference): int
+    private function mirrorEcitizenRowByReference(string $billRefNumber): void
     {
-        $this->assertConsoleSmisWriteContext();
+        $freshRow = Ecitizen::find()
+            ->where(['billRefNumber' => $billRefNumber])
+            ->orderBy(['payment_id' => SORT_DESC])
+            ->asArray()
+            ->one($this->portalDb());
+        if ($freshRow) {
+            $this->smisSync->mirrorEcitizenState($freshRow);
+        }
+    }
 
+    public function postPaidBankingSlip(string $reference, float $amount, string $paymentDate, string $gatewayReference, array $payload = []): int
+    {
         $slip = BankingSlip::find()
             ->where([
                 'or',
@@ -1152,9 +1207,6 @@ class PaymentService
             if (abs($portalExpectedAmount - round($amount, 2)) > 0.01) {
                 throw new ServerErrorHttpException('The paid amount does not match the requested amount.');
             }
-
-            $this->queuePaidRequestForSync($reference, $amount, $paymentDate, $gatewayReference);
-            $pendingRequest = $this->pendingRequestByReference($reference) ?: $pendingRequest;
         }
 
         $transaction = $this->db->beginTransaction();
@@ -1184,7 +1236,8 @@ class PaymentService
             $this->ensureSmisFeePayment($slip, $amount, $paymentDate);
 
             $transaction->commit();
-            $this->markPendingRequestSettled($reference, $gatewayReference, (int) $slip['trans_id']);
+            $this->markPendingRequestSettled($reference, $gatewayReference, (int) $slip['trans_id'], $payload);
+            $this->smisSync->mirrorBankingSlipPosted($slip, $paymentDate, $gatewayReference, $paymentDescription);
             return (int) $slip['trans_id'];
         } catch (\Throwable $exception) {
             $transaction->rollBack();
@@ -1219,16 +1272,6 @@ class PaymentService
         );
 
         return $config;
-    }
-
-    private function assertConsoleSmisWriteContext(): void
-    {
-        if (Yii::$app instanceof \yii\console\Application) {
-            return;
-        }
-
-        Yii::error('Blocked web-context attempt to run the legacy banking-slip posting workflow.', 'ecitizen.payment');
-        throw new ServerErrorHttpException('Legacy banking-slip posting is only available from the console.');
     }
 
     private function pendingRequestByReference(string $reference): ?array
@@ -1376,7 +1419,7 @@ class PaymentService
             ->one($this->db);
     }
 
-    private function markPendingRequestSettled(string $reference, string $gatewayReference, int $transId): void
+    private function markPendingRequestSettled(string $reference, string $gatewayReference, int $transId, array $payload = []): void
     {
         $portalDb = $this->portalDb();
         $transaction = $portalDb->beginTransaction();
@@ -1388,6 +1431,9 @@ class PaymentService
             $metadata = json_decode((string) $existingResponse, true);
             $metadata = is_array($metadata) ? $metadata : [];
             $metadata['gateway_reference'] = $gatewayReference;
+            if ($payload !== []) {
+                $metadata['notification_payload'] = $payload;
+            }
 
             $this->allowEcitizenWrite($portalDb);
             Ecitizen::updateAll([
@@ -1399,6 +1445,7 @@ class PaymentService
                 'last_synced_at' => date('Y-m-d H:i:s'),
             ], ['billRefNumber' => $reference]);
             $transaction->commit();
+            $this->mirrorEcitizenRowByReference($reference);
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             Yii::warning('Unable to mark eCitizen request settled for ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');

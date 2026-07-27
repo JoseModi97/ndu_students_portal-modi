@@ -12,6 +12,8 @@ class Module extends BaseModule
 
     public string $portalDb = 'db';
 
+    public string $smisDb = 'smisDb';
+
     public function connection(string $id): Connection
     {
         if ($this->has($id)) {
