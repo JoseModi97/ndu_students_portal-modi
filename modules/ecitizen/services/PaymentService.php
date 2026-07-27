@@ -340,11 +340,16 @@ class PaymentService
      */
     public function serviceCatalog(): array
     {
-        static $catalog;
-        if ($catalog !== null) {
-            return $catalog;
-        }
-
+        // Deliberately not cached in a static/process-lifetime variable:
+        // under PHP-FPM (or any worker model that serves more than one
+        // request per process), a static cache here would freeze whichever
+        // catalog the first request on that worker happened to read for
+        // the rest of that worker's life. Different workers would then
+        // serve different payment-type lists to different requests
+        // (a service silently missing for some users but not others) and
+        // a stale worker would never notice the workbook was ever fixed.
+        // The workbook is tiny, so re-parsing it on every call is cheap
+        // enough to just always do it.
         $path = dirname(__DIR__) . '/NDU SERVICE CODES.xlsx';
         if (!is_file($path)) {
             throw new InvalidConfigException('NDU service codes workbook was not found in the eCitizen module.');
@@ -405,6 +410,12 @@ class PaymentService
                 }
 
                 if ($service !== null && $service !== '' && $serviceCode !== false && $serviceCode !== null) {
+                    if (isset($catalog[$serviceCode]) && $catalog[$serviceCode] !== $service) {
+                        Yii::warning(
+                            "NDU service codes workbook has duplicate service code {$serviceCode}: keeping '{$catalog[$serviceCode]}', ignoring '{$service}'.",
+                            'ecitizen.payment'
+                        );
+                    }
                     $catalog[$serviceCode] ??= $service;
                 }
             }
