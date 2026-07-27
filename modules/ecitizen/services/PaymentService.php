@@ -963,9 +963,46 @@ class PaymentService
         }
 
         $sharedTransId = (int) ($metadata['portal_fee_trans_id'] ?? 0);
-        if ($sharedTransId > 0) {
-            $this->smisSync->mirrorFeeCredit($request, $amount, $paymentDate, $gatewayReference, $metadata, $sharedTransId);
+        if ($sharedTransId <= 0) {
+            return;
         }
+
+        $registrationNumber = (string) ($request['registration_number'] ?? '');
+        if ($registrationNumber === '') {
+            return;
+        }
+
+        // smis and smisportal share the same numeric ids for academic progress,
+        // programme curriculum and collection points (see feesManagement's
+        // BankingSlips::postFeeTransactions in the smis app, which posts the
+        // exact same ids into both databases). So we resolve these once
+        // against smisportal here and hand them to smis as-is, rather than
+        // re-resolving them independently against smis's own tables.
+        try {
+            $context = $this->portalStudentContextByRegistrationNumber($registrationNumber);
+            $academicProgress = $context['academicProgress'];
+            $progressCode = $this->progressCodeFor($this->portalDb(), $registrationNumber, (int) $academicProgress['acad_session_id']);
+            $studentSemesterSessionId = $this->studentSemesterSessionId($this->portalDb(), (int) $academicProgress['academic_progress_id']);
+        } catch (\Throwable $exception) {
+            Yii::warning(
+                'SMIS mirror skipped fee credit for ' . $registrationNumber . ': could not resolve smisportal context: ' . $exception->getMessage(),
+                'ecitizen.smis_sync'
+            );
+            return;
+        }
+
+        $this->smisSync->mirrorFeeCredit(
+            $request,
+            $amount,
+            $paymentDate,
+            $gatewayReference,
+            $metadata,
+            $sharedTransId,
+            (int) $academicProgress['academic_progress_id'],
+            (int) $context['programme']['student_prog_curriculum_id'],
+            $studentSemesterSessionId,
+            $progressCode
+        );
     }
 
     public function pendingPaidRequestsForSync(int $limit = 50): array
@@ -1237,12 +1274,47 @@ class PaymentService
 
             $transaction->commit();
             $this->markPendingRequestSettled($reference, $gatewayReference, (int) $slip['trans_id'], $payload);
-            $this->smisSync->mirrorBankingSlipPosted($slip, $paymentDate, $gatewayReference, $paymentDescription);
+            $this->mirrorPostedSlipToSmis($slip, $paymentDate, $gatewayReference, $paymentDescription);
             return (int) $slip['trans_id'];
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             throw $exception;
         }
+    }
+
+    private function mirrorPostedSlipToSmis(array $slip, string $paymentDate, string $gatewayReference, string $paymentDescription): void
+    {
+        $registrationNumber = (string) ($slip['reg_number'] ?? $slip['registration_number'] ?? '');
+        if ($registrationNumber === '') {
+            return;
+        }
+
+        // See mirrorCreditedRequestToSmis: smis and smisportal share ids for
+        // academic progress / programme curriculum, so we resolve them once
+        // against smisportal and reuse them as-is on the smis side.
+        try {
+            $studentContext = $this->studentContextByRegistrationNumber($registrationNumber);
+            $academicProgress = $studentContext['academicProgress'];
+            $progressCode = $this->progressCode($studentContext['registrationNumber'], (int) $academicProgress['acad_session_id']);
+            $studentSemesterSessionId = $this->studentSemesterSessionId($this->db, (int) $academicProgress['academic_progress_id']);
+        } catch (\Throwable $exception) {
+            Yii::warning(
+                'SMIS mirror skipped banking slip posting for ' . $registrationNumber . ': could not resolve smisportal context: ' . $exception->getMessage(),
+                'ecitizen.smis_sync'
+            );
+            return;
+        }
+
+        $this->smisSync->mirrorBankingSlipPosted(
+            $slip,
+            $paymentDate,
+            $gatewayReference,
+            $paymentDescription,
+            (int) $academicProgress['academic_progress_id'],
+            (int) $studentContext['programme']['student_prog_curriculum_id'],
+            $studentSemesterSessionId,
+            $progressCode
+        );
     }
 
     public function gatewayConfig(): array

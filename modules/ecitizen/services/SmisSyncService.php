@@ -2,17 +2,11 @@
 
 namespace app\modules\ecitizen\services;
 
-use app\modules\ecitizen\models\smis\SmisAcademicProgress;
-use app\modules\ecitizen\models\smis\SmisAcademicSession;
-use app\modules\ecitizen\models\smis\SmisBankAccount;
 use app\modules\ecitizen\models\smis\SmisBankingSlip;
 use app\modules\ecitizen\models\smis\SmisEcitizen;
 use app\modules\ecitizen\models\smis\SmisFeePayment;
 use app\modules\ecitizen\models\smis\SmisFeeTransaction;
 use app\modules\ecitizen\models\smis\SmisPaymentType;
-use app\modules\ecitizen\models\smis\SmisStudent;
-use app\modules\ecitizen\models\smis\SmisStudentProgCurriculum;
-use app\modules\ecitizen\models\smis\SmisStudentSemesterSessionProgress;
 use Yii;
 use yii\db\Connection;
 use yii\db\IntegrityException;
@@ -24,16 +18,20 @@ use yii\db\IntegrityException;
  *
  * `smisportal` remains the source of truth for the student-facing payment
  * flow: every method here is fire-and-forget from the caller's point of
- * view. Failures (missing student in smis, missing bank mapping, a schema
- * difference, smis being briefly unreachable, ...) are logged and
- * swallowed so they never affect the primary smisportal transaction that
- * already committed by the time these run.
+ * view. Failures (a schema difference, smis being briefly unreachable, a
+ * foreign key that doesn't exist yet, ...) are logged and swallowed so
+ * they never affect the primary smisportal transaction that already
+ * committed by the time these run.
  *
- * Because smis and smisportal are separate physical databases, every
- * foreign key (academic progress, programme, collection point/bank) is
- * re-resolved against smis's own tables via natural keys (registration
- * number, bank code + account number) rather than reusing smisportal's
- * numeric ids, which are meaningless in smis.
+ * Foreign keys (academic progress id, programme curriculum id, collection
+ * point/bank id) are NOT re-resolved against smis's own tables. They are
+ * passed in already resolved from smisportal and reused as-is, matching
+ * the pattern the smis app's own admin posting flow already relies on
+ * (modules/feesManagement/models/BankingSlips::postFeeTransactions in the
+ * smis codebase copies academic_progress_id/collection_point_id/trans_id
+ * straight across into smisportal.fss_fee_transactions) — i.e. smis and
+ * smisportal already share the same numeric ids for these reference
+ * tables.
  */
 final class SmisSyncService
 {
@@ -111,6 +109,12 @@ final class SmisSyncService
      * fss_fee_payments row) that PaymentService::creditPortalFeeStatement
      * created in smisportal, using the same shared $sharedTransId so the
      * two databases stay joinable on trans_id for this payment.
+     *
+     * $academicProgressId, $studentProgCurriculumId, $studentSemesterSessionId
+     * and $progressCode are the values already resolved by PaymentService
+     * against smisportal and reused here as-is (see class docblock).
+     * $metadata['bank_id'] (smisportal's collection point id) is likewise
+     * reused directly as the smis collection_point_id.
      */
     public function mirrorFeeCredit(
         array $request,
@@ -118,7 +122,11 @@ final class SmisSyncService
         string $paymentDate,
         string $gatewayReference,
         array $metadata,
-        int $sharedTransId
+        int $sharedTransId,
+        int $academicProgressId,
+        int $studentProgCurriculumId,
+        ?int $studentSemesterSessionId,
+        string $progressCode
     ): void {
         $registrationNumber = (string) ($request['registration_number'] ?? '');
         $this->safely('mirror fee credit for ' . ($request['billRefNumber'] ?? $registrationNumber), function () use (
@@ -128,21 +136,12 @@ final class SmisSyncService
             $gatewayReference,
             $metadata,
             $sharedTransId,
+            $academicProgressId,
+            $studentProgCurriculumId,
+            $studentSemesterSessionId,
+            $progressCode,
             $registrationNumber
         ): void {
-            if ($registrationNumber === '') {
-                return;
-            }
-
-            $context = $this->resolveContext($registrationNumber);
-            if ($context === null) {
-                Yii::warning(
-                    "SMIS mirror skipped fee credit: student {$registrationNumber} could not be resolved in smis.",
-                    self::LOG_CATEGORY
-                );
-                return;
-            }
-
             $db = $this->connection();
             $transaction = $db->beginTransaction();
             try {
@@ -153,12 +152,11 @@ final class SmisSyncService
                 if (!$existingCredit) {
                     $description = substr((string) ($request['billDesc'] ?? 'eCitizen student fee payment'), 0, 150);
                     $userId = (string) ($metadata['user_id'] ?? $registrationNumber);
-                    $progressCode = $this->progressCode($context['academicProgress'], $registrationNumber);
 
                     $feeTransaction = new SmisFeeTransaction();
                     $feeTransaction->setAttributes([
                         'trans_id' => (string) $sharedTransId,
-                        'academic_progress_id' => $context['academicProgress']['academic_progress_id'],
+                        'academic_progress_id' => $academicProgressId,
                         'trans_date' => $paymentDate,
                         'trans_type' => 'CR',
                         'trans_amount' => $amount,
@@ -168,9 +166,7 @@ final class SmisSyncService
                         'exchange_rate' => 1,
                         'progress_code' => $progressCode,
                         'sync_status' => false,
-                        'student_semester_session_id' => $this->studentSemesterSessionId(
-                            (int) $context['academicProgress']['academic_progress_id']
-                        ),
+                        'student_semester_session_id' => $studentSemesterSessionId,
                     ], false);
                     if (!$feeTransaction->save(false)) {
                         throw new \RuntimeException('Unable to mirror fee transaction: ' . json_encode($feeTransaction->getErrors()));
@@ -178,7 +174,7 @@ final class SmisSyncService
                 }
 
                 $existingPayment = SmisFeePayment::find()->where(['trans_id' => $sharedTransId])->exists();
-                $bankId = $this->resolveBankId($metadata['account_no'] ?? null, $metadata['bank_number'] ?? null);
+                $bankId = $this->bankIdFromMetadata($metadata);
 
                 if (!$existingPayment && $bankId !== null) {
                     $userId = (string) ($metadata['user_id'] ?? $registrationNumber);
@@ -196,7 +192,7 @@ final class SmisSyncService
                         'authorized_date' => date('Y-m-d'),
                         'receipt_status' => '',
                         'exchange_rate' => 1,
-                        'student_prog_curriculum_id' => $context['programme']['student_prog_curriculum_id'],
+                        'student_prog_curriculum_id' => $studentProgCurriculumId,
                     ];
                     if (!$this->columnHasDatabaseGeneratedValue('smis.fss_fee_payments', 'fee_paymt_id')) {
                         $paymentAttributes['fee_paymt_id'] = $sharedTransId;
@@ -209,7 +205,7 @@ final class SmisSyncService
                     }
                 } elseif (!$existingPayment) {
                     Yii::warning(
-                        "SMIS mirror skipped fee payment for trans_id {$sharedTransId}: no matching bank account in smis.",
+                        "SMIS mirror skipped fee payment for trans_id {$sharedTransId}: no collection point id available.",
                         self::LOG_CATEGORY
                     );
                 }
@@ -300,19 +296,28 @@ final class SmisSyncService
     }
 
     /**
-     * Mirrors the console-only postPaidBankingSlip flow: finds or creates
-     * the smis banking slip by source/trans reference, marks it POSTED,
-     * and ensures a matching fee transaction + fee payment in smis. Uses
+     * Mirrors PaymentService::postPaidBankingSlip: finds or creates the
+     * smis banking slip by source/trans reference, marks it POSTED, and
+     * ensures a matching fee transaction + fee payment in smis. Uses
      * smis's own banking-slip trans_id as the shared key between those
      * two rows (this flow never touches the eCitizen gateway table).
+     *
+     * $academicProgressId, $studentProgCurriculumId, $studentSemesterSessionId
+     * and $progressCode are resolved by PaymentService against smisportal
+     * and reused as-is here (see class docblock). The slip's own bank_id
+     * (smisportal's collection point id) is reused directly too.
      */
     public function mirrorBankingSlipPosted(
         array $slip,
         string $paymentDate,
         string $gatewayReference,
-        string $paymentDescription
+        string $paymentDescription,
+        int $academicProgressId,
+        int $studentProgCurriculumId,
+        ?int $studentSemesterSessionId,
+        string $progressCode
     ): void {
-        $reference = (string) ($slip['source_reference'] ?: $slip['trans_reference'] ?? '');
+        $reference = (string) ($slip['source_reference'] ?: ($slip['trans_reference'] ?? ''));
         if ($reference === '') {
             return;
         }
@@ -322,10 +327,16 @@ final class SmisSyncService
             $paymentDate,
             $gatewayReference,
             $paymentDescription,
-            $reference
+            $reference,
+            $academicProgressId,
+            $studentProgCurriculumId,
+            $studentSemesterSessionId,
+            $progressCode
         ): void {
             $registrationNumber = (string) ($slip['reg_number'] ?? $slip['registration_number'] ?? '');
-            $context = $registrationNumber !== '' ? $this->resolveContext($registrationNumber) : null;
+            $bankId = isset($slip['bank_id']) && $slip['bank_id'] !== null && $slip['bank_id'] !== ''
+                ? (int) $slip['bank_id']
+                : null;
 
             $db = $this->connection();
             $transaction = $db->beginTransaction();
@@ -336,7 +347,6 @@ final class SmisSyncService
                     ->one();
 
                 if ($smisSlip === null) {
-                    $bankId = $this->resolveBankId($slip['account_no'] ?? null, $slip['bank_number'] ?? null);
                     $smisSlip = new SmisBankingSlip();
                     $smisSlip->setAttributes([
                         'deposit_date' => $paymentDate,
@@ -378,10 +388,22 @@ final class SmisSyncService
                     }
                 }
 
-                if ($context !== null) {
-                    $this->ensureBankingSlipFeeTransaction($smisSlip->trans_id, (float) $slip['deposit_amount'], $paymentDate, $paymentDescription, $context);
-                    $this->ensureBankingSlipFeePayment($smisSlip, (float) $slip['deposit_amount'], $paymentDate, $context);
-                }
+                $this->ensureBankingSlipFeeTransaction(
+                    (int) $smisSlip->trans_id,
+                    (float) $slip['deposit_amount'],
+                    $paymentDate,
+                    $paymentDescription,
+                    $academicProgressId,
+                    $studentSemesterSessionId,
+                    $progressCode,
+                    (string) ($slip['user_id'] ?? $registrationNumber)
+                );
+                $this->ensureBankingSlipFeePayment(
+                    $smisSlip,
+                    (float) $slip['deposit_amount'],
+                    $paymentDate,
+                    $studentProgCurriculumId
+                );
 
                 $transaction->commit();
             } catch (\Throwable $exception) {
@@ -396,7 +418,10 @@ final class SmisSyncService
         float $amount,
         string $paymentDate,
         string $paymentDescription,
-        array $context
+        int $academicProgressId,
+        ?int $studentSemesterSessionId,
+        string $progressCode,
+        string $userId
     ): void {
         $existing = SmisFeeTransaction::find()->where(['trans_id' => $transId])->exists();
         if ($existing) {
@@ -406,38 +431,37 @@ final class SmisSyncService
             return;
         }
 
-        $registrationNumber = (string) $context['programme']['registration_number'];
-        $progressCode = $this->progressCode($context['academicProgress'], $registrationNumber);
-
         $feeTransaction = new SmisFeeTransaction();
         $feeTransaction->setAttributes([
             'trans_id' => $transId,
-            'academic_progress_id' => $context['academicProgress']['academic_progress_id'],
+            'academic_progress_id' => $academicProgressId,
             'trans_date' => $paymentDate,
             'trans_type' => 'CR',
             'trans_amount' => $amount,
             'trans_desc' => substr($paymentDescription, 0, 150),
-            'user_id' => $registrationNumber,
+            'user_id' => $userId,
             'receipt_status' => '',
             'exchange_rate' => 1,
             'progress_code' => $progressCode,
-            'student_semester_session_id' => $this->studentSemesterSessionId(
-                (int) $context['academicProgress']['academic_progress_id']
-            ),
+            'student_semester_session_id' => $studentSemesterSessionId,
         ], false);
         if (!$feeTransaction->save(false)) {
             throw new \RuntimeException('Unable to mirror banking-slip fee transaction: ' . json_encode($feeTransaction->getErrors()));
         }
     }
 
-    private function ensureBankingSlipFeePayment(SmisBankingSlip $smisSlip, float $amount, string $paymentDate, array $context): void
-    {
+    private function ensureBankingSlipFeePayment(
+        SmisBankingSlip $smisSlip,
+        float $amount,
+        string $paymentDate,
+        int $studentProgCurriculumId
+    ): void {
         $existingPayment = SmisFeePayment::find()->where(['trans_id' => $smisSlip->trans_id])->exists();
         if ($existingPayment || empty($smisSlip->bank_id)) {
             return;
         }
 
-        $userId = (string) ($smisSlip->user_id ?: $context['programme']['registration_number']);
+        $userId = (string) ($smisSlip->user_id ?: $smisSlip->reg_number);
         $paymentAttributes = [
             'receipt_no' => (string) $smisSlip->trans_id,
             'trans_date' => $paymentDate,
@@ -452,7 +476,7 @@ final class SmisSyncService
             'authorized_date' => date('Y-m-d'),
             'receipt_status' => '',
             'exchange_rate' => 1,
-            'student_prog_curriculum_id' => $context['programme']['student_prog_curriculum_id'],
+            'student_prog_curriculum_id' => $studentProgCurriculumId,
         ];
         if (!$this->columnHasDatabaseGeneratedValue('smis.fss_fee_payments', 'fee_paymt_id')) {
             $paymentAttributes['fee_paymt_id'] = $smisSlip->trans_id;
@@ -465,98 +489,10 @@ final class SmisSyncService
         }
     }
 
-    /**
-     * Resolves a student's programme/academic-progress context from smis's
-     * own tables by registration number. Returns null (never throws) if
-     * the student isn't found in smis, so callers can skip the mirror.
-     */
-    private function resolveContext(string $registrationNumber): ?array
+    private function bankIdFromMetadata(array $metadata): ?int
     {
-        $student = SmisStudent::find()
-            ->where(['student_number' => $registrationNumber])
-            ->asArray()
-            ->one();
-        if (!$student) {
-            return null;
-        }
-
-        $programme = SmisStudentProgCurriculum::find()
-            ->where(['registration_number' => $registrationNumber])
-            ->orderBy(['student_prog_curriculum_id' => SORT_DESC])
-            ->asArray()
-            ->one();
-        if (!$programme) {
-            return null;
-        }
-
-        $academicProgress = SmisAcademicProgress::find()
-            ->where(['student_prog_curriculum_id' => $programme['student_prog_curriculum_id']])
-            ->orderBy(['academic_progress_id' => SORT_DESC])
-            ->asArray()
-            ->one();
-        if (!$academicProgress) {
-            return null;
-        }
-
-        return [
-            'student' => $student,
-            'programme' => $programme,
-            'academicProgress' => $academicProgress,
-        ];
-    }
-
-    /**
-     * Resolves smis's own bank surrogate id (fss_banks.brank_id) from the
-     * natural keys stored on the smisportal metadata (account number and
-     * bank code), since the smisportal-side numeric ids are meaningless
-     * in the smis database.
-     */
-    private function resolveBankId(?string $accountNo, ?string $bankCode): ?int
-    {
-        $accountNo = trim((string) $accountNo);
-        if ($accountNo === '') {
-            return null;
-        }
-
-        $query = SmisBankAccount::find()
-            ->alias('ba')
-            ->select(['bank.brank_id'])
-            ->joinWith(['branch branch' => static fn ($q) => $q->joinWith('bank bank')], false)
-            ->where(['ba.account_no' => $accountNo]);
-
-        $bankCode = trim((string) $bankCode);
-        if ($bankCode !== '') {
-            $query->andWhere(['branch.bank_code' => $bankCode]);
-        }
-
-        $bankId = $query->scalar();
-
-        return $bankId !== false && $bankId !== null ? (int) $bankId : null;
-    }
-
-    private function progressCode(array $academicProgress, string $registrationNumber): string
-    {
-        $sessionName = SmisAcademicSession::find()
-            ->select('acad_session_name')
-            ->where(['acad_session_id' => $academicProgress['acad_session_id']])
-            ->scalar();
-
-        return $registrationNumber . '-' . ($sessionName ?: $academicProgress['acad_session_id']);
-    }
-
-    private function studentSemesterSessionId(int $academicProgressId): ?int
-    {
-        try {
-            $id = SmisStudentSemesterSessionProgress::find()
-                ->select('student_semester_session_id')
-                ->where(['academic_progress_id' => $academicProgressId])
-                ->orderBy(['student_semester_session_id' => SORT_DESC])
-                ->scalar();
-        } catch (\Throwable) {
-            return null;
-        }
-
-        return $id === false || $id === null ? null : (int) $id;
+        $bankId = $metadata['bank_id'] ?? null;
+        return $bankId !== null && $bankId !== '' ? (int) $bankId : null;
     }
 
     private function columnHasDatabaseGeneratedValue(string $table, string $column): bool
