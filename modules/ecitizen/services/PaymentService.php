@@ -1074,6 +1074,8 @@ class PaymentService
             return;
         }
 
+        $this->reconcileEcitizenPaymentIdSequencesThrottled();
+
         $portalDb = $this->portalDb();
         $candidates = Ecitizen::find()
             ->where(['registration_number' => $registrationNumber])
@@ -1115,6 +1117,30 @@ class PaymentService
 
             $this->lockPosting($portalDb, $reference);
             $this->attemptSmisPosting($request, $metadata);
+        }
+    }
+
+    /**
+     * Sequence reconciliation (see SmisPostingService::reconcilePaymentIdSequence())
+     * is a global, table-wide concern, not a per-student one, so it's throttled
+     * via cache rather than re-run on every single invoices page load.
+     */
+    private function reconcileEcitizenPaymentIdSequencesThrottled(): void
+    {
+        $cache = Yii::$app->cache;
+        $key = ['ecitizen', 'sequence-reconcile', 'ecitizen.payment_id'];
+        if ($cache->get($key) !== false) {
+            return;
+        }
+        $cache->set($key, true, 300);
+
+        try {
+            $this->smisPosting->reconcilePaymentIdSequence($this->portalDb());
+        } catch (\Throwable $exception) {
+            Yii::warning(
+                'Unable to reconcile ecitizen.payment_id sequences: ' . $exception->getMessage(),
+                'ecitizen.smis_posting'
+            );
         }
     }
 
