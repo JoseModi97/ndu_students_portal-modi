@@ -39,10 +39,12 @@ class PaymentService
     private const PORTAL_ECITIZEN_TRANS_ID_OFFSET = 900000000000;
 
     private Connection $db;
+    private SmisPostingService $smisPosting;
 
     public function __construct()
     {
         $this->db = $this->portalDb();
+        $this->smisPosting = new SmisPostingService();
     }
 
     private function module(): Module
@@ -336,11 +338,16 @@ class PaymentService
      */
     public function serviceCatalog(): array
     {
-        static $catalog;
-        if ($catalog !== null) {
-            return $catalog;
-        }
-
+        // Deliberately not cached in a static/process-lifetime variable:
+        // under PHP-FPM (or any worker model that serves more than one
+        // request per process), a static cache here would freeze whichever
+        // catalog the first request on that worker happened to read for
+        // the rest of that worker's life. Different workers would then
+        // serve different payment-type lists to different requests
+        // (a service silently missing for some users but not others) and
+        // a stale worker would never notice the workbook was ever fixed.
+        // The workbook is tiny, so re-parsing it on every call is cheap
+        // enough to just always do it.
         $path = dirname(__DIR__) . '/NDU SERVICE CODES.xlsx';
         if (!is_file($path)) {
             throw new InvalidConfigException('NDU service codes workbook was not found in the eCitizen module.');
@@ -401,6 +408,12 @@ class PaymentService
                 }
 
                 if ($service !== null && $service !== '' && $serviceCode !== false && $serviceCode !== null) {
+                    if (isset($catalog[$serviceCode]) && $catalog[$serviceCode] !== $service) {
+                        Yii::warning(
+                            "NDU service codes workbook has duplicate service code {$serviceCode}: keeping '{$catalog[$serviceCode]}', ignoring '{$service}'.",
+                            'ecitizen.payment'
+                        );
+                    }
                     $catalog[$serviceCode] ??= $service;
                 }
             }
@@ -521,7 +534,25 @@ class PaymentService
             ->all();
         $this->attachFeePaymentFlags($bankingSlipInvoices);
 
-        return array_merge($bankingSlipInvoices, $this->pendingInvoiceRequests($registrationNumber));
+        $invoices = array_merge($bankingSlipInvoices, $this->pendingInvoiceRequests($registrationNumber));
+        $this->attachSmisPostingFlags($invoices);
+
+        return $invoices;
+    }
+
+    private function attachSmisPostingFlags(array &$rows): void
+    {
+        $references = array_values(array_unique(array_filter(array_map(
+            static fn (array $row): string => (string) ($row['source_reference'] ?? ($row['trans_reference'] ?? '')),
+            $rows
+        ))));
+        $posted = $references === [] ? [] : array_flip($this->smisPosting->postedReferences($references));
+
+        foreach ($rows as &$row) {
+            $reference = (string) ($row['source_reference'] ?? ($row['trans_reference'] ?? ''));
+            $row['has_smis_posting'] = isset($posted[$reference]) ? 1 : 0;
+        }
+        unset($row);
     }
 
     public function findInvoiceRequest(int $transId, string $registrationNumber): ?array
@@ -903,6 +934,8 @@ class PaymentService
                 ], ['payment_id' => $request['payment_id']]);
                 $transaction->commit();
 
+                $this->attemptSmisPosting($request, $metadata);
+
                 return [
                     'payment_id' => (int) $request['payment_id'],
                     'reference' => $reference,
@@ -928,6 +961,8 @@ class PaymentService
 
             $transaction->commit();
 
+            $this->attemptSmisPosting($request, $metadata);
+
             return [
                 'payment_id' => (int) $request['payment_id'],
                 'reference' => $reference,
@@ -935,6 +970,151 @@ class PaymentService
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             throw $exception;
+        }
+    }
+
+    /**
+     * Best-effort: posts the just-credited payment into the standalone smis
+     * database (see SmisPostingService). Never lets a smis-side failure
+     * surface to the caller — smisportal has already committed and remains
+     * the source of truth; an unposted payment just stays "Sync pending"
+     * until the next attempt (see syncSettledInvoicesToSmis()).
+     *
+     * On success, backfills the real smis receipt_no it generated into
+     * smisportal.fss_fee_payments.receipt_no, so the portal fee statement
+     * (CoursesController::actionFeeStatement()) shows that receipt number —
+     * matching what SMIS's own fee statement report shows in the same
+     * "Trans ID" column fallback — instead of the eCitizen bill reference
+     * it started with (see creditPortalFeeStatement()).
+     */
+    private function attemptSmisPosting(array $request, array $metadata): void
+    {
+        $billRefNumber = (string) ($request['billRefNumber'] ?? '');
+        $transId = (int) ($metadata['portal_fee_trans_id'] ?? 0);
+        if ($billRefNumber === '' || $transId <= 0) {
+            return;
+        }
+
+        try {
+            $registrationNumber = (string) $request['registration_number'];
+            $context = $this->portalStudentContextByRegistrationNumber($registrationNumber);
+            $academicProgress = $context['academicProgress'];
+            $progressCode = $this->progressCodeFor($this->portalDb(), $registrationNumber, (int) $academicProgress['acad_session_id']);
+            $studentSemesterSessionId = $this->studentSemesterSessionId($this->portalDb(), (int) $academicProgress['academic_progress_id']);
+
+            $smisReceiptNo = $this->smisPosting->postCreditedPayment([
+                'billRefNumber' => $billRefNumber,
+                'gatewayReference' => (string) ($metadata['gateway_reference'] ?? ''),
+                'registrationNumber' => $registrationNumber,
+                'transId' => $transId,
+                'amount' => (float) ($metadata['paid_amount'] ?? $request['amountExpected']),
+                'paymentDate' => (string) ($metadata['payment_date'] ?? date('Y-m-d')),
+                'description' => (string) ($request['billDesc'] ?? 'eCitizen student fee payment'),
+                'userId' => (string) ($metadata['user_id'] ?? $registrationNumber),
+                'academicProgressId' => (int) $academicProgress['academic_progress_id'],
+                'studentProgCurriculumId' => (int) $context['programme']['student_prog_curriculum_id'],
+                'studentSemesterSessionId' => $studentSemesterSessionId,
+                'progressCode' => $progressCode,
+                'payMode' => self::PAYMENT_MODE_ID,
+                'bankId' => $metadata['bank_id'] ?? null,
+                'bankNumber' => $metadata['bank_number'] ?? null,
+                'branchCode' => $metadata['branch_code'] ?? null,
+                'accountNo' => $metadata['account_no'] ?? null,
+                'otherNames' => $metadata['other_names'] ?? null,
+                'clientName' => $request['clientName'] ?? null,
+                'paymentTypeId' => $metadata['payment_type_id'] ?? null,
+            ]);
+
+            if ($smisReceiptNo !== null) {
+                $this->syncPortalReceiptNumber($transId, $smisReceiptNo);
+            }
+        } catch (\Throwable $exception) {
+            Yii::error(
+                'SMIS posting skipped for ' . $billRefNumber . ': could not resolve smisportal context: ' . $exception->getMessage(),
+                'ecitizen.smis_posting'
+            );
+        }
+    }
+
+    /**
+     * Replaces the placeholder receipt number set by creditPortalFeeStatement()
+     * (the eCitizen gateway/bill reference) with the real smis receipt_no
+     * generated when the matching smis banking slip was posted, once that
+     * posting has actually happened. Best-effort: the portal fee payment row
+     * and its credit already committed before this runs, so a failure here
+     * just leaves the placeholder in place until the next sync attempt.
+     */
+    private function syncPortalReceiptNumber(int $portalFeeTransId, int $smisReceiptNo): void
+    {
+        try {
+            FeePayment::updateAll(
+                ['receipt_no' => (string) $smisReceiptNo],
+                ['trans_id' => $portalFeeTransId]
+            );
+        } catch (\Throwable $exception) {
+            Yii::error(
+                'Unable to sync smis receipt_no ' . $smisReceiptNo . ' into the portal fee statement for trans_id '
+                . $portalFeeTransId . ': ' . $exception->getMessage(),
+                'ecitizen.smis_posting'
+            );
+        }
+    }
+
+    /**
+     * Sweeps the given student's credited/settled eCitizen invoices that are
+     * missing from the smis database and posts them (see
+     * SmisPostingService). Each candidate is re-confirmed directly against
+     * the eCitizen gateway before posting, so a stale or wrong local
+     * "Credited" status can never cause a false post to smis. Capped at
+     * $limit gateway calls per invocation to bound page-load latency.
+     */
+    public function syncSettledInvoicesToSmis(string $registrationNumber, int $limit = 10): void
+    {
+        if (trim($registrationNumber) === '' || $limit <= 0) {
+            return;
+        }
+
+        $portalDb = $this->portalDb();
+        $candidates = Ecitizen::find()
+            ->where(['registration_number' => $registrationNumber])
+            ->andWhere(['status' => ['Credited', 'Settled']])
+            ->orderBy(['payment_id' => SORT_ASC])
+            ->asArray()
+            ->all($portalDb);
+
+        $attempted = 0;
+        foreach ($candidates as $request) {
+            if ($attempted >= $limit) {
+                break;
+            }
+
+            $reference = trim((string) ($request['billRefNumber'] ?? ''));
+            if ($reference === '' || $this->smisPosting->isAlreadyPosted($reference)) {
+                continue;
+            }
+
+            $attempted++;
+
+            try {
+                $payload = $this->queryPaymentStatus($reference);
+            } catch (\Throwable $exception) {
+                Yii::warning(
+                    'SMIS posting sync: eCitizen status query failed for ' . $reference . ': ' . $exception->getMessage(),
+                    'ecitizen.smis_posting'
+                );
+                continue;
+            }
+
+            $classification = $this->classifyReconciliationPayload($request, $payload);
+            if ($classification['reconciliation_status'] !== self::RECONCILIATION_CONFIRMED) {
+                continue;
+            }
+
+            $metadata = json_decode((string) ($request['response'] ?? ''), true);
+            $metadata = is_array($metadata) ? $metadata : [];
+
+            $this->lockPosting($portalDb, $reference);
+            $this->attemptSmisPosting($request, $metadata);
         }
     }
 
@@ -1611,9 +1791,16 @@ class PaymentService
         }
     }
 
+    /**
+     * smisportal.ecitizen and smis.ecitizen both carry a BEFORE INSERT/UPDATE/DELETE
+     * trigger (see migrations/m260518_000001_create_ecitizen_payment_tables.php) that
+     * rejects any write unless this session-local flag is set first. Must be called
+     * within the same transaction as the write it's guarding — SET LOCAL only lasts
+     * for the current transaction.
+     */
     private function allowEcitizenWrite(Connection $db): void
     {
-        // eCitizen writes are now performed through the smisportal ActiveRecord model.
+        $db->createCommand("SET LOCAL smisportal.ecitizen_app_write = '1'")->execute();
     }
 
     private function columnHasDatabaseGeneratedValue(Connection $db, string $table, string $column): bool

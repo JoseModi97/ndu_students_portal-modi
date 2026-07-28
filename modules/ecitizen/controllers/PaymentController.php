@@ -347,6 +347,15 @@ final class PaymentController extends BaseController
     public function actionInvoices(): string
     {
         $studentContext = $this->payments->resolveLoggedInStudent();
+        try {
+            $this->payments->syncSettledInvoicesToSmis($studentContext['registrationNumber']);
+        } catch (\Throwable $exception) {
+            Yii::warning(
+                'SMIS posting sync failed for ' . $studentContext['registrationNumber'] . ': ' . $exception->getMessage(),
+                'ecitizen.smis_posting'
+            );
+        }
+
         $invoices = $this->normalizeInvoices($this->payments->invoiceRequests($studentContext['registrationNumber']));
         foreach ($invoices as &$invoice) {
             $invoice['trans_id_token'] = $this->payments->invoiceToken(
@@ -439,9 +448,11 @@ final class PaymentController extends BaseController
             $postStatus = strtoupper((string) $invoice['post_status']);
             $isSettled = in_array($postStatus, ['NOT POSTED', 'CREDITED', 'SETTLED', 'POSTED'], true) || !empty($invoice['has_fee_payment']);
             $invoice['settlement_status'] = $isSettled ? 'Settled' : 'Not settled';
+            $isCreditedOnPortal = !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true);
             $invoice['action_status'] = match (true) {
                 $postStatus === 'POSTED' || $postStatus === 'SETTLED' => '',
-                !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true) => '',
+                $isCreditedOnPortal && empty($invoice['has_smis_posting']) => 'Sync pending',
+                $isCreditedOnPortal => '',
                 default => 'Pending action',
             };
 
