@@ -11,6 +11,7 @@ use app\models\SmisportalSmAdmittedStudent;
 use app\models\Student;
 use app\models\StudentProgCurriculum;
 use app\models\StudentSemesterSessionProgress;
+use app\modules\ecitizen\components\EcitizenLogger;
 use app\modules\ecitizen\Module;
 use app\modules\ecitizen\models\BankAccount;
 use app\modules\ecitizen\models\BankingSlip;
@@ -123,7 +124,7 @@ class PaymentService
 
             return $transId;
         } catch (\Throwable $exception) {
-            Yii::warning('Rejected invalid eCitizen invoice token: ' . $exception->getMessage(), 'ecitizen.payment');
+            EcitizenLogger::exception('ecitizen/invoice-token', $exception, null, ['token' => $token]);
             throw new BadRequestHttpException('The invoice link is invalid. Please open it from your invoice list.');
         }
     }
@@ -407,9 +408,9 @@ class PaymentService
 
                 if ($service !== null && $service !== '' && $serviceCode !== false && $serviceCode !== null) {
                     if (isset($catalog[$serviceCode]) && $catalog[$serviceCode] !== $service) {
-                        Yii::warning(
-                            "NDU service codes workbook has duplicate service code {$serviceCode}: keeping '{$catalog[$serviceCode]}', ignoring '{$service}'.",
-                            'ecitizen.payment'
+                        EcitizenLogger::warning(
+                            'NDU service codes workbook has a duplicate service code',
+                            ['serviceCode' => $serviceCode, 'kept' => $catalog[$serviceCode], 'ignored' => $service]
                         );
                     }
                     $catalog[$serviceCode] ??= $service;
@@ -1059,11 +1060,7 @@ class PaymentService
             $transaction->commit();
         } catch (\Throwable $exception) {
             $transaction->rollBack();
-            Yii::warning(
-                'Unable to record eCitizen reconciliation failure for payment ' . $paymentId . ': '
-                . $exception->getMessage(),
-                'ecitizen.payment'
-            );
+            EcitizenLogger::exception('ecitizen/reconciliation', $exception, null, ['payment_id' => $paymentId]);
         }
     }
 
@@ -1113,7 +1110,7 @@ class PaymentService
             $transaction->commit();
         } catch (\Throwable $exception) {
             $transaction->rollBack();
-            Yii::warning('Unable to mark eCitizen sync failed for ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            EcitizenLogger::exception('ecitizen/mark-sync-failed', $exception, null, ['reference' => $reference]);
         }
     }
 
@@ -1210,7 +1207,7 @@ class PaymentService
             return;
         }
 
-        Yii::error('Blocked web-context attempt to run the legacy banking-slip posting workflow.', 'ecitizen.payment');
+        EcitizenLogger::error('Blocked web-context attempt to run the legacy banking-slip posting workflow');
         throw new ServerErrorHttpException('Legacy banking-slip posting is only available from the console.');
     }
 
@@ -1294,7 +1291,7 @@ class PaymentService
             $transaction->commit();
         } catch (\Throwable $exception) {
             $transaction->rollBack();
-            Yii::warning('Unable to mark eCitizen request settled for ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            EcitizenLogger::exception('ecitizen/mark-settled', $exception, null, ['reference' => $reference]);
         }
     }
 

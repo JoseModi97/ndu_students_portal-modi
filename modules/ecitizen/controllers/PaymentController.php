@@ -3,6 +3,7 @@
 namespace app\modules\ecitizen\controllers;
 
 use app\controllers\BaseController;
+use app\modules\ecitizen\components\EcitizenLogger;
 use app\modules\ecitizen\models\forms\PaymentForm;
 use app\modules\ecitizen\services\PaymentService;
 use Yii;
@@ -108,6 +109,40 @@ final class PaymentController extends BaseController
         }
 
         return $result;
+    }
+
+    /**
+     * Wraps every action of this controller with detailed, developer-style
+     * logging into the eCitizen module's own log file: one entry when the
+     * action starts, one when it finishes successfully, and a full
+     * exception report (class, message, file:line, stack trace) for any
+     * throwable that escapes the action - even ones no inner try/catch
+     * already handles (e.g. actionIndex, actionInvoices, actionReport).
+     */
+    public function runAction($id, $params = []): mixed
+    {
+        $action = $this->id . '/' . $id;
+        $startedAt = EcitizenLogger::requestStart($action, $this->requestParamsForLog($params));
+
+        try {
+            $result = parent::runAction($id, $params);
+            EcitizenLogger::requestEnd($action, $startedAt, is_array($result) ? $result : null);
+
+            return $result;
+        } catch (\Throwable $exception) {
+            EcitizenLogger::exception($action, $exception, $startedAt);
+            throw $exception;
+        }
+    }
+
+    private function requestParamsForLog(array $routeParams): array
+    {
+        $request = Yii::$app->request;
+
+        return array_merge(
+            $routeParams,
+            $request->isGet ? $request->queryParams : $request->bodyParams
+        );
     }
 
     public function actionIndex(): string
@@ -328,9 +363,11 @@ final class PaymentController extends BaseController
                 $payload
             );
         } catch (\Throwable $exception) {
-            Yii::error(
-                'Unable to process signed eCitizen notification: ' . $exception->getMessage(),
-                'ecitizen.payment'
+            EcitizenLogger::exception(
+                $this->id . '/notify',
+                $exception,
+                null,
+                ['reference' => $notification['reference'] ?? null]
             );
             Yii::$app->response->statusCode = 500;
             return $this->asJson(['success' => false, 'message' => 'Unable to process the payment notification.']);
@@ -630,7 +667,7 @@ final class PaymentController extends BaseController
         try {
             $statusPayload = $this->payments->queryPaymentStatus($reference);
         } catch (\Throwable $exception) {
-            Yii::warning('eCitizen status query failed for invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            EcitizenLogger::exception($this->id . '/complete-payment', $exception, null, ['reference' => $reference]);
             $this->setFlash('danger', 'Verification unavailable', 'Unable to verify this invoice with eCitizen at the moment. Please try again later.');
             return $this->redirect(['invoices']);
         }
@@ -653,7 +690,7 @@ final class PaymentController extends BaseController
                 $statusPayload
             );
         } catch (\Throwable $exception) {
-            Yii::error('Unable to queue eCitizen invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            EcitizenLogger::exception($this->id . '/complete-payment', $exception, null, ['reference' => $reference]);
             $this->setFlash('danger', 'Confirmation failed', 'eCitizen confirmed payment, but recording that confirmation failed. Please contact the administrator.');
             return $this->redirect(['invoices']);
         }
@@ -689,9 +726,9 @@ final class PaymentController extends BaseController
 
         $bankAccount = $this->payments->findBankAccount((int) $configuredBankAccountId);
         if ($bankAccount === null) {
-            Yii::warning(
-                'Ignoring invalid eCitizen configured bankAccountId: ' . $configuredBankAccountId,
-                'ecitizen.payment'
+            EcitizenLogger::warning(
+                'Ignoring invalid eCitizen configured bankAccountId',
+                ['bankAccountId' => $configuredBankAccountId]
             );
             return null;
         }
@@ -750,19 +787,11 @@ final class PaymentController extends BaseController
 
     private function publicExceptionMessage(\Throwable $exception, string $fallback): string
     {
+        EcitizenLogger::exception($this->id . '/' . ($this->action->id ?? 'unknown'), $exception);
+
         if ($exception instanceof HttpException && $exception->statusCode >= 400 && $exception->statusCode < 500) {
             return $exception->getMessage();
         }
-
-        Yii::error(
-            sprintf(
-                'eCitizen payment request failed: %s in %s:%d',
-                $exception->getMessage(),
-                $exception->getFile(),
-                $exception->getLine()
-            ),
-            'ecitizen.payment'
-        );
 
         return $fallback;
     }
