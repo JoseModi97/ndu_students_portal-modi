@@ -39,12 +39,10 @@ class PaymentService
     private const PORTAL_ECITIZEN_TRANS_ID_OFFSET = 900000000000;
 
     private Connection $db;
-    private SmisPostingService $smisPosting;
 
     public function __construct()
     {
         $this->db = $this->portalDb();
-        $this->smisPosting = new SmisPostingService();
     }
 
     private function module(): Module
@@ -534,25 +532,7 @@ class PaymentService
             ->all();
         $this->attachFeePaymentFlags($bankingSlipInvoices);
 
-        $invoices = array_merge($bankingSlipInvoices, $this->pendingInvoiceRequests($registrationNumber));
-        $this->attachSmisPostingFlags($invoices);
-
-        return $invoices;
-    }
-
-    private function attachSmisPostingFlags(array &$rows): void
-    {
-        $references = array_values(array_unique(array_filter(array_map(
-            static fn (array $row): string => (string) ($row['source_reference'] ?? ($row['trans_reference'] ?? '')),
-            $rows
-        ))));
-        $posted = $references === [] ? [] : array_flip($this->smisPosting->postedReferences($references));
-
-        foreach ($rows as &$row) {
-            $reference = (string) ($row['source_reference'] ?? ($row['trans_reference'] ?? ''));
-            $row['has_smis_posting'] = isset($posted[$reference]) ? 1 : 0;
-        }
-        unset($row);
+        return array_merge($bankingSlipInvoices, $this->pendingInvoiceRequests($registrationNumber));
     }
 
     public function findInvoiceRequest(int $transId, string $registrationNumber): ?array
@@ -926,22 +906,11 @@ class PaymentService
 
             $this->lockPosting($portalDb, $reference);
 
-            if ((int) ($request['sync_status'] ?? self::SYNC_PENDING) === self::SYNC_DONE) {
-                $this->creditPortalFeeStatement($portalDb, $request, $amount, $paymentDate, $gatewayReference, $metadata);
-                $this->allowEcitizenWrite($portalDb);
-                Ecitizen::updateAll([
-                    'response' => json_encode($metadata),
-                ], ['payment_id' => $request['payment_id']]);
-                $transaction->commit();
-
-                $this->attemptSmisPosting($request, $metadata);
-
-                return [
-                    'payment_id' => (int) $request['payment_id'],
-                    'reference' => $reference,
-                ];
-            }
-
+            // Deliberately does not credit fss_fee_transactions/fss_fee_payments
+            // here (or in smis) any more — this just records that eCitizen has
+            // confirmed the payment. EcitizenPaymentSettlementService in the
+            // smis admin app is now the only place that credits either side,
+            // re-verifying against the gateway itself before doing so.
             $this->allowEcitizenWrite($portalDb);
             Ecitizen::updateAll([
                 'status' => 'Credited',
@@ -949,19 +918,9 @@ class PaymentService
                 'payment_date' => $paymentDate,
                 'gateway_reference' => substr($gatewayReference ?: $reference, 0, 100),
                 'response' => json_encode($metadata),
-                'sync_status' => self::SYNC_PENDING,
-                'sync_error' => null,
-                'last_synced_at' => null,
-            ], ['payment_id' => $request['payment_id']]);
-
-            $this->creditPortalFeeStatement($portalDb, $request, $amount, $paymentDate, $gatewayReference, $metadata);
-            Ecitizen::updateAll([
-                'response' => json_encode($metadata),
             ], ['payment_id' => $request['payment_id']]);
 
             $transaction->commit();
-
-            $this->attemptSmisPosting($request, $metadata);
 
             return [
                 'payment_id' => (int) $request['payment_id'],
@@ -970,177 +929,6 @@ class PaymentService
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             throw $exception;
-        }
-    }
-
-    /**
-     * Best-effort: posts the just-credited payment into the standalone smis
-     * database (see SmisPostingService). Never lets a smis-side failure
-     * surface to the caller — smisportal has already committed and remains
-     * the source of truth; an unposted payment just stays "Sync pending"
-     * until the next attempt (see syncSettledInvoicesToSmis()).
-     *
-     * On success, backfills the real smis receipt_no it generated into
-     * smisportal.fss_fee_payments.receipt_no, so the portal fee statement
-     * (CoursesController::actionFeeStatement()) shows that receipt number —
-     * matching what SMIS's own fee statement report shows in the same
-     * "Trans ID" column fallback — instead of the eCitizen bill reference
-     * it started with (see creditPortalFeeStatement()).
-     */
-    private function attemptSmisPosting(array $request, array $metadata): void
-    {
-        $billRefNumber = (string) ($request['billRefNumber'] ?? '');
-        $transId = (int) ($metadata['portal_fee_trans_id'] ?? 0);
-        if ($billRefNumber === '' || $transId <= 0) {
-            return;
-        }
-
-        try {
-            $registrationNumber = (string) $request['registration_number'];
-            $context = $this->portalStudentContextByRegistrationNumber($registrationNumber);
-            $academicProgress = $context['academicProgress'];
-            $progressCode = $this->progressCodeFor($this->portalDb(), $registrationNumber, (int) $academicProgress['acad_session_id']);
-            $studentSemesterSessionId = $this->studentSemesterSessionId($this->portalDb(), (int) $academicProgress['academic_progress_id']);
-
-            $smisReceiptNo = $this->smisPosting->postCreditedPayment([
-                'billRefNumber' => $billRefNumber,
-                'gatewayReference' => (string) ($metadata['gateway_reference'] ?? ''),
-                'registrationNumber' => $registrationNumber,
-                'transId' => $transId,
-                'amount' => (float) ($metadata['paid_amount'] ?? $request['amountExpected']),
-                'paymentDate' => (string) ($metadata['payment_date'] ?? date('Y-m-d')),
-                'description' => (string) ($request['billDesc'] ?? 'eCitizen student fee payment'),
-                'userId' => (string) ($metadata['user_id'] ?? $registrationNumber),
-                'academicProgressId' => (int) $academicProgress['academic_progress_id'],
-                'studentProgCurriculumId' => (int) $context['programme']['student_prog_curriculum_id'],
-                'studentSemesterSessionId' => $studentSemesterSessionId,
-                'progressCode' => $progressCode,
-                'payMode' => self::PAYMENT_MODE_ID,
-                'bankId' => $metadata['bank_id'] ?? null,
-                'bankNumber' => $metadata['bank_number'] ?? null,
-                'branchCode' => $metadata['branch_code'] ?? null,
-                'accountNo' => $metadata['account_no'] ?? null,
-                'otherNames' => $metadata['other_names'] ?? null,
-                'clientName' => $request['clientName'] ?? null,
-                'paymentTypeId' => $metadata['payment_type_id'] ?? null,
-            ]);
-
-            if ($smisReceiptNo !== null) {
-                $this->syncPortalReceiptNumber($transId, $smisReceiptNo);
-            }
-        } catch (\Throwable $exception) {
-            Yii::error(
-                'SMIS posting skipped for ' . $billRefNumber . ': could not resolve smisportal context: ' . $exception->getMessage(),
-                'ecitizen.smis_posting'
-            );
-        }
-    }
-
-    /**
-     * Replaces the placeholder receipt number set by creditPortalFeeStatement()
-     * (the eCitizen gateway/bill reference) with the real smis receipt_no
-     * generated when the matching smis banking slip was posted, once that
-     * posting has actually happened. Best-effort: the portal fee payment row
-     * and its credit already committed before this runs, so a failure here
-     * just leaves the placeholder in place until the next sync attempt.
-     */
-    private function syncPortalReceiptNumber(int $portalFeeTransId, int $smisReceiptNo): void
-    {
-        try {
-            FeePayment::updateAll(
-                ['receipt_no' => (string) $smisReceiptNo],
-                ['trans_id' => $portalFeeTransId]
-            );
-        } catch (\Throwable $exception) {
-            Yii::error(
-                'Unable to sync smis receipt_no ' . $smisReceiptNo . ' into the portal fee statement for trans_id '
-                . $portalFeeTransId . ': ' . $exception->getMessage(),
-                'ecitizen.smis_posting'
-            );
-        }
-    }
-
-    /**
-     * Sweeps the given student's credited/settled eCitizen invoices that are
-     * missing from the smis database and posts them (see
-     * SmisPostingService). Each candidate is re-confirmed directly against
-     * the eCitizen gateway before posting, so a stale or wrong local
-     * "Credited" status can never cause a false post to smis. Capped at
-     * $limit gateway calls per invocation to bound page-load latency.
-     */
-    public function syncSettledInvoicesToSmis(string $registrationNumber, int $limit = 10): void
-    {
-        if (trim($registrationNumber) === '' || $limit <= 0) {
-            return;
-        }
-
-        $this->reconcileEcitizenPaymentIdSequencesThrottled();
-
-        $portalDb = $this->portalDb();
-        $candidates = Ecitizen::find()
-            ->where(['registration_number' => $registrationNumber])
-            ->andWhere(['status' => ['Credited', 'Settled']])
-            ->orderBy(['payment_id' => SORT_ASC])
-            ->asArray()
-            ->all($portalDb);
-
-        $attempted = 0;
-        foreach ($candidates as $request) {
-            if ($attempted >= $limit) {
-                break;
-            }
-
-            $reference = trim((string) ($request['billRefNumber'] ?? ''));
-            if ($reference === '' || $this->smisPosting->isAlreadyPosted($reference)) {
-                continue;
-            }
-
-            $attempted++;
-
-            try {
-                $payload = $this->queryPaymentStatus($reference);
-            } catch (\Throwable $exception) {
-                Yii::warning(
-                    'SMIS posting sync: eCitizen status query failed for ' . $reference . ': ' . $exception->getMessage(),
-                    'ecitizen.smis_posting'
-                );
-                continue;
-            }
-
-            $classification = $this->classifyReconciliationPayload($request, $payload);
-            if ($classification['reconciliation_status'] !== self::RECONCILIATION_CONFIRMED) {
-                continue;
-            }
-
-            $metadata = json_decode((string) ($request['response'] ?? ''), true);
-            $metadata = is_array($metadata) ? $metadata : [];
-
-            $this->lockPosting($portalDb, $reference);
-            $this->attemptSmisPosting($request, $metadata);
-        }
-    }
-
-    /**
-     * Sequence reconciliation (see SmisPostingService::reconcilePaymentIdSequence())
-     * is a global, table-wide concern, not a per-student one, so it's throttled
-     * via cache rather than re-run on every single invoices page load.
-     */
-    private function reconcileEcitizenPaymentIdSequencesThrottled(): void
-    {
-        $cache = Yii::$app->cache;
-        $key = ['ecitizen', 'sequence-reconcile', 'ecitizen.payment_id'];
-        if ($cache->get($key) !== false) {
-            return;
-        }
-        $cache->set($key, true, 300);
-
-        try {
-            $this->smisPosting->reconcilePaymentIdSequence($this->portalDb());
-        } catch (\Throwable $exception) {
-            Yii::warning(
-                'Unable to reconcile ecitizen.payment_id sequences: ' . $exception->getMessage(),
-                'ecitizen.smis_posting'
-            );
         }
     }
 
@@ -1407,22 +1195,11 @@ class PaymentService
             }
         }
 
-        $allowedGatewayHosts = array_values(array_filter(array_map(
-            static fn (mixed $host): string => strtolower(trim((string) $host)),
-            (array) ($config['allowedGatewayHosts'] ?? [])
-        )));
-        if ($allowedGatewayHosts === []) {
-            throw new InvalidConfigException('No trusted eCitizen gateway hosts are configured.');
-        }
-        $this->assertTrustedHttpsUrl((string) $config['url'], $allowedGatewayHosts, 'eCitizen gateway URL');
+        $this->assertTrustedHttpsUrl((string) $config['url'], 'eCitizen gateway URL');
         if (!empty($config['statusUrl'])) {
-            $this->assertTrustedHttpsUrl((string) $config['statusUrl'], $allowedGatewayHosts, 'eCitizen status URL');
+            $this->assertTrustedHttpsUrl((string) $config['statusUrl'], 'eCitizen status URL');
         }
-        $this->assertTrustedHttpsUrl(
-            (string) ($config['callbackBaseUrl'] ?? ''),
-            [],
-            'eCitizen callback base URL'
-        );
+        $this->assertTrustedHttpsUrl((string) ($config['callbackBaseUrl'] ?? ''), 'eCitizen callback base URL');
 
         return $config;
     }
@@ -1451,96 +1228,6 @@ class PaymentService
             ->one($this->portalDb());
 
         return $request ?: null;
-    }
-
-    private function creditPortalFeeStatement(
-        Connection $portalDb,
-        array $request,
-        float $amount,
-        string $paymentDate,
-        string $gatewayReference,
-        array &$metadata
-    ): void {
-        $paymentId = (int) $request['payment_id'];
-        $transId = (int) ($metadata['portal_fee_trans_id'] ?? 0);
-        $existingCredit = false;
-
-        if ($transId > 0) {
-            $existingCredit = FeeTransaction::find()
-                ->where(['trans_id' => $transId, 'trans_type' => 'CR'])
-                ->exists($portalDb);
-        }
-
-        if (!$existingCredit) {
-            $legacyTransId = $this->portalCreditTransId($paymentId);
-            $existingCredit = FeeTransaction::find()
-                ->where(['trans_id' => $legacyTransId, 'trans_type' => 'CR'])
-                ->exists($portalDb);
-            if ($existingCredit) {
-                $transId = $legacyTransId;
-            }
-        }
-
-        $registrationNumber = (string) $request['registration_number'];
-        $context = $this->portalStudentContextByRegistrationNumber($registrationNumber);
-        $description = substr((string) ($request['billDesc'] ?? 'eCitizen student fee payment'), 0, 150);
-        $userId = (string) ($metadata['user_id'] ?? $registrationNumber);
-        $progressCode = $this->progressCodeFor($portalDb, $registrationNumber, (int) $context['academicProgress']['acad_session_id']);
-
-        if (!$existingCredit) {
-            $feeTransaction = new FeeTransaction();
-            $feeTransaction->academic_progress_id = $context['academicProgress']['academic_progress_id'];
-            $feeTransaction->trans_date = $paymentDate;
-            $feeTransaction->trans_type = 'CR';
-            $feeTransaction->trans_amount = $amount;
-            $feeTransaction->trans_desc = $description;
-            $feeTransaction->user_id = $userId;
-            $feeTransaction->receipt_status = '';
-            $feeTransaction->exchange_rate = 1;
-            $feeTransaction->progress_code = $progressCode;
-            $feeTransaction->sync_status = false;
-            $feeTransaction->student_semester_session_id = $this->studentSemesterSessionId($portalDb, (int) $context['academicProgress']['academic_progress_id']);
-            if (!$feeTransaction->save(false)) {
-                throw new ServerErrorHttpException('Unable to create portal fee transaction.');
-            }
-            $transId = (int) $feeTransaction->trans_id;
-        }
-        $metadata['portal_fee_trans_id'] = $transId;
-
-        $existingPayment = FeePayment::find()
-            ->where(['trans_id' => $transId])
-            ->exists($portalDb);
-
-        $collectionPointId = $metadata['bank_id'] ?? null;
-        if ($existingPayment || $collectionPointId === null || $collectionPointId === '') {
-            return;
-        }
-
-        $paymentAttributes = [
-            'receipt_no' => $this->receiptNumber($gatewayReference, (string) $request['billRefNumber']),
-            'trans_date' => $paymentDate,
-            'trans_amount' => $amount,
-            'pay_mode' => self::PAYMENT_MODE_ID,
-            'collection_point_id' => (int) $collectionPointId,
-            'user_id' => $userId,
-            'entry_date' => date('Y-m-d'),
-            'trans_id' => $transId,
-            'academic_session' => '',
-            'authorized_by' => $userId,
-            'authorized_date' => date('Y-m-d'),
-            'receipt_status' => '',
-            'exchange_rate' => 1,
-            'student_prog_curriculum_id' => $context['programme']['student_prog_curriculum_id'],
-        ];
-        if (!$this->columnHasDatabaseGeneratedValue($portalDb, 'smisportal.fss_fee_payments', 'fee_paymt_id')) {
-            $paymentAttributes['fee_paymt_id'] = $transId;
-        }
-
-        $payment = new FeePayment();
-        $payment->setAttributes($paymentAttributes, false);
-        if (!$payment->save(false)) {
-            throw new ServerErrorHttpException('Unable to create portal fee payment.');
-        }
     }
 
     private function createSettledBankingSlip(array $request, string $paymentDate, string $gatewayReference): array
@@ -1737,30 +1424,6 @@ class PaymentService
         return $lastValue;
     }
 
-    private function portalStudentContextByRegistrationNumber(string $registrationNumber): array
-    {
-        $programme = StudentProgCurriculum::find()
-            ->where(['registration_number' => $registrationNumber])
-            ->orderBy(['student_prog_curriculum_id' => SORT_DESC])
-            ->asArray()
-            ->one();
-        $academicProgress = AcademicProgress::find()
-            ->where(['student_prog_curriculum_id' => $programme['student_prog_curriculum_id'] ?? null])
-            ->orderBy(['academic_progress_id' => SORT_DESC])
-            ->asArray()
-            ->one();
-
-        if (!$programme || !$academicProgress) {
-            throw new NotFoundHttpException('Student portal fee posting records could not be resolved.');
-        }
-
-        return [
-            'registrationNumber' => $registrationNumber,
-            'programme' => $programme,
-            'academicProgress' => $academicProgress,
-        ];
-    }
-
     private function studentSemesterSessionId(Connection $db, int $academicProgressId): ?int
     {
         try {
@@ -1774,11 +1437,6 @@ class PaymentService
         }
 
         return $id === false || $id === null ? null : (int) $id;
-    }
-
-    private function portalCreditTransId(int $paymentId): int
-    {
-        return self::PORTAL_ECITIZEN_TRANS_ID_OFFSET + $paymentId;
     }
 
     private function smisEcitizenPaymentId(int $transId): int
@@ -1835,12 +1493,6 @@ class PaymentService
         $tableColumn = $schema?->columns[$column] ?? null;
 
         return $tableColumn !== null && ($tableColumn->autoIncrement || $tableColumn->defaultValue !== null);
-    }
-
-    private function receiptNumber(string $gatewayReference, string $fallback): string
-    {
-        $receiptNo = trim($gatewayReference) !== '' ? $gatewayReference : $fallback;
-        return substr($receiptNo, 0, 30);
     }
 
     private function progressCode(string $registrationNumber, int $academicSessionId): string
@@ -2111,16 +1763,19 @@ class PaymentService
         return $baseUrl . Url::to([$route]);
     }
 
-    private function assertTrustedHttpsUrl(string $url, array $allowedHosts, string $label): void
+    /**
+     * Only enforces transport security (HTTPS, no embedded credentials) -
+     * deliberately does not restrict which host the configured eCitizen
+     * URLs may point at, so environments whose gateway host differs
+     * (sandbox endpoints, environment-specific hostnames, etc.) aren't
+     * rejected here.
+     */
+    private function assertTrustedHttpsUrl(string $url, string $label): void
     {
         $parts = parse_url($url);
         $host = strtolower((string) ($parts['host'] ?? ''));
         if (($parts['scheme'] ?? null) !== 'https' || $host === '' || isset($parts['user']) || isset($parts['pass'])) {
             throw new InvalidConfigException("{$label} must be an HTTPS URL without embedded credentials.");
-        }
-
-        if ($allowedHosts !== [] && !in_array($host, $allowedHosts, true)) {
-            throw new InvalidConfigException("{$label} uses an untrusted host.");
         }
     }
 

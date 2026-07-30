@@ -274,10 +274,6 @@ $select2FilterOptions = static function (string $placeholder): array {
                             'filter' => $invoiceFilterOptions['action_status'],
                             'filterWidgetOptions' => $select2FilterOptions('All actions'),
                             'value' => static function (array $invoice): string {
-                                if ($invoice['action_status'] === 'Sync pending') {
-                                    return Html::tag('span', Html::encode($invoice['action_status']), ['class' => 'badge bg-warning text-dark']);
-                                }
-
                                 if ($invoice['action_status'] !== 'Pending action') {
                                     return Html::tag('span', Html::encode($invoice['action_status']), ['class' => 'text-muted']);
                                 }

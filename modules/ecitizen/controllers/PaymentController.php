@@ -347,15 +347,6 @@ final class PaymentController extends BaseController
     public function actionInvoices(): string
     {
         $studentContext = $this->payments->resolveLoggedInStudent();
-        try {
-            $this->payments->syncSettledInvoicesToSmis($studentContext['registrationNumber']);
-        } catch (\Throwable $exception) {
-            Yii::warning(
-                'SMIS posting sync failed for ' . $studentContext['registrationNumber'] . ': ' . $exception->getMessage(),
-                'ecitizen.smis_posting'
-            );
-        }
-
         $invoices = $this->normalizeInvoices($this->payments->invoiceRequests($studentContext['registrationNumber']));
         foreach ($invoices as &$invoice) {
             $invoice['trans_id_token'] = $this->payments->invoiceToken(
@@ -451,7 +442,6 @@ final class PaymentController extends BaseController
             $isCreditedOnPortal = !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true);
             $invoice['action_status'] = match (true) {
                 $postStatus === 'POSTED' || $postStatus === 'SETTLED' => '',
-                $isCreditedOnPortal && empty($invoice['has_smis_posting']) => 'Sync pending',
                 $isCreditedOnPortal => '',
                 default => 'Pending action',
             };
@@ -632,7 +622,7 @@ final class PaymentController extends BaseController
         }
 
         if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
-            $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your portal fee statement.');
+            $this->setFlash('info', 'Payment confirmed', 'This payment has already been confirmed and is queued to be credited to your fee statement.');
             return $this->redirect(['invoices']);
         }
 
@@ -664,11 +654,15 @@ final class PaymentController extends BaseController
             );
         } catch (\Throwable $exception) {
             Yii::error('Unable to queue eCitizen invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
-            $this->setFlash('danger', 'Crediting failed', 'eCitizen confirmed payment, but the fee statement credit failed. Please contact the administrator.');
+            $this->setFlash('danger', 'Confirmation failed', 'eCitizen confirmed payment, but recording that confirmation failed. Please contact the administrator.');
             return $this->redirect(['invoices']);
         }
 
-        $this->setFlash('success', 'Payment credited', 'eCitizen confirmed the payment and credited your portal fee statement.');
+        $this->setFlash(
+            'success',
+            'Payment confirmed',
+            'eCitizen confirmed the payment. It has been queued and will be credited to your fee statement shortly.'
+        );
         return $this->redirect(['invoices']);
     }
 
