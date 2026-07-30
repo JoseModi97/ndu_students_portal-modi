@@ -11,6 +11,7 @@ use kartik\select2\Select2;
  * @var bool $paymentModeReady
  * @var array $paymentTypes
  * @var array $bankAccounts
+ * @var string|null $configuredBankAccountId
  * @var array $recentRequests
  */
 
@@ -124,7 +125,7 @@ JS);
     <div class="container-fluid">
         <?php if (!$paymentModeReady): ?>
             <div class="alert alert-danger">
-                eCitizen payment mode 12 is not configured in the portal database.
+                eCitizen payment mode 12 is not configured in SMIS.
             </div>
         <?php endif; ?>
 
@@ -171,18 +172,15 @@ JS);
                                 'allowClear' => true,
                             ],
                         ]) ?>
-                        <div style="display:none;">
-                            <?= $form->field($model, 'bank_account_id')->widget(Select2::class, [
-                                'data' => $bankAccounts,
-                                'options' => [
-                                    'placeholder' => 'Select eCitizen settlement account',
-                                    'required' => true,
-                                ],
-                                'pluginOptions' => [
-                                    'allowClear' => true,
-                                ],
+
+                        <?php if (!empty($configuredBankAccountId)): ?>
+                            <?= Html::activeHiddenInput($model, 'bank_account_id') ?>
+                        <?php else: ?>
+                            <?= $form->field($model, 'bank_account_id')->dropDownList($bankAccounts, [
+                                'prompt' => 'Select eCitizen settlement account',
+                                'required' => true,
                             ]) ?>
-                        </div>
+                        <?php endif; ?>
 
                         <?= Html::activeHiddenInput($model, 'narration') ?>
 

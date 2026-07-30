@@ -3,13 +3,13 @@
 namespace app\modules\ecitizen\controllers;
 
 use app\controllers\BaseController;
-use app\modules\ecitizen\components\EcitizenLogger;
 use app\modules\ecitizen\models\forms\PaymentForm;
 use app\modules\ecitizen\services\PaymentService;
 use Yii;
 use yii\base\DynamicModel;
 use yii\data\ArrayDataProvider;
 use yii\filters\AccessControl;
+use yii\filters\HostControl;
 use yii\filters\VerbFilter;
 use yii\helpers\ArrayHelper;
 use yii\web\BadRequestHttpException;
@@ -37,6 +37,11 @@ final class PaymentController extends BaseController
     public function behaviors(): array
     {
         return [
+            'host' => [
+                'class' => HostControl::class,
+                'allowedHosts' => fn (): array => (array) ($this->ecitizenParams()['allowedPortalHosts'] ?? []),
+                'fallbackHostInfo' => (string) ($this->ecitizenParams()['callbackBaseUrl'] ?? ''),
+            ],
             'access' => [
                 'class' => AccessControl::class,
                 'rules' => [
@@ -111,45 +116,14 @@ final class PaymentController extends BaseController
         return $result;
     }
 
-    /**
-     * Wraps every action of this controller with detailed, developer-style
-     * logging into the eCitizen module's own log file: one entry when the
-     * action starts, one when it finishes successfully, and a full
-     * exception report (class, message, file:line, stack trace) for any
-     * throwable that escapes the action - even ones no inner try/catch
-     * already handles (e.g. actionIndex, actionInvoices, actionReport).
-     */
-    public function runAction($id, $params = []): mixed
-    {
-        $action = $this->id . '/' . $id;
-        $startedAt = EcitizenLogger::requestStart($action, $this->requestParamsForLog($params));
-
-        try {
-            $result = parent::runAction($id, $params);
-            EcitizenLogger::requestEnd($action, $startedAt, is_array($result) ? $result : null);
-
-            return $result;
-        } catch (\Throwable $exception) {
-            EcitizenLogger::exception($action, $exception, $startedAt);
-            throw $exception;
-        }
-    }
-
-    private function requestParamsForLog(array $routeParams): array
-    {
-        $request = Yii::$app->request;
-
-        return array_merge(
-            $routeParams,
-            $request->isGet ? $request->queryParams : $request->bodyParams
-        );
-    }
-
     public function actionIndex(): string
     {
         $studentContext = $this->payments->resolveLoggedInStudent();
         $form = new PaymentForm();
-        $form->bank_account_id = $this->defaultSettlementBankAccountId();
+        $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
+        if (!empty($configuredBankAccountId)) {
+            $form->bank_account_id = (string) $configuredBankAccountId;
+        }
         $form->narration = PaymentForm::DEFAULT_NARRATION;
         $form->phone_number = $this->defaultPhoneNumber($studentContext);
 
@@ -160,6 +134,7 @@ final class PaymentController extends BaseController
             'paymentModeReady' => $this->payments->paymentModeExists(),
             'paymentTypes' => ArrayHelper::map($this->payments->paymentTypes(), 'payment_type_id', 'payment_desc'),
             'bankAccounts' => $this->bankAccountOptions(),
+            'configuredBankAccountId' => $configuredBankAccountId,
             'recentRequests' => $this->payments->recentRequests($studentContext['registrationNumber']),
         ]);
     }
@@ -174,12 +149,16 @@ final class PaymentController extends BaseController
         );
         $model = new PaymentForm();
         $studentContext = $this->payments->resolveLoggedInStudent();
-        $model->bank_account_id = $this->defaultSettlementBankAccountId();
+        $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
+
+        if (!empty($configuredBankAccountId)) {
+            $model->bank_account_id = (string) $configuredBankAccountId;
+        }
 
         $loaded = $model->load(Yii::$app->request->post());
-        // The settlement account is never trusted from client input - it is
-        // always resolved dynamically to the Co-operative Bank account.
-        $model->bank_account_id = $this->defaultSettlementBankAccountId();
+        if (!empty($configuredBankAccountId)) {
+            $model->bank_account_id = (string) $configuredBankAccountId;
+        }
         $model->narration = PaymentForm::DEFAULT_NARRATION;
 
         if (!$loaded || !$model->validate()) {
@@ -202,13 +181,14 @@ final class PaymentController extends BaseController
                 'paymentModeReady' => $this->payments->paymentModeExists(),
                 'paymentTypes' => ArrayHelper::map($this->payments->paymentTypes(), 'payment_type_id', 'payment_desc'),
                 'bankAccounts' => $this->bankAccountOptions(),
+                'configuredBankAccountId' => $configuredBankAccountId,
                 'recentRequests' => $this->payments->recentRequests($studentContext['registrationNumber']),
             ]);
         }
 
         try {
             if (!$this->payments->paymentModeExists()) {
-                throw new ServerErrorHttpException('eCitizen payment mode 12 is not configured in the portal database.');
+                throw new ServerErrorHttpException('eCitizen payment mode 12 is not configured in SMIS.');
             }
 
             $this->payments->gatewayConfig();
@@ -348,17 +328,15 @@ final class PaymentController extends BaseController
                 $payload
             );
         } catch (\Throwable $exception) {
-            EcitizenLogger::exception(
-                $this->id . '/notify',
-                $exception,
-                null,
-                ['reference' => $notification['reference'] ?? null]
+            Yii::error(
+                'Unable to process signed eCitizen notification: ' . $exception->getMessage(),
+                'ecitizen.payment'
             );
             Yii::$app->response->statusCode = 500;
             return $this->asJson(['success' => false, 'message' => 'Unable to process the payment notification.']);
         }
 
-        return $this->asJson(['success' => true, 'payment_id' => $queued['payment_id'], 'storage_status' => 'saved']);
+        return $this->asJson(['success' => true, 'payment_id' => $queued['payment_id'], 'sync_status' => 'queued']);
     }
 
     public function actionSuccess(string $reference): Response
@@ -376,7 +354,6 @@ final class PaymentController extends BaseController
                 $studentContext['registrationNumber']
             );
         }
-
         unset($invoice);
         $invoiceFilterModel = new DynamicModel([
             'reference',
@@ -461,10 +438,9 @@ final class PaymentController extends BaseController
             $postStatus = strtoupper((string) $invoice['post_status']);
             $isSettled = in_array($postStatus, ['NOT POSTED', 'CREDITED', 'SETTLED', 'POSTED'], true) || !empty($invoice['has_fee_payment']);
             $invoice['settlement_status'] = $isSettled ? 'Settled' : 'Not settled';
-            $isCreditedOnPortal = !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true);
             $invoice['action_status'] = match (true) {
                 $postStatus === 'POSTED' || $postStatus === 'SETTLED' => '',
-                $isCreditedOnPortal => '',
+                !empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true) => '',
                 default => 'Pending action',
             };
 
@@ -566,7 +542,7 @@ final class PaymentController extends BaseController
             }
 
             if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
-                $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your portal fee statement.');
+                $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your fee statement and is queued for SMIS sync.');
                 return $this->redirect(['invoices']);
             }
 
@@ -619,13 +595,6 @@ final class PaymentController extends BaseController
         }
     }
 
-    /**
-     * Does not call eCitizen itself - it only flags the payment as
-     * awaiting settlement (see PaymentService::queueForSettlementVerification())
-     * so it surfaces in the smis admin app's eCitizen settlement screen,
-     * which independently re-verifies against the real gateway before
-     * crediting anything.
-     */
     public function actionCompletePayment(string $trans_id): Response
     {
         $this->enforceRateLimit(
@@ -651,24 +620,43 @@ final class PaymentController extends BaseController
         }
 
         if (!empty($invoice['has_fee_payment']) || in_array($postStatus, ['NOT POSTED', 'CREDITED'], true)) {
-            $this->setFlash('info', 'Payment confirmed', 'This payment has already been confirmed and is queued to be credited to your fee statement.');
+            $this->setFlash('info', 'Payment credited', 'This payment has already been credited to your fee statement and is queued for SMIS sync.');
             return $this->redirect(['invoices']);
         }
 
         $reference = (string) ($invoice['source_reference'] ?: $invoice['trans_reference']);
         try {
-            $this->payments->queueForSettlementVerification($reference);
+            $statusPayload = $this->payments->queryPaymentStatus($reference);
         } catch (\Throwable $exception) {
-            EcitizenLogger::exception($this->id . '/complete-payment', $exception, null, ['reference' => $reference]);
-            $this->setFlash('danger', 'Could not queue this payment', 'Unable to queue this payment for verification. Please try again later.');
+            Yii::warning('eCitizen status query failed for invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            $this->setFlash('danger', 'Verification unavailable', 'Unable to verify this invoice with eCitizen at the moment. Please try again later.');
             return $this->redirect(['invoices']);
         }
 
-        $this->setFlash(
-            'success',
-            'Payment queued',
-            'Your payment has been queued for verification. It will be confirmed against eCitizen and credited to your fee statement shortly.'
-        );
+        if (!$this->payments->statusPayloadIsSettled($invoice, $statusPayload)) {
+            $remoteStatus = trim((string) ($statusPayload['status'] ?? 'unknown'));
+            $message = strtolower($remoteStatus) === 'pending'
+                ? 'Your payment is still being processed. Please try again shortly.'
+                : 'We could not confirm this payment yet. Please try again shortly.';
+            $this->setFlash('danger', 'Payment not ready', $message);
+            return $this->redirect(['invoices']);
+        }
+
+        try {
+            $this->payments->queuePaidRequestForSync(
+                $reference,
+                $this->payments->paidAmount($statusPayload) ?? (float) $invoice['deposit_amount'],
+                $this->payments->paymentDate($statusPayload),
+                $this->payments->gatewayReference($statusPayload, $reference),
+                $statusPayload
+            );
+        } catch (\Throwable $exception) {
+            Yii::error('Unable to queue eCitizen invoice ' . $reference . ': ' . $exception->getMessage(), 'ecitizen.payment');
+            $this->setFlash('danger', 'Crediting failed', 'eCitizen confirmed payment, but the fee statement credit failed. Please contact the administrator.');
+            return $this->redirect(['invoices']);
+        }
+
+        $this->setFlash('success', 'Payment credited', 'eCitizen confirmed the payment and credited your fee statement. SMIS posting will complete by sync.');
         return $this->redirect(['invoices']);
     }
 
@@ -684,12 +672,6 @@ final class PaymentController extends BaseController
             $options[$account['brank_account_id']] = implode(' - ', $labelParts);
         }
         return $options;
-    }
-
-    private function defaultSettlementBankAccountId(): ?string
-    {
-        $bankAccount = $this->payments->defaultCoopBankAccount();
-        return $bankAccount === null ? null : (string) $bankAccount['brank_account_id'];
     }
 
     private function ecitizenParams(): array
@@ -737,11 +719,19 @@ final class PaymentController extends BaseController
 
     private function publicExceptionMessage(\Throwable $exception, string $fallback): string
     {
-        EcitizenLogger::exception($this->id . '/' . ($this->action->id ?? 'unknown'), $exception);
-
         if ($exception instanceof HttpException && $exception->statusCode >= 400 && $exception->statusCode < 500) {
             return $exception->getMessage();
         }
+
+        Yii::error(
+            sprintf(
+                'eCitizen payment request failed: %s in %s:%d',
+                $exception->getMessage(),
+                $exception->getFile(),
+                $exception->getLine()
+            ),
+            'ecitizen.payment'
+        );
 
         return $fallback;
     }
