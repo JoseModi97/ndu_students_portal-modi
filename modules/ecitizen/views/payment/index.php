@@ -11,7 +11,6 @@ use kartik\select2\Select2;
  * @var bool $paymentModeReady
  * @var array $paymentTypes
  * @var array $bankAccounts
- * @var string|null $configuredBankAccountId
  * @var array $recentRequests
  */
 
@@ -184,12 +183,6 @@ JS);
                                 ],
                             ]) ?>
                         </div>
-
-                        <?php if (!empty($configuredBankAccountId)): ?>
-                            <?= Html::activeHiddenInput($model, 'bank_account_id', [
-                                'value' => $configuredBankAccountId,
-                            ]) ?>
-                        <?php endif; ?>
 
                         <?= Html::activeHiddenInput($model, 'narration') ?>
 

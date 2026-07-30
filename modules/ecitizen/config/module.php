@@ -28,8 +28,6 @@ return [
         'invoiceTokenKey' => $credentials['invoiceTokenKey'] ?? null,
         'serviceID' => $credentials['serviceID'] ?? '2798167',
         'url' => $credentials['url'] ?? 'https://payments.ecitizen.go.ke/PaymentAPI/iframev2.1.php',
-        'statusUrl' => $credentials['statusUrl'] ?? null,
-        'caBundlePath' => $credentials['caBundlePath'] ?? null,
         'callbackBaseUrl' => $callbackBaseUrl,
         'allowedGatewayHosts' => $credentials['allowedGatewayHosts'] ?? ['payments.ecitizen.go.ke'],
         'workflowReportEnabled' => (bool) ($credentials['workflowReportEnabled'] ?? false),
@@ -38,7 +36,6 @@ return [
         'enforceFeeBalance' => (bool) ($credentials['enforceFeeBalance'] ?? false),
         'currency' => $credentials['currency'] ?? 'KES',
         'pictureURL' => $credentials['pictureURL'] ?? '',
-        'bankAccountId' => $credentials['bankAccountId'] ?? null,
         'sendSTK' => (bool) ($credentials['sendSTK'] ?? false),
     ],
 ];

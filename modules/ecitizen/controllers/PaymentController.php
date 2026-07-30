@@ -149,12 +149,7 @@ final class PaymentController extends BaseController
     {
         $studentContext = $this->payments->resolveLoggedInStudent();
         $form = new PaymentForm();
-        $configuredBankAccountId = $this->configuredBankAccountId();
-        if (!empty($configuredBankAccountId)) {
-            $form->bank_account_id = (string) $configuredBankAccountId;
-        } else {
-            $form->bank_account_id = $this->defaultSettlementBankAccountId();
-        }
+        $form->bank_account_id = $this->defaultSettlementBankAccountId();
         $form->narration = PaymentForm::DEFAULT_NARRATION;
         $form->phone_number = $this->defaultPhoneNumber($studentContext);
 
@@ -165,7 +160,6 @@ final class PaymentController extends BaseController
             'paymentModeReady' => $this->payments->paymentModeExists(),
             'paymentTypes' => ArrayHelper::map($this->payments->paymentTypes(), 'payment_type_id', 'payment_desc'),
             'bankAccounts' => $this->bankAccountOptions(),
-            'configuredBankAccountId' => $configuredBankAccountId,
             'recentRequests' => $this->payments->recentRequests($studentContext['registrationNumber']),
         ]);
     }
@@ -180,20 +174,12 @@ final class PaymentController extends BaseController
         );
         $model = new PaymentForm();
         $studentContext = $this->payments->resolveLoggedInStudent();
-        $configuredBankAccountId = $this->configuredBankAccountId();
-
-        if (!empty($configuredBankAccountId)) {
-            $model->bank_account_id = (string) $configuredBankAccountId;
-        } else {
-            $model->bank_account_id = $this->defaultSettlementBankAccountId();
-        }
+        $model->bank_account_id = $this->defaultSettlementBankAccountId();
 
         $loaded = $model->load(Yii::$app->request->post());
-        if (!empty($configuredBankAccountId)) {
-            $model->bank_account_id = (string) $configuredBankAccountId;
-        } elseif (empty($model->bank_account_id)) {
-            $model->bank_account_id = $this->defaultSettlementBankAccountId();
-        }
+        // The settlement account is never trusted from client input - it is
+        // always resolved dynamically to the Co-operative Bank account.
+        $model->bank_account_id = $this->defaultSettlementBankAccountId();
         $model->narration = PaymentForm::DEFAULT_NARRATION;
 
         if (!$loaded || !$model->validate()) {
@@ -216,7 +202,6 @@ final class PaymentController extends BaseController
                 'paymentModeReady' => $this->payments->paymentModeExists(),
                 'paymentTypes' => ArrayHelper::map($this->payments->paymentTypes(), 'payment_type_id', 'payment_desc'),
                 'bankAccounts' => $this->bankAccountOptions(),
-                'configuredBankAccountId' => $configuredBankAccountId,
                 'recentRequests' => $this->payments->recentRequests($studentContext['registrationNumber']),
             ]);
         }
@@ -634,6 +619,13 @@ final class PaymentController extends BaseController
         }
     }
 
+    /**
+     * Does not call eCitizen itself - it only flags the payment as
+     * awaiting settlement (see PaymentService::queueForSettlementVerification())
+     * so it surfaces in the smis admin app's eCitizen settlement screen,
+     * which independently re-verifies against the real gateway before
+     * crediting anything.
+     */
     public function actionCompletePayment(string $trans_id): Response
     {
         $this->enforceRateLimit(
@@ -665,40 +657,17 @@ final class PaymentController extends BaseController
 
         $reference = (string) ($invoice['source_reference'] ?: $invoice['trans_reference']);
         try {
-            $statusPayload = $this->payments->queryPaymentStatus($reference);
+            $this->payments->queueForSettlementVerification($reference);
         } catch (\Throwable $exception) {
             EcitizenLogger::exception($this->id . '/complete-payment', $exception, null, ['reference' => $reference]);
-            $this->setFlash('danger', 'Verification unavailable', 'Unable to verify this invoice with eCitizen at the moment. Please try again later.');
-            return $this->redirect(['invoices']);
-        }
-
-        if (!$this->payments->statusPayloadIsSettled($invoice, $statusPayload)) {
-            $remoteStatus = trim((string) ($statusPayload['status'] ?? 'unknown'));
-            $message = strtolower($remoteStatus) === 'pending'
-                ? 'Your payment is still being processed. Please try again shortly.'
-                : 'We could not confirm this payment yet. Please try again shortly.';
-            $this->setFlash('danger', 'Payment not ready', $message);
-            return $this->redirect(['invoices']);
-        }
-
-        try {
-            $this->payments->queuePaidRequestForSync(
-                $reference,
-                $this->payments->paidAmount($statusPayload) ?? (float) $invoice['deposit_amount'],
-                $this->payments->paymentDate($statusPayload),
-                $this->payments->gatewayReference($statusPayload, $reference),
-                $statusPayload
-            );
-        } catch (\Throwable $exception) {
-            EcitizenLogger::exception($this->id . '/complete-payment', $exception, null, ['reference' => $reference]);
-            $this->setFlash('danger', 'Confirmation failed', 'eCitizen confirmed payment, but recording that confirmation failed. Please contact the administrator.');
+            $this->setFlash('danger', 'Could not queue this payment', 'Unable to queue this payment for verification. Please try again later.');
             return $this->redirect(['invoices']);
         }
 
         $this->setFlash(
             'success',
-            'Payment confirmed',
-            'eCitizen confirmed the payment. It has been queued and will be credited to your fee statement shortly.'
+            'Payment queued',
+            'Your payment has been queued for verification. It will be confirmed against eCitizen and credited to your fee statement shortly.'
         );
         return $this->redirect(['invoices']);
     }
@@ -715,25 +684,6 @@ final class PaymentController extends BaseController
             $options[$account['brank_account_id']] = implode(' - ', $labelParts);
         }
         return $options;
-    }
-
-    private function configuredBankAccountId(): ?string
-    {
-        $configuredBankAccountId = $this->ecitizenParams()['bankAccountId'] ?? null;
-        if (empty($configuredBankAccountId)) {
-            return null;
-        }
-
-        $bankAccount = $this->payments->findBankAccount((int) $configuredBankAccountId);
-        if ($bankAccount === null) {
-            EcitizenLogger::warning(
-                'Ignoring invalid eCitizen configured bankAccountId',
-                ['bankAccountId' => $configuredBankAccountId]
-            );
-            return null;
-        }
-
-        return (string) $configuredBankAccountId;
     }
 
     private function defaultSettlementBankAccountId(): ?string

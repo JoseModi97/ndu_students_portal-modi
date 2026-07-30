@@ -7,6 +7,4 @@ return [
     'invoiceTokenKey' => 'w0nflOa+Vr1dRMB1dx2aB1+CJY210Mpb5yMdUgtQJZ5gBZaw/wapI1bnRNleBJ8g',
     'serviceID' => '235916',
     'url' => 'https://payments.ecitizen.go.ke/PaymentAPI/iframev2.1.php',
-    'statusUrl' => 'https://payments.ecitizen.go.ke/api/invoice/payment/status',
-    'bankAccountId' => '11',
 ];

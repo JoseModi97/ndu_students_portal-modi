@@ -105,7 +105,7 @@ document.addEventListener('submit', function (event) {
         return;
     }
 
-    const message = form.getAttribute('data-confirm') || 'Check eCitizen and credit this payment if confirmed?';
+    const message = form.getAttribute('data-confirm') || 'Queue this payment for verification and credit it once confirmed?';
     if (!window.confirm(message)) {
         event.preventDefault();
         return;
@@ -115,7 +115,7 @@ document.addEventListener('submit', function (event) {
     if (button) {
         button.classList.add('is-loading');
         button.disabled = true;
-        button.textContent = 'Checking...';
+        button.textContent = 'Queuing...';
     }
 }, true);
 JS);
@@ -285,7 +285,7 @@ $select2FilterOptions = static function (string $placeholder): array {
                                     ])
                                         . Html::beginForm(['complete-payment', 'trans_id' => $invoice['trans_id_token']], 'post', [
                                             'class' => 'ecitizen-complete-payment-form',
-                                            'data-confirm' => 'Check eCitizen for this invoice and credit it only if payment is confirmed?',
+                                            'data-confirm' => 'Queue this payment for verification and credit it once confirmed?',
                                         ])
                                         . Html::submitButton('Complete payment', [
                                             'class' => 'btn btn-outline-success btn-sm ecitizen-complete-payment-btn',

@@ -2,7 +2,6 @@
 
 namespace app\modules\ecitizen\models\forms;
 
-use app\modules\ecitizen\models\BankAccount;
 use Yii;
 use yii\base\Model;
 
@@ -19,8 +18,7 @@ class PaymentForm extends Model
     public function rules(): array
     {
         return [
-            [['amount', 'payment_type_id', 'narration', 'phone_number'], 'required'],
-            [['bank_account_id'], 'required', 'when' => fn () => empty($this->configuredBankAccountId())],
+            [['amount', 'payment_type_id', 'bank_account_id', 'narration', 'phone_number'], 'required'],
             [['amount'], 'match', 'pattern' => '/^\d+(?:\.\d{1,2})?$/', 'message' => 'Amount must be a positive number with no more than two decimal places.'],
             [['amount'], 'number', 'min' => 1, 'max' => $this->maxPaymentAmount()],
             [['payment_type_id', 'bank_account_id'], 'integer', 'min' => 1],
@@ -40,21 +38,6 @@ class PaymentForm extends Model
             'narration' => 'Narration',
             'phone_number' => 'Phone number',
         ];
-    }
-
-    private function configuredBankAccountId(): ?string
-    {
-        $module = Yii::$app->getModule('ecitizen');
-        $configuredBankAccountId = $module->ecitizenParams()['bankAccountId'] ?? null;
-        if (empty($configuredBankAccountId)) {
-            return null;
-        }
-
-        return BankAccount::find()
-            ->where(['brank_account_id' => (int) $configuredBankAccountId])
-            ->exists()
-            ? (string) $configuredBankAccountId
-            : null;
     }
 
     public function maxPaymentAmount(): float

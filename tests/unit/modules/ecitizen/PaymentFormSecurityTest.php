@@ -13,7 +13,6 @@ class PaymentFormSecurityTest extends Unit
         Yii::$app->setModule('ecitizen', [
             'class' => 'app\modules\ecitizen\Module',
             'params' => [
-                'bankAccountId' => '51',
                 'maxPaymentAmount' => 99999999.99,
             ],
         ]);

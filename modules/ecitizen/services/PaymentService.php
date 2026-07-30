@@ -32,12 +32,8 @@ class PaymentService
     public const SYNC_PENDING = 0;
     public const SYNC_DONE = 1;
     public const SYNC_FAILED = 2;
-    public const RECONCILIATION_CONFIRMED = 'confirmed';
-    public const RECONCILIATION_REVIEW_REQUIRED = 'review_required';
-    public const RECONCILIATION_UNKNOWN = 'unknown';
-    private const REMOTE_SETTLED_STATUSES = ['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'];
-    private const REMOTE_REVERSAL_STATUSES = ['REVERSED', 'REFUNDED', 'REVERSE', 'REFUND'];
     private const PORTAL_ECITIZEN_TRANS_ID_OFFSET = 900000000000;
+    private const SETTLEMENT_BANK_NAME = 'CO-OPERATIVE BANK OF KENYA LIMITED';
 
     private Connection $db;
 
@@ -474,23 +470,12 @@ class PaymentService
     public function defaultCoopBankAccount(): ?array
     {
         foreach ($this->bankAccounts() as $account) {
-            $label = implode(' ', array_filter([
-                $account['bank_name'] ?? null,
-                $account['account_details'] ?? null,
-                $account['account_no'] ?? null,
-            ]));
-
-            if ($this->isCoopBankAccountLabel($label)) {
+            if (strtoupper(trim((string) ($account['bank_name'] ?? ''))) === self::SETTLEMENT_BANK_NAME) {
                 return $account;
             }
         }
 
         return null;
-    }
-
-    private function isCoopBankAccountLabel(string $label): bool
-    {
-        return preg_match('/\bco[-\s]?op(?:erative)?\b|\bco[-\s]?operative\b/i', $label) === 1;
     }
 
     public function recentRequests(string $registrationNumber): array
@@ -933,6 +918,52 @@ class PaymentService
         }
     }
 
+    /**
+     * Marks a payment as awaiting settlement without ever calling the
+     * eCitizen gateway from this app: the student self-reports via
+     * "Complete payment" that eCitizen confirmed it, which only flips
+     * smisportal.ecitizen.status to 'Paid' - a candidate status the smis
+     * admin app's EcitizenSettlementController/EcitizenPaymentSettlementService
+     * already queries (Ecitizen::CONFIRMED_STATUSES) and independently
+     * re-verifies against the real eCitizen gateway (see
+     * EcitizenPaymentSyncService::verifyAgainstGateway()) before crediting
+     * either side. Idempotent: a request already Paid/Credited/Settled is
+     * left untouched.
+     */
+    public function queueForSettlementVerification(string $reference): array
+    {
+        $portalDb = $this->portalDb();
+        $transaction = $portalDb->beginTransaction();
+        try {
+            $request = Ecitizen::find()
+                ->where(['billRefNumber' => $reference])
+                ->orderBy(['payment_id' => SORT_DESC])
+                ->asArray()
+                ->one($portalDb);
+
+            if (!$request) {
+                throw new NotFoundHttpException('Payment request not found.');
+            }
+
+            $currentStatus = (string) ($request['status'] ?? '');
+            if (in_array($currentStatus, ['Paid', 'Credited', 'Settled'], true)) {
+                $transaction->rollBack();
+                return ['payment_id' => (int) $request['payment_id'], 'reference' => $reference];
+            }
+
+            $this->lockPosting($portalDb, $reference);
+            $this->allowEcitizenWrite($portalDb);
+            Ecitizen::updateAll(['status' => 'Paid'], ['payment_id' => $request['payment_id']]);
+
+            $transaction->commit();
+
+            return ['payment_id' => (int) $request['payment_id'], 'reference' => $reference];
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
+        }
+    }
+
     public function pendingPaidRequestsForSync(int $limit = 50): array
     {
         return Ecitizen::find()
@@ -942,159 +973,6 @@ class PaymentService
             ->limit(max(1, $limit))
             ->asArray()
             ->all($this->portalDb());
-    }
-
-    public function settledRequestsForReconciliation(int $limit = 100, int $minimumIntervalMinutes = 60): array
-    {
-        $limit = max(1, min($limit, 1000));
-        $minimumIntervalMinutes = max(1, min($minimumIntervalMinutes, 10080));
-
-        $cutoff = (new \DateTimeImmutable())->modify('-' . $minimumIntervalMinutes . ' minutes')->format('Y-m-d H:i:s');
-
-        return Ecitizen::find()
-            ->where(['status' => 'Settled'])
-            ->andWhere([
-                'or',
-                ['last_status_checked_at' => null],
-                ['<=', 'last_status_checked_at', $cutoff],
-            ])
-            ->orderBy(['last_status_checked_at' => SORT_ASC, 'payment_id' => SORT_ASC])
-            ->limit($limit)
-            ->asArray()
-            ->all($this->portalDb());
-    }
-
-    public function reconcileSettledRequest(array $request): array
-    {
-        $reference = trim((string) ($request['billRefNumber'] ?? ''));
-        if ($reference === '') {
-            throw new \InvalidArgumentException('The settled eCitizen row has no bill reference.');
-        }
-
-        $payload = $this->queryPaymentStatus($reference);
-        $classification = $this->classifyReconciliationPayload($request, $payload);
-        $remoteStatus = $classification['remote_status'];
-        $reconciliationStatus = $classification['reconciliation_status'];
-
-        $portalDb = $this->portalDb();
-        $transaction = $portalDb->beginTransaction();
-        try {
-            $this->lockPosting($portalDb, $reference);
-            $currentReconciliationStatus = (string) Ecitizen::find()
-                ->select('reconciliation_status')
-                ->where([
-                    'payment_id' => (int) $request['payment_id'],
-                    'status' => 'Settled',
-                ])
-                ->forUpdate()
-                ->scalar($portalDb);
-            if ($currentReconciliationStatus === self::RECONCILIATION_REVIEW_REQUIRED) {
-                // A confirmed reversal is a sticky audit condition and must be cleared manually.
-                $reconciliationStatus = self::RECONCILIATION_REVIEW_REQUIRED;
-            }
-
-            $this->allowEcitizenWrite($portalDb);
-
-            $attributes = [
-                'remote_status' => $remoteStatus !== '' ? substr($remoteStatus, 0, 32) : null,
-                'reconciliation_status' => $reconciliationStatus,
-                'last_status_checked_at' => date('Y-m-d H:i:s'),
-                'status_check_error' => null,
-                'last_status_response' => json_encode($payload, JSON_UNESCAPED_SLASHES),
-            ];
-            if ($reconciliationStatus === self::RECONCILIATION_REVIEW_REQUIRED) {
-                $attributes['reversal_detected_at'] = date('Y-m-d H:i:s');
-            }
-
-            Ecitizen::updateAll($attributes, [
-                'payment_id' => (int) $request['payment_id'],
-                'status' => 'Settled',
-            ]);
-            $transaction->commit();
-        } catch (\Throwable $exception) {
-            $transaction->rollBack();
-            throw $exception;
-        }
-
-        return [
-            'reference' => $reference,
-            'remote_status' => $remoteStatus,
-            'reconciliation_status' => $reconciliationStatus,
-        ];
-    }
-
-    public function classifyReconciliationPayload(array $request, array $payload): array
-    {
-        $remoteStatus = strtoupper(trim((string) ($payload['status'] ?? $payload['payment_status'] ?? '')));
-        $reconciliationStatus = self::RECONCILIATION_UNKNOWN;
-
-        if (in_array($remoteStatus, self::REMOTE_SETTLED_STATUSES, true)
-            && $this->statusPayloadMatchesReconciliationRequest($request, $payload, true)
-        ) {
-            $reconciliationStatus = self::RECONCILIATION_CONFIRMED;
-        } elseif (in_array($remoteStatus, self::REMOTE_REVERSAL_STATUSES, true)
-            && $this->statusPayloadMatchesReconciliationRequest($request, $payload, true)
-        ) {
-            $reconciliationStatus = self::RECONCILIATION_REVIEW_REQUIRED;
-        }
-
-        return [
-            'remote_status' => $remoteStatus,
-            'reconciliation_status' => $reconciliationStatus,
-        ];
-    }
-
-    public function markReconciliationFailed(int $paymentId, string $message): void
-    {
-        $portalDb = $this->portalDb();
-        $transaction = $portalDb->beginTransaction();
-        try {
-            $this->allowEcitizenWrite($portalDb);
-            Ecitizen::updateAll([
-                'last_status_checked_at' => date('Y-m-d H:i:s'),
-                'status_check_error' => substr($message, 0, 1000),
-            ], [
-                'payment_id' => $paymentId,
-                'status' => 'Settled',
-            ]);
-            $transaction->commit();
-        } catch (\Throwable $exception) {
-            $transaction->rollBack();
-            EcitizenLogger::exception('ecitizen/reconciliation', $exception, null, ['payment_id' => $paymentId]);
-        }
-    }
-
-    private function statusPayloadMatchesReconciliationRequest(
-        array $request,
-        array $payload,
-        bool $requireAmount
-    ): bool {
-        $reference = trim((string) (
-            $payload['client_invoice_ref']
-            ?? $payload['ref_no']
-            ?? $payload['billRefNumber']
-            ?? ''
-        ));
-        if ($reference === '' || !hash_equals((string) $request['billRefNumber'], $reference)) {
-            return false;
-        }
-
-        if (!$requireAmount) {
-            return true;
-        }
-
-        $amount = $this->paidAmount($payload);
-        if ($amount === null) {
-            foreach (['reversed_amount', 'refund_amount', 'amount_reversed', 'amount_refunded'] as $field) {
-                if (isset($payload[$field]) && trim((string) $payload[$field]) !== '') {
-                    $amount = round((float) $payload[$field], 2);
-                    break;
-                }
-            }
-        }
-
-        return $amount !== null
-            && abs($amount - round((float) $request['amountExpected'], 2)) <= 0.01;
     }
 
     public function markSyncFailed(string $reference, string $message): void
@@ -1193,9 +1071,6 @@ class PaymentService
         }
 
         $this->assertTrustedHttpsUrl((string) $config['url'], 'eCitizen gateway URL');
-        if (!empty($config['statusUrl'])) {
-            $this->assertTrustedHttpsUrl((string) $config['statusUrl'], 'eCitizen status URL');
-        }
         $this->assertTrustedHttpsUrl((string) ($config['callbackBaseUrl'] ?? ''), 'eCitizen callback base URL');
 
         return $config;
@@ -1651,76 +1526,6 @@ class PaymentService
         return number_format($amount, 2, '.', '');
     }
 
-    public function queryPaymentStatus(string $reference): array
-    {
-        $config = $this->gatewayConfig();
-        $apiClientId = (string) $config['apiClientID'];
-        $secureHash = base64_encode(hash_hmac('sha256', $apiClientId . $reference, (string) $config['apiKey']));
-        $url = $this->paymentStatusUrl($config);
-        $payload = [
-            'api_client_id' => $apiClientId,
-            'ref_no' => $reference,
-            'secure_hash' => $secureHash,
-        ];
-
-        $body = $this->requestJson($url, $payload);
-        $decoded = json_decode($body, true);
-        if (!is_array($decoded)) {
-            throw new \RuntimeException('eCitizen returned a non-JSON status response.');
-        }
-
-        return $decoded;
-    }
-
-    public function statusPayloadIsSettled(array $invoice, array $payload): bool
-    {
-        $status = strtolower(trim((string) ($payload['status'] ?? '')));
-        if ($status !== 'settled') {
-            return false;
-        }
-
-        $reference = trim((string) ($payload['client_invoice_ref'] ?? $payload['ref_no'] ?? ''));
-        $expectedReference = (string) ($invoice['source_reference'] ?: $invoice['trans_reference']);
-        if ($reference !== '' && $reference !== $expectedReference) {
-            return false;
-        }
-
-        $paidAmount = $this->paidAmount($payload);
-        if ($paidAmount === null) {
-            return false;
-        }
-
-        return abs($paidAmount - round((float) $invoice['deposit_amount'], 2)) <= 0.01;
-    }
-
-    public function paidAmount(array $payload): ?float
-    {
-        foreach (['amount_paid', 'amountPaid', 'paid_amount', 'amount'] as $field) {
-            if (isset($payload[$field]) && trim((string) $payload[$field]) !== '') {
-                return round((float) $payload[$field], 2);
-            }
-        }
-
-        return null;
-    }
-
-    public function paymentDate(array $payload): string
-    {
-        $paymentDate = self::normalizePaymentDate(
-            (string) ($payload['payment_date'] ?? $payload['paymentDate'] ?? '')
-        );
-        if ($paymentDate === '') {
-            throw new \RuntimeException('eCitizen returned an invalid payment date.');
-        }
-
-        return $paymentDate;
-    }
-
-    public function gatewayReference(array $payload, string $fallback): string
-    {
-        return (string) ($payload['invoice_number'] ?? $payload['invoiceNumber'] ?? $payload['transaction_id'] ?? $payload['trans_reference'] ?? $fallback);
-    }
-
     private function paymentTypeDescription(array $slip): string
     {
         $paymentTypeId = $slip['payment_type_id'] ?? $slip['deposit_type'] ?? null;
@@ -1737,20 +1542,6 @@ class PaymentService
         }
 
         return 'eCitizen student fee payment';
-    }
-
-    private function paymentStatusUrl(array $config): string
-    {
-        if (!empty($config['statusUrl'])) {
-            return (string) $config['statusUrl'];
-        }
-
-        $parts = parse_url((string) $config['url']);
-        if (empty($parts['scheme']) || empty($parts['host'])) {
-            return 'https://payments.ecitizen.go.ke/api/invoice/payment/status';
-        }
-
-        return $parts['scheme'] . '://' . $parts['host'] . '/api/invoice/payment/status';
     }
 
     private function callbackUrl(string $route): string
@@ -1776,92 +1567,4 @@ class PaymentService
         }
     }
 
-    private function requestJson(string $url, array $payload): string
-    {
-        $queryUrl = $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($payload);
-        if (function_exists('curl_init')) {
-            $ch = curl_init($queryUrl);
-            curl_setopt_array($ch, [
-                CURLOPT_HTTPGET => true,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_TIMEOUT => 45,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
-            ]);
-            $caBundlePath = $this->caBundlePath();
-            if ($caBundlePath !== null) {
-                curl_setopt($ch, CURLOPT_CAINFO, $caBundlePath);
-            }
-
-            $body = curl_exec($ch);
-            if ($body === false) {
-                $message = curl_error($ch);
-                curl_close($ch);
-                throw new \RuntimeException('Unable to connect to eCitizen status endpoint: ' . $message);
-            }
-
-            $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($statusCode < 200 || $statusCode >= 300) {
-                throw new \RuntimeException('eCitizen status endpoint returned HTTP ' . $statusCode . '.');
-            }
-            if (strlen((string) $body) > 1048576) {
-                throw new \RuntimeException('eCitizen status endpoint returned an oversized response.');
-            }
-
-            return (string) $body;
-        }
-
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => "Accept: application/json\r\n",
-                'ignore_errors' => true,
-                'follow_location' => 0,
-                'max_redirects' => 0,
-                'timeout' => 45,
-            ],
-            'ssl' => array_filter([
-                'cafile' => $this->caBundlePath(),
-                'verify_peer' => true,
-                'verify_peer_name' => true,
-            ]),
-        ]);
-        $body = @file_get_contents($queryUrl, false, $context);
-        if ($body === false) {
-            throw new \RuntimeException('Unable to connect to eCitizen status endpoint.');
-        }
-        $statusLine = (string) (($http_response_header ?? [])[0] ?? '');
-        if (!preg_match('/\s2\d{2}\s/', $statusLine)) {
-            throw new \RuntimeException('eCitizen status endpoint returned an unsuccessful response.');
-        }
-        if (strlen($body) > 1048576) {
-            throw new \RuntimeException('eCitizen status endpoint returned an oversized response.');
-        }
-
-        return $body;
-    }
-
-    private function caBundlePath(): ?string
-    {
-        $configuredPath = $this->params()['caBundlePath'] ?? null;
-        $candidates = array_filter([
-            $configuredPath,
-            'C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt',
-            'C:/Program Files/Git/usr/ssl/certs/ca-bundle.crt',
-            ini_get('curl.cainfo') ?: null,
-            ini_get('openssl.cafile') ?: null,
-        ]);
-
-        foreach ($candidates as $path) {
-            if (is_string($path) && is_file($path)) {
-                return $path;
-            }
-        }
-
-        return null;
-    }
 }
