@@ -125,7 +125,7 @@ JS);
     <div class="container-fluid">
         <?php if (!$paymentModeReady): ?>
             <div class="alert alert-danger">
-                eCitizen payment mode 12 is not configured in SMIS.
+                eCitizen payment mode 12 is not configured in the portal database.
             </div>
         <?php endif; ?>
 
@@ -172,13 +172,22 @@ JS);
                                 'allowClear' => true,
                             ],
                         ]) ?>
+                        <div style="display:none;">
+                            <?= $form->field($model, 'bank_account_id')->widget(Select2::class, [
+                                'data' => $bankAccounts,
+                                'options' => [
+                                    'placeholder' => 'Select eCitizen settlement account',
+                                    'required' => true,
+                                ],
+                                'pluginOptions' => [
+                                    'allowClear' => true,
+                                ],
+                            ]) ?>
+                        </div>
 
                         <?php if (!empty($configuredBankAccountId)): ?>
-                            <?= Html::activeHiddenInput($model, 'bank_account_id') ?>
-                        <?php else: ?>
-                            <?= $form->field($model, 'bank_account_id')->dropDownList($bankAccounts, [
-                                'prompt' => 'Select eCitizen settlement account',
-                                'required' => true,
+                            <?= Html::activeHiddenInput($model, 'bank_account_id', [
+                                'value' => $configuredBankAccountId,
                             ]) ?>
                         <?php endif; ?>
 

@@ -2,6 +2,7 @@
 
 namespace app\modules\ecitizen\models\forms;
 
+use app\modules\ecitizen\models\BankAccount;
 use Yii;
 use yii\base\Model;
 
@@ -44,7 +45,16 @@ class PaymentForm extends Model
     private function configuredBankAccountId(): ?string
     {
         $module = Yii::$app->getModule('ecitizen');
-        return $module->ecitizenParams()['bankAccountId'] ?? null;
+        $configuredBankAccountId = $module->ecitizenParams()['bankAccountId'] ?? null;
+        if (empty($configuredBankAccountId)) {
+            return null;
+        }
+
+        return BankAccount::find()
+            ->where(['brank_account_id' => (int) $configuredBankAccountId])
+            ->exists()
+            ? (string) $configuredBankAccountId
+            : null;
     }
 
     public function maxPaymentAmount(): float

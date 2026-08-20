@@ -8,8 +8,8 @@ return [
     'serviceID' => '2798167',
     'url' => 'https://payments.ecitizen.go.ke/PaymentAPI/iframev2.1.php',
     'statusUrl' => 'https://payments.ecitizen.go.ke/api/invoice/payment/status',
-    'callbackBaseUrl' => 'https://smisportalndudev.uonbi.ac.ke',
-    'allowedPortalHosts' => ['smisportalndudev.uonbi.ac.ke'],
+    // May instead be supplied as ECITIZEN_CALLBACK_BASE_URL.
+    'callbackBaseUrl' => 'https://portal.example.ac.ke',
     'allowedGatewayHosts' => ['payments.ecitizen.go.ke'],
     'workflowReportEnabled' => false,
     'invoiceTokenTtl' => 900,
@@ -18,7 +18,7 @@ return [
     'caBundlePath' => null,
     'currency' => 'KES',
     'pictureURL' => '',
-    // Optional: set this to a valid smis.fss_bank_accounts.brank_account_id to hide the selector.
+    // Optional: set this to a valid smisportal.fss_bank_accounts.brank_account_id to hide the selector.
     'bankAccountId' => null,
     'sendSTK' => false,
 ];
