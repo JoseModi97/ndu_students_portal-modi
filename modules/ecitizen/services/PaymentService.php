@@ -1850,10 +1850,15 @@ class PaymentService
         $configuredPath = $this->params()['caBundlePath'] ?? null;
         $candidates = array_filter([
             $configuredPath,
-            'C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt',
-            'C:/Program Files/Git/usr/ssl/certs/ca-bundle.crt',
             ini_get('curl.cainfo') ?: null,
             ini_get('openssl.cafile') ?: null,
+            // Windows dev environments (Git for Windows ships its own CA bundle).
+            'C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt',
+            'C:/Program Files/Git/usr/ssl/certs/ca-bundle.crt',
+            // Common Linux production locations.
+            '/etc/ssl/certs/ca-certificates.crt',
+            '/etc/pki/tls/certs/ca-bundle.crt',
+            '/etc/ssl/cert.pem',
         ]);
 
         foreach ($candidates as $path) {
