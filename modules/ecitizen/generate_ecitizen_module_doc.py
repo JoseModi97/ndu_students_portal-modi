@@ -369,7 +369,7 @@ def document_body() -> str:
             ["migrations/m260518_000001_create_ecitizen_payment_tables.php", "Creates eCitizen tables and write-guard triggers in portal and SMIS schemas."],
             ["migrations/m260602_000001_add_ecitizen_sync_columns.php", "Adds paid amount/date/reference and sync status columns."],
             ["migrations/m260704_000001_add_ecitizen_reconciliation_columns.php", "Adds remote status and reconciliation audit columns."],
-            ["modules/ecitizen/NDU SERVICE CODES.xlsx", "Workbook used as the service-code catalog; smisportal.fss_payment_types rows are matched by description against it (read-only, never seeded/written)."],
+            ["modules/ecitizen/NDU SERVICE CODES.xlsx", "Workbook used as the service-code catalog; payment type IDs are taken from its service code list."],
         ],
         [3200, 6200],
     ))
@@ -510,7 +510,6 @@ def document_body() -> str:
             ["smisportal.org_academic_session", "Read", "Builds progress_code from registration number and academic session name."],
             ["smisportal.fss_fee_transactions", "Read/write", "Student-facing portal fee statement CR entry created immediately after confirmed payment."],
             ["smisportal.fss_fee_payments", "Read/write", "Portal payment record tied to the portal fee transaction when collection point is available."],
-            ["smisportal.fss_payment_types", "Read", "Payment type dropdown; rows matched by description against the NDU service codes workbook (never seeded/written)."],
         ],
         [3100, 1600, 4700],
     ))
@@ -524,6 +523,7 @@ def document_body() -> str:
             ["smis.sm_student_sem_session_progress", "Read", "Optional student semester session ID for SMIS fee transaction."],
             ["smis.org_academic_session", "Read", "Builds SMIS progress_code."],
             ["smis.fss_payment_modes", "Read", "Validates eCitizen payment mode 12."],
+            ["smis.fss_payment_types", "Read", "Loads configured service/payment types and payment descriptions."],
             ["smis.fss_bank_accounts / fss_bank_branches / fss_banks", "Read", "Settlement account and collection point metadata."],
             ["smis.fss_banking_slips", "Read/write", "SMIS banking slip created or updated by sync job; marked POSTED with receipt and gateway reference."],
             ["smis.fss_fee_transactions", "Read/write", "SMIS fee ledger CR entry tied to the banking slip trans_id."],

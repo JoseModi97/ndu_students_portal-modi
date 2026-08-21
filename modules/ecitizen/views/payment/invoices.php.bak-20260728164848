@@ -1,6 +1,7 @@
 <?php
 
 use kartik\grid\GridView;
+use kartik\growl\GrowlAsset;
 use yii\bootstrap5\Html;
 
 /**
@@ -11,6 +12,11 @@ use yii\bootstrap5\Html;
  * @var array $invoiceFilterOptions
  */
 
+// The Complete-payment button shows its result via the same growl notification
+// flashes use elsewhere, but as a plain AJAX response rather than a stored
+// session flash, so the plugin JS must be guaranteed to load on this page
+// even when there is no server-rendered flash to trigger it.
+GrowlAsset::register($this);
 
 $this->title = $title;
 $this->registerCss(<<<CSS
@@ -99,24 +105,106 @@ timestampPopoverTriggerList.forEach(function (popoverTriggerEl) {
 });
 */
 
+const ecitizenGrowlMap = {
+    success: {type: 'success', fallbackTitle: 'Well done!', icon: 'fas fa-check-circle'},
+    danger: {type: 'danger', fallbackTitle: 'Oh snap!', icon: 'fas fa-times-circle'},
+    error: {type: 'danger', fallbackTitle: 'Oh snap!', icon: 'fas fa-times-circle'},
+    warning: {type: 'warning', fallbackTitle: 'Heads up!', icon: 'fas fa-exclamation-triangle'},
+    info: {type: 'info', fallbackTitle: 'Notice', icon: 'fas fa-info-circle'}
+};
+
+function ecitizenNotify(kind, title, message) {
+    const cfg = ecitizenGrowlMap[kind] || ecitizenGrowlMap.info;
+    if (window.jQuery && jQuery.notify) {
+        jQuery.notify({
+            icon: cfg.icon,
+            title: title || cfg.fallbackTitle,
+            message: message
+        }, {
+            type: cfg.type,
+            icon_type: 'class',
+            showProgressbar: false,
+            placement: {from: 'bottom', align: 'right'}
+        });
+    } else {
+        window.alert((title || cfg.fallbackTitle) + ': ' + message);
+    }
+}
+
 document.addEventListener('submit', function (event) {
     const form = event.target;
     if (!form.classList || !form.classList.contains('ecitizen-complete-payment-form')) {
         return;
     }
 
+    event.preventDefault();
+
     const message = form.getAttribute('data-confirm') || 'Check eCitizen and credit this payment if confirmed?';
     if (!window.confirm(message)) {
-        event.preventDefault();
         return;
     }
 
     const button = form.querySelector('.ecitizen-complete-payment-btn');
+    const originalLabel = button ? button.textContent : 'Complete payment';
     if (button) {
         button.classList.add('is-loading');
         button.disabled = true;
         button.textContent = 'Checking...';
     }
+
+    const restoreButton = function () {
+        if (button) {
+            button.classList.remove('is-loading');
+            button.disabled = false;
+            button.textContent = originalLabel;
+        }
+    };
+    const startedAt = new Date().toISOString();
+
+    jQuery.ajax({
+        url: form.getAttribute('action'),
+        type: 'POST',
+        dataType: 'json',
+        data: jQuery(form).serialize()
+    }).done(function (data) {
+        const outcome = data || {};
+        console.log('[eCitizen] complete-payment result: ' + (outcome.success ? 'SUCCESS' : 'FAILED') + ' - ' + (outcome.message || '(no message)'), {
+            startedAt: startedAt,
+            finishedAt: new Date().toISOString(),
+            success: !!outcome.success,
+            stage: outcome.stage || null,
+            reference: outcome.reference || null,
+            remoteStatus: outcome.remoteStatus || null,
+            title: outcome.title || null,
+            message: outcome.message || null,
+            response: outcome
+        });
+
+        ecitizenNotify(outcome.type || (outcome.success ? 'success' : 'danger'), outcome.title, outcome.message || 'Unexpected response from the server.');
+
+        if (outcome.success) {
+            const container = form.closest('.ecitizen-action-buttons');
+            if (container) {
+                container.innerHTML = '<span class="text-muted">Credited</span>';
+            }
+            return;
+        }
+
+        restoreButton();
+    }).fail(function (jqXHR) {
+        const outcome = jqXHR.responseJSON || null;
+        console.log('[eCitizen] complete-payment request failed: HTTP ' + jqXHR.status + ' ' + jqXHR.statusText, {
+            startedAt: startedAt,
+            finishedAt: new Date().toISOString(),
+            httpStatus: jqXHR.status,
+            statusText: jqXHR.statusText,
+            response: outcome,
+            responseText: jqXHR.responseText
+        });
+
+        ecitizenNotify('danger', outcome ? outcome.title : null, (outcome && outcome.message) || 'Unable to reach the server. Please try again later.');
+        restoreButton();
+    });
 }, true);
 JS);
 
@@ -274,6 +362,10 @@ $select2FilterOptions = static function (string $placeholder): array {
                             'filter' => $invoiceFilterOptions['action_status'],
                             'filterWidgetOptions' => $select2FilterOptions('All actions'),
                             'value' => static function (array $invoice): string {
+                                if ($invoice['action_status'] === 'Sync pending') {
+                                    return Html::tag('span', Html::encode($invoice['action_status']), ['class' => 'badge bg-warning text-dark']);
+                                }
+
                                 if ($invoice['action_status'] !== 'Pending action') {
                                     return Html::tag('span', Html::encode($invoice['action_status']), ['class' => 'text-muted']);
                                 }

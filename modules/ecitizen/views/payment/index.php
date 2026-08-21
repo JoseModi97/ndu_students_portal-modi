@@ -172,7 +172,7 @@ JS);
                                 'allowClear' => true,
                             ],
                         ]) ?>
-                        <div style="display:none;">
+                        <div style="display:none">
                             <?= $form->field($model, 'bank_account_id')->widget(Select2::class, [
                                 'data' => $bankAccounts,
                                 'options' => [
